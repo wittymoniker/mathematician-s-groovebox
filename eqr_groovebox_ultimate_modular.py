@@ -147,6 +147,8 @@ class GrooveboxEngine:
 
         self.active_fx_modules = ["Cloud Granulator 1", "Spectral Phase Shifter", "Nonlinear Wavefolder", "Feedback Delay", "Quantum Resonator"]
         self.active_sequencer_modules = ["Master Sequencer Lane 1", "Rhythmic Gate Generator 1", "Polyphonic Arpeggiator 1", "Stochastic Probability Matrix"]
+        self.active_drum_kits = ["Kick Matrix 808", "Snare Divergence Engine", "Hi-Hat Noise Burst", "Percussion Cluster"]
+        self.active_synth_panels = ["Master Equation Polynomial Synthesizer", "Eskibrutus Vectoreski Synth 1"]
 
         self.automation_patterns = {
             "Default Filter Sweep": [0.0, 25.0, 50.0, 85.0, 100.0, 75.0, 40.0, 10.0],
@@ -238,11 +240,12 @@ class GrooveboxEngine:
             del self.playlist_clips[(track, bar_pos)]
 
     def randomize_song(self):
-        """Randomizes equations, wavetables, knobs, patchbay cables, and dynamic modules for full composition."""
+        """Randomizes equations, wavetables, knobs, synth panels, drum machines, vector setups, patchbay cables, and dynamic modules for full composition."""
         self.playlist_clips.clear()
         GLOBAL_BUS.clear_all()
         self.randomize_synth_routing()
 
+        # Randomize active FX, sequencers, drum kits, and synth panels
         possible_fx = [
             "Cloud Granulator 1", "Cloud Granulator 2", "Spectral Phase Shifter",
             "Nonlinear Wavefolder", "Feedback Delay", "Quantum Resonator",
@@ -252,9 +255,19 @@ class GrooveboxEngine:
             "Master Sequencer Lane 1", "Rhythmic Gate Generator 1", "Polyphonic Arpeggiator 1",
             "Euclidean Rhythm Engine", "Stochastic Step Sequencer", "Probability Trigger Matrix", "Quantum Operator Sequencer"
         ]
+        possible_drums = [
+            "Kick Matrix 808", "Snare Divergence Engine", "Hi-Hat Noise Burst",
+            "Percussion Cluster", "Algebraic Tom Unit", "Quantum Claves"
+        ]
+        possible_synths = [
+            "Master Equation Polynomial Synthesizer", "Eskibrutus Vectoreski Synth 1",
+            "Vector Morph Synth Alpha", "Quantum Phase Synthesizer 2", "Stochastic Harmonic Engine"
+        ]
 
         self.active_fx_modules = random.sample(possible_fx, random.randint(4, len(possible_fx)))
         self.active_sequencer_modules = random.sample(possible_seqs, random.randint(3, len(possible_seqs)))
+        self.active_drum_kits = random.sample(possible_drums, random.randint(2, len(possible_drums)))
+        self.active_synth_panels = random.sample(possible_synths, random.randint(2, len(possible_synths)))
 
         equations = [
             "x**2 + y - z",
@@ -269,12 +282,15 @@ class GrooveboxEngine:
         self.scale_increment = round(random.uniform(0.15, 0.35), 2)
         self.divergence_steps_count = 16
 
-        modules = ["Eskibrutus Vectoreski Synth 1", "Master Equation Polynomial Synthesizer"] + self.active_fx_modules
+        # Generate random wavetables & vector setups for all active synths and FX
+        modules = self.active_synth_panels + self.active_fx_modules
         for mod in modules:
             rand_points = [QPointF(i * (500 / 16), random.randint(10, 90)) for i in range(17)]
             self.save_custom_wavetable(mod, rand_points)
+            # Ensure instrument banks exist for randomized synths
+            self.get_instrument_banks(mod)
 
-        sources = [("Eskibrutus Vectoreski Synth 1", "Audio Gain"), ("Master Equation Polynomial Synthesizer", "Filter Q")] + [(fx, "Scatter") for fx in self.active_fx_modules[:2]]
+        sources = [(self.active_synth_panels[0], "Audio Gain"), (self.active_synth_panels[min(1, len(self.active_synth_panels)-1)], "Filter Q")] + [(fx, "Scatter") for fx in self.active_fx_modules[:2]]
         targets = ["Master Audio Output Bus", "Auxiliary Bus A", "Auxiliary Bus B"]
         polarities = ["+", "-", "Neutral"]
 
@@ -353,7 +369,9 @@ class GrooveboxEngine:
             "active_synths": self.active_synths,
             "synth_wiring_matrix": self.synth_wiring_matrix,
             "active_fx_modules": self.active_fx_modules,
-            "active_sequencer_modules": self.active_sequencer_modules
+            "active_sequencer_modules": self.active_sequencer_modules,
+            "active_drum_kits": self.active_drum_kits,
+            "active_synth_panels": self.active_synth_panels
         }
         with open(filepath, 'w') as f:
             json.dump(data, f, indent=4)
@@ -378,6 +396,8 @@ class GrooveboxEngine:
         self.synth_wiring_matrix = data.get("synth_wiring_matrix", {})
         self.active_fx_modules = data.get("active_fx_modules", self.active_fx_modules)
         self.active_sequencer_modules = data.get("active_sequencer_modules", self.active_sequencer_modules)
+        self.active_drum_kits = data.get("active_drum_kits", self.active_drum_kits)
+        self.active_synth_panels = data.get("active_synth_panels", self.active_synth_panels)
         pc = data.get("playlist_clips", {})
         self.playlist_clips = {}
         for key_str, dat in pc.items():
@@ -820,12 +840,24 @@ class SynthModulePage(QWidget):
         self.container.setStyleSheet("background-color: #070b10;")
         self.container_layout = QGridLayout(self.container)
 
-        self._add_panel_to_grid("Master Equation Polynomial Synthesizer", is_polynomial=True, row=0, col=0)
-        self._add_panel_to_grid("Eskibrutus Vectoreski Synth 1", is_synth=True, row=0, col=1)
+        self.refresh_synth_grid()
 
         self.container.setLayout(self.container_layout)
         self.scroll.setWidget(self.container)
         layout.addWidget(self.scroll)
+
+    def refresh_synth_grid(self):
+        for i in reversed(range(self.container_layout.count())):
+            item = self.container_layout.itemAt(i)
+            if item and item.widget():
+                item.widget().setParent(None)
+
+        for idx, synth_name in enumerate(self.engine.active_synth_panels):
+            is_poly = "Polynomial" in synth_name or "Algebra" in synth_name
+            is_synth_type = not is_poly
+            row = idx // 2
+            col = idx % 2
+            self._add_panel_to_grid(synth_name, is_synth=is_synth_type, is_polynomial=is_poly, row=row, col=col)
 
     def _toggle_fractalizer_state(self, state):
         self.engine.fractallizer_enabled = bool(state)
@@ -876,10 +908,10 @@ class SynthModulePage(QWidget):
         QMessageBox.information(self, "Reality Synth Rendered", f"Reality Synth active buffer rendered for coordinates: {list(buffer_data.keys())}.")
 
     def _spawn_panel(self, kind, is_synth=False, is_audio_in=False, is_polynomial=False):
-        idx = self.container_layout.count() + 1
-        row = (idx - 1) // 2
-        col = (idx - 1) % 2
-        self._add_panel_to_grid(f"{kind} #{idx}", is_synth=is_synth, is_audio_in=is_audio_in, is_polynomial=is_polynomial, row=row, col=col)
+        name = f"{kind} #{len(self.engine.active_synth_panels) + 1}"
+        if name not in self.engine.active_synth_panels:
+            self.engine.active_synth_panels.append(name)
+        self.refresh_synth_grid()
 
     def _spawn_randomizer_instrument(self):
         rand_prefixes = ["Stochastic", "Quantum", "Algebraic", "Fractal", "Harmonic", "Resonant", "Vectoreski"]
@@ -890,10 +922,9 @@ class SynthModulePage(QWidget):
         chosen_chord = random.choice(chords)
         self.engine.add_instrument_sequence_bank(instr_name, "Differentiated Tempo Bank", pitch=float(random.randint(-12, 12)), amp=round(random.uniform(0.5, 1.5), 2), math_chord=chosen_chord)
 
-        idx = self.container_layout.count() + 1
-        row = (idx - 1) // 2
-        col = (idx - 1) % 2
-        self._add_panel_to_grid(instr_name, is_synth=True, row=row, col=col)
+        if instr_name not in self.engine.active_synth_panels:
+            self.engine.active_synth_panels.append(instr_name)
+        self.refresh_synth_grid()
         QMessageBox.information(self, "Randomizer Instrument Spawned", f"Successfully spawned randomizer instrument '{instr_name}' with differentiated tempo interval parameters and cross-mod heuristic routing.")
 
     def _add_panel_to_grid(self, title, is_synth=False, is_audio_in=False, is_polynomial=False, row=0, col=0):
@@ -1052,7 +1083,6 @@ class DrumMatrixPage(QWidget):
         self.container = QWidget(); self.container.setStyleSheet("background-color: #070b10;")
         self.grid = QGridLayout(self.container)
 
-        self.drum_kits = ["Kick Matrix 808", "Snare Divergence Engine", "Hi-Hat Noise Burst", "Percussion Cluster"]
         self.refresh_drum_grid()
 
         self.container.setLayout(self.grid)
@@ -1065,7 +1095,7 @@ class DrumMatrixPage(QWidget):
             if item and item.widget():
                 item.widget().setParent(None)
 
-        for idx, kit_name in enumerate(self.drum_kits):
+        for idx, kit_name in enumerate(self.engine.active_drum_kits):
             w = QWidget(); w.setStyleSheet("background-color: #0d1117;")
             l = QVBoxLayout(w)
 
@@ -1104,14 +1134,14 @@ class DrumMatrixPage(QWidget):
             self.grid.addWidget(panel, idx // 2, idx % 2)
 
     def _spawn_new_drum_unit(self):
-        new_name = f"Custom Drum Unit {len(self.drum_kits) + 1}"
-        self.drum_kits.append(new_name)
+        new_name = f"Custom Drum Unit {len(self.engine.active_drum_kits) + 1}"
+        self.engine.active_drum_kits.append(new_name)
         self.refresh_drum_grid()
         QMessageBox.information(self, "Drum Machine Spawned", f"Successfully spawned new drum machine unit '{new_name}' under Tab 2.")
 
     def _despawn_drum_unit(self, kit_name):
-        if len(self.drum_kits) > 1:
-            self.drum_kits.remove(kit_name)
+        if len(self.engine.active_drum_kits) > 1:
+            self.engine.active_drum_kits.remove(kit_name)
             self.refresh_drum_grid()
             QMessageBox.information(self, "Drum Machine Despawned", f"Successfully despawned drum machine '{kit_name}'.")
         else:
@@ -1551,10 +1581,14 @@ class MasterControlPatchbayPage(QWidget):
                 widget = self.main_window.tabs.widget(i)
                 if hasattr(widget, "refresh_fx_grid"):
                     widget.refresh_fx_grid()
+                elif hasattr(widget, "refresh_synth_grid"):
+                    widget.refresh_synth_grid()
+                elif hasattr(widget, "refresh_drum_grid"):
+                    widget.refresh_drum_grid()
                 elif hasattr(widget, "_refresh_automation_panels"):
                     widget._refresh_automation_panels()
 
-        QMessageBox.information(self, "Human-Like Song Randomizer Complete", f"Randomized active FX modules ({len(self.engine.active_fx_modules)}), sequencers ({len(self.engine.active_sequencer_modules)}), patchbay cables, wavetables, equations, and step-gated beat patterns!")
+        QMessageBox.information(self, "Human-Like Song Randomizer Complete", f"Randomized active FX modules ({len(self.engine.active_fx_modules)}), drum kits ({len(self.engine.active_drum_kits)}), synth panels ({len(self.engine.active_synth_panels)}), sequencers, patchbay cables, wavetables, equations, and step-gated beat patterns!")
 
     def _save_project(self):
         filepath, _ = QFileDialog.getSaveFileName(self, "Save EQR Project", "", "EQR Project Files (*.eqrproj)")
@@ -1576,6 +1610,10 @@ class MasterControlPatchbayPage(QWidget):
                     widget = self.main_window.tabs.widget(i)
                     if hasattr(widget, "refresh_fx_grid"):
                         widget.refresh_fx_grid()
+                    elif hasattr(widget, "refresh_synth_grid"):
+                        widget.refresh_synth_grid()
+                    elif hasattr(widget, "refresh_drum_grid"):
+                        widget.refresh_drum_grid()
                     elif hasattr(widget, "_refresh_automation_panels"):
                         widget._refresh_automation_panels()
 
