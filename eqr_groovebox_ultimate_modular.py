@@ -1063,28 +1063,48 @@ class FreeformSequencerCanvas(QWidget):
         self.setStyleSheet("background-color: #0b0f15; border: 1px solid #30363d; border-radius: 4px;")
 
     def paintEvent(self, event):
-        p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.fillRect(self.rect(), QColor("#0b0f15"))
+        p = QPainter(self)
+        p.begin(self)
+        try:
+            # Safely parse notes whether seq_data is a dict or a list
+            notes = self.seq_data.get("notes", []) if isinstance(self.seq_data, dict) else [
+                {"time": float(i), "duration": 1.0, "active": True} for i, val in enumerate(self.seq_data)
+            ]
 
-        p.setPen(QPen(QColor("#161b22"), 1, Qt.PenStyle.DashLine))
-        for x in range(0, self.width(), 60): p.drawLine(x, 0, x, self.height())
-        notes = self.seq_data.get("notes", []) if isinstance(self.seq_data, dict) else self.seq_data
-        max_time = max([n["time"] + n["duration"] for n in notes] + [16.0])
-        scale_x = self.width() / max(16.0, max_time)
+            # Fallback check if the list contains raw values instead of dicts
+            formatted_notes = []
+            for i, n in enumerate(notes):
+                if isinstance(n, dict):
+                    formatted_notes.append({
+                        "time": n.get("time", float(i)),
+                        "duration": n.get("duration", 1.0),
+                        "active": n.get("active", True)
+                    })
+                else:
+                    formatted_notes.append({
+                        "time": float(i),
+                        "duration": 1.0,
+                        "active": bool(n)
+                    })
 
-        for i, note in enumerate(notes):
-            nx = note["time"] * scale_x
-            nw = max(12, note["duration"] * scale_x)
-            ny = 15 + (i % 4) * 24
+            max_time = max([n["time"] + n["duration"] for n in formatted_notes] + [16.0])
+            scale_x = self.width() / max(16.0, max_time)
 
-            is_active = note["active"]
-            p.setBrush(QBrush(QColor("#00ffcc" if is_active else "#21262d")))
-            p.setPen(QPen(QColor("#ffffff") if is_active else QColor("#484f58"), 1))
-            p.drawRoundedRect(int(nx), int(ny), int(nw), 18, 4, 4)
+            for i, note in enumerate(formatted_notes):
+                nx = note["time"] * scale_x
+                nw = max(12, note["duration"] * scale_x)
+                ny = 15 + (i % 4) * 24
 
-            p.setPen(QPen(QColor("#ffffff" if is_active else "#8b949e"), 9))
-            p.drawText(int(nx) + 4, int(ny) + 13, f"N{i+1}")
+                is_active = note["active"]
+                p.setBrush(QBrush(QColor("#00ffcc" if is_active else "#21262d")))
+                p.setPen(QPen(QColor("#ffffff") if is_active else QColor("#484f58"), 1))
+                p.drawRoundedRect(int(nx), int(ny), int(nw), 18, 4, 4)
 
+                p.setPen(QPen(QColor("#ffffff" if is_active else "#8b949e"), 1))
+                p.drawText(int(nx) + 4, int(ny) + 13, f"N{i+1}")
+
+        finally:
+            p.end()
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             pos = event.position()
