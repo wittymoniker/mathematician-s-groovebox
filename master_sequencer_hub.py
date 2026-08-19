@@ -1,6 +1,6 @@
 # =========================================================
 # master_sequencer_hub.py
-# EQR GROOVEBOX ULTIMATE DAW & SYNTHESIS SUITE (v14.1 Clean Single-Row Chord Prompt & Large Green MDI Spawn)
+# EQR GROOVEBOX ULTIMATE DAW & SYNTHESIS SUITE (v14.1 Synchronized Repository Master Script)
 # =========================================================
 
 import sys
@@ -81,11 +81,6 @@ class SynthAudioStream(QIODevice):
 
 
 class UnquantizedPlaylistCanvas(QWidget):
-    """
-    Unquantized continuous timeline canvas allowing free placement of pattern audio clips,
-    complete with per-instance timestretch, pitch offsets, amplitude scaling, and
-    scrollwheel-adjustable +/- modulation lines.
-    """
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumHeight(450)
@@ -141,7 +136,7 @@ class UnquantizedPlaylistCanvas(QWidget):
             painter.drawLine(x_line, 0, x_line, h)
 
         painter.setPen(QPen(QColor("#58a6ff"), 1))
-        painter.drawText(12, 22, f"<b>Unquantized Audio Timeline Canvas</b> | Scroll Mod Amount: {self.scrollwheel_mod_amount:+.2f} (Scroll wheel on clips adjusts modulation/stretch)")
+        painter.drawText(12, 22, f"<b>Unquantized Audio Timeline Canvas</b> | Scroll Mod Amount: {self.scrollwheel_mod_amount:+.2f}")
 
         for clip in self.clips:
             cx = clip["x"]; cy = clip["y"]; cwidth = clip["duration"]
@@ -186,9 +181,6 @@ class UnquantizedPlaylistCanvas(QWidget):
 
 
 class ModularBayKnob(QWidget):
-    """
-    High-End VST Knob supporting +/- scrollwheel-adjustable modulation lines and right-click patching.
-    """
     def __init__(self, label_text, min_val=0.0, max_val=100.0, default_val=50.0, math_note="", parent=None, callback=None):
         super().__init__(parent)
         self.label_text = label_text
@@ -214,7 +206,6 @@ class ModularBayKnob(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Draw patch status color indicator on borders
         border_color = "#00ffcc" if (self.patched_in and self.patched_out) else "#8b949e"
 
         painter.setPen(QPen(QColor("#58a6ff"), 1))
@@ -427,7 +418,7 @@ class LiveDrawableWavetableWidget(QWidget):
 class EQRGrooveboxUltimateSuite(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Equation of Reality (EQR) - Ultimate Modular DAW Suite (v14.1 Clean Single-Row Chord Prompt & Large Green MDI Spawn)")
+        self.setWindowTitle("Equation of Reality (EQR) - Ultimate Modular DAW Suite (v14.1 Synchronized Master)")
         self.resize(1900, 1050)
 
         self.audio_sink = None
@@ -465,7 +456,7 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
         self.tabs.addTab(self.create_mdi_suite_tab(), "Modular Subwindow Bays (MDI)")
 
         self.setCentralWidget(self.tabs)
-        self.statusBar().showMessage("EQR Suite v14.1 Active | Single-Row Piano Grid, Chord Prompt Input, & Large Green MDI Spawn Ready.")
+        self.statusBar().showMessage("EQR Suite v14.1 Synchronized Master Active.")
 
     def setup_window_creation_menu(self):
         menubar = self.menuBar()
@@ -539,7 +530,6 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
         toolbar.addWidget(self.seq_name_combo)
         layout.addLayout(toolbar)
 
-        # Chord Prompt Input Pane directly integrated with the single piano roll row
         chord_prompt_layout = QHBoxLayout()
         chord_prompt_layout.addWidget(QLabel("<b>Chord Prompt Input Pane:</b>"))
         self.chord_input_field = QLineEdit()
@@ -555,7 +545,6 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
         self.scale_info_label = QLabel("<b>Scale Increment:</b> Single unified row with tonal offsets and chord prompt mapping.")
         layout.addWidget(self.scale_info_label)
 
-        # Exactly 1 single row table as explicitly requested
         self.single_seq_table = QTableWidget()
         self.single_seq_table.setMaximumHeight(90)
         self.single_seq_table.cellClicked.connect(self.on_sequencer_cell_clicked)
@@ -595,7 +584,7 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
         scale_inc = seq_data.get("scale_increment", 1)
 
         self.single_seq_table.blockSignals(True)
-        self.single_seq_table.setRowCount(1)  # Strictly 1 single row
+        self.single_seq_table.setRowCount(1)
         self.single_seq_table.setColumnCount(length)
         for c in range(length):
             step_info = steps[c]
@@ -625,10 +614,9 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
         if inst not in self.instrument_sequences or seq_idx < 0: return
         seq_data = self.instrument_sequences[inst][seq_idx]
 
-        # Simple interval mapping based on chord text
         offsets = [0, 4, 7, 11] if "7" in chord_text else [0, 4, 7]
         if "M" in chord_text or "MAJ" in chord_text: offsets = [0, 4, 7, 11]
-        elif "M" not in chord_text and ("M" in chord_text or "MIN" in chord_text or "M" in chord_text): offsets = [0, 3, 7]
+        elif "M" not in chord_text and ("MIN" in chord_text): offsets = [0, 3, 7]
 
         for idx, step in enumerate(seq_data["steps"]):
             step["active"] = True
@@ -670,7 +658,7 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
 
         layout.addLayout(toolbar)
 
-        info_label = QLabel("<b>Unquantized Timeline Controls:</b> Drag clips freely across time. Scrollwheel over a clip adjusts its timestretch & amplitude. Bypasses all grid quantization and heuristic limits.")
+        info_label = QLabel("<b>Unquantized Timeline Controls:</b> Drag clips freely across time. Scrollwheel over a clip adjusts its timestretch & amplitude.")
         info_label.setStyleSheet("color: #00ffcc;")
         layout.addWidget(info_label)
 
@@ -698,7 +686,7 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
     def trigger_unique_playlist_randomization(self):
         inst_list = list(self.instrument_sequences.keys())
         self.unquantized_canvas.randomize_unique_playlist(inst_list, self.instrument_sequences)
-        QMessageBox.information(self, "Playlist Randomized", "Successfully generated a unique unquantized playlist with randomized timestretch, pitch, and amplitude per instance.")
+        QMessageBox.information(self, "Playlist Randomized", "Successfully generated a unique unquantized playlist.")
 
     def create_mdi_suite_tab(self):
         widget = QWidget()
@@ -709,7 +697,6 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
         self.spawn_subwindow("VST Engine 02", self.create_vst_engine_content("VST_Engine_02"), 440, 20)
         layout.addWidget(self.mdi_area)
 
-        # Large and Green Spawn Button at the bottom of the MDI tab as requested
         btn_spawn_large_green = QPushButton("SPAWN NEW VST MODULE ENGINE")
         btn_spawn_large_green.setMinimumHeight(65)
         btn_spawn_large_green.setStyleSheet("background-color: #238636; color: white; font-size: 18px; font-weight: bold; border-radius: 8px;")

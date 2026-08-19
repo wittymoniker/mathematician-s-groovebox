@@ -431,8 +431,6 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
         self.audio_stream = None
         self.is_playing = False
 
-        # Instrument Sequence Storage: Each sequence holds a list of patterns (0-N),
-        # where each pattern has steps, and each step has state, pitch_shift, and amplitude.
         def default_pattern():
             return {
                 "name": "Pattern 1",
@@ -463,7 +461,7 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
         self.tabs.addTab(self.create_mdi_suite_tab(), "Modular Subwindow Bays (MDI)")
 
         self.setCentralWidget(self.tabs)
-        self.statusBar().showMessage("EQR Suite v12.0 Ready | Multi-Pattern Scroll, Dynamic Depth Piano Roll Rows & Note Factors (0-2) Active.")
+        self.statusBar().showMessage("EQR Suite v12.0 Ready | Algebraic x, y, z Mapping Active.")
 
     def set_dark_palette(self):
         palette = QPalette()
@@ -587,7 +585,6 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
                 amp_val = round(random.uniform(0.2, 2.0), 2)
                 steps.append({"active": is_on, "pitch": pitch_val, "amp": amp_val})
 
-            # Replace active pattern with randomized parameters
             self.instrument_sequences[inst][0] = {
                 "name": f"Random x{x_coord:.1f}y{y_coord:.1f}",
                 "length": length,
@@ -718,12 +715,11 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
 
         layout.addLayout(control_bar)
 
-        # Dynamic Multi-Row Piano Roll Grid Table
         self.multi_seq_table = QTableWidget()
         self.multi_seq_table.setStyleSheet("background-color: #161b22; color: #c9d1d9; gridline-color: #30363d;")
         layout.addWidget(self.multi_seq_table)
 
-        self.freq_interval_label = QLabel("<b>Harmonic Frequencies Interval (0-1 Infinity Mapping):</b> Base: 432Hz | Calculated Spread Active")
+        self.freq_interval_label = QLabel("<b>Harmonic Frequencies Interval:</b> Base: 432Hz")
         self.freq_interval_label.setStyleSheet("color: #00ffcc; padding: 4px;")
         layout.addWidget(self.freq_interval_label)
 
@@ -780,7 +776,6 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
             steps.append({"active": False, "pitch": 1.0, "amp": 1.0})
 
         depth = seq_data.get("depth", 0.75)
-        # Determine number of dynamic piano roll rows based on depth (e.g. depth 0 -> 4 rows, depth 1.0 -> 12 rows)
         num_rows = max(4, int(4 + (depth * 8)))
 
         self.multi_seq_table.setRowCount(num_rows)
@@ -813,7 +808,6 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
             pitch_val = step_info.get("pitch", 1.0)
             amp_val = step_info.get("amp", 1.0)
 
-            # Map step across rows depending on pitch factor (0-2)
             target_row = int((pitch_val / 2.0) * (num_rows - 1))
             target_row = max(0, min(num_rows - 1, target_row))
 
@@ -826,7 +820,6 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
                     QPushButton { background-color: #161b22; color: #8b949e; border: 1px solid #30363d; font-size: 9px; font-weight: bold; }
                     QPushButton:checked { background-color: #1f6feb; color: white; border: 1px solid #00ffcc; }
                 """)
-                # Click handler to toggle step and adjust floating factors via popup or direct toggle
                 btn.clicked.connect(lambda checked, s_obj=seq_data, col=c, r_idx=r, num_r=num_rows: self.on_grid_cell_clicked(s_obj, col, r_idx, num_r))
                 self.multi_seq_table.setCellWidget(r, c, btn)
                 self.multi_seq_table.setRowHeight(r, 45)
@@ -835,7 +828,6 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
 
     def on_grid_cell_clicked(self, seq_data, col, row_idx, num_rows):
         step_info = seq_data["steps"][col]
-        # Allow editing pitch and amplitude factors (0-2) when clicking grid cells
         pitch_f, ok1 = QInputDialog.getDouble(self, "Edit Note Factors", "Pitch Shift Factor (0.0 to 2.0):", step_info.get("pitch", 1.0), 0.0, 2.0, 2)
         if ok1:
             amp_f, ok2 = QInputDialog.getDouble(self, "Edit Note Factors", "Amplitude Factor (0.0 to 2.0):", step_info.get("amp", 1.0), 0.0, 2.0, 2)
@@ -901,7 +893,6 @@ class EQRGrooveboxUltimateSuite(QMainWindow):
     def create_master_playlist_tab(self):
         widget = QWidget(); l = QVBoxLayout(widget)
         l.addWidget(QLabel("<b>Master Coordination Playlist (Arrange Patterns 0-N across Arrangement Tracks)</b>"))
-
         table = QTableWidget(6, 16)
         table.setHorizontalHeaderLabels([f"Bar {i+1}" for i in range(16)])
         table.setVerticalHeaderLabels([
