@@ -847,10 +847,11 @@ class SynthModulePage(QWidget):
         layout.addWidget(self.scroll)
 
     def refresh_synth_grid(self):
-        for i in reversed(range(self.container_layout.count())):
-            item = self.container_layout.itemAt(i)
+        # Clear all existing widgets properly from the grid layout
+        while self.container_layout.count():
+            item = self.container_layout.takeAt(0)
             if item and item.widget():
-                item.widget().setParent(None)
+                item.widget().deleteLater()
 
         for idx, synth_name in enumerate(self.engine.active_synth_panels):
             is_poly = "Polynomial" in synth_name or "Algebra" in synth_name
@@ -858,6 +859,8 @@ class SynthModulePage(QWidget):
             row = idx // 2
             col = idx % 2
             self._add_panel_to_grid(synth_name, is_synth=is_synth_type, is_polynomial=is_poly, row=row, col=col)
+        
+        self.container.update()
 
     def _toggle_fractalizer_state(self, state):
         self.engine.fractallizer_enabled = bool(state)
@@ -1037,6 +1040,7 @@ class SynthModulePage(QWidget):
         c_layout.addLayout(knobs_layout)
 
         panel = ResizableWorkspacePanel(title, content_widget)
+        panel.show()
         self.container_layout.addWidget(panel, row, col)
 
     def _add_new_sequence_bank(self, title, combo):
@@ -1090,10 +1094,10 @@ class DrumMatrixPage(QWidget):
         layout.addWidget(self.scroll)
 
     def refresh_drum_grid(self):
-        for i in reversed(range(self.grid.count())):
-            item = self.grid.itemAt(i)
+        while self.grid.count():
+            item = self.grid.takeAt(0)
             if item and item.widget():
-                item.widget().setParent(None)
+                item.widget().deleteLater()
 
         for idx, kit_name in enumerate(self.engine.active_drum_kits):
             w = QWidget(); w.setStyleSheet("background-color: #0d1117;")
@@ -1131,7 +1135,9 @@ class DrumMatrixPage(QWidget):
             l.addLayout(knobs)
 
             panel = ResizableWorkspacePanel(kit_name, w)
+            panel.show()
             self.grid.addWidget(panel, idx // 2, idx % 2)
+        self.container.update()
 
     def _spawn_new_drum_unit(self):
         new_name = f"Custom Drum Unit {len(self.engine.active_drum_kits) + 1}"
@@ -1181,10 +1187,10 @@ class GranularFXPage(QWidget):
         self.layout.addWidget(self.scroll)
 
     def refresh_fx_grid(self):
-        for i in reversed(range(self.grid.count())):
-            item = self.grid.itemAt(i)
+        while self.grid.count():
+            item = self.grid.takeAt(0)
             if item and item.widget():
-                item.widget().setParent(None)
+                item.widget().deleteLater()
 
         for idx, fx_name in enumerate(self.engine.active_fx_modules):
             w = QWidget(); w.setStyleSheet("background-color: #0d1117;")
@@ -1214,7 +1220,9 @@ class GranularFXPage(QWidget):
             l.addWidget(wt)
 
             panel = ResizableWorkspacePanel(fx_name, w)
+            panel.show()
             self.grid.addWidget(panel, idx // 2, idx % 2)
+        self.container.update()
 
     def _spawn_new_fx_unit(self):
         new_name = f"Custom FX Unit {len(self.engine.active_fx_modules) + 1}"
@@ -1271,10 +1279,10 @@ class AutomationPatternPage(QWidget):
         layout.addWidget(self.scroll)
 
     def _refresh_automation_panels(self):
-        for i in reversed(range(self.grid.count())):
-            item = self.grid.itemAt(i)
+        while self.grid.count():
+            item = self.grid.takeAt(0)
             if item and item.widget():
-                item.widget().setParent(None)
+                item.widget().deleteLater()
 
         total_idx = 0
         for pat_name, points in self.engine.automation_patterns.items():
@@ -1289,6 +1297,7 @@ class AutomationPatternPage(QWidget):
             l.addWidget(canvas)
 
             panel = ResizableWorkspacePanel(f"Sequencer / Automation: {pat_name}", w)
+            panel.show()
             self.grid.addWidget(panel, total_idx // 2, total_idx % 2)
             total_idx += 1
 
@@ -1328,8 +1337,10 @@ class AutomationPatternPage(QWidget):
             l.addLayout(knobs)
 
             panel = ResizableWorkspacePanel(f"Sequencer Module: {seq_mod_name}", w)
+            panel.show()
             self.grid.addWidget(panel, total_idx // 2, total_idx % 2)
             total_idx += 1
+        self.container.update()
 
     def _add_automation_pattern(self):
         pat_name = f"Custom Sequencer Lane {len(self.engine.automation_patterns) + 1}"
