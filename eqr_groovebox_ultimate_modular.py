@@ -161,7 +161,7 @@ class ActiveEngineClock:
         self.current_step = 0
         self.transport_active = True
         self.clock_ticks_executed = 0
-        
+
         # New Rhythm Flux Linking Modes & Parameters
         self.rhythm_flux_mode = "Global" # Options: "Global", "Active Concurrent", "Unlinked"
         self.rhythm_flux_rate = 1.0     # Multiplier governing synchronized rhythm flux across synths/drums
