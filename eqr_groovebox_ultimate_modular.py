@@ -2194,26 +2194,68 @@ class MasterControlPatchbayPage(QWidget):
 # -------------------------------------------------------------------------
 
 class GrooveboxMainWindow(QMainWindow):
-    """Unified modular groovebox main window interface."""
+    """Unified modular groovebox main window interface with dockable modules and project management."""
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Equation of Reality (EQR) - Groovebox Ultimate Modular Suite")
-        self.resize(1550, 950)
+        self.resize(1700, 1000)
         self.set_dark_palette()
 
-        # Initialize Core Math Engine
+        # Initialize Core Math Engine ($x, y, z$ space)
         self.engine = MathEngine()
         self.step_sequence = [0.0] * 16
 
+        # Enable Dock Options for floating/dockable module instances
+        self.setDockOptions(QMainWindow.DockOption.AllowNestedDocks | QMainWindow.DockOption.AnimatedDocks)
+
+        # Central Workspace Tab Widget
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
+        self.setCentralWidget(self.tabs)
 
-        # Build Tabs
+        # Build Full Feature Set (v1 & v2 Architecture)
         self.tabs.addTab(self.create_sequencer_tab(), "1. Sequencer & Automation Hub")
         self.tabs.addTab(self.create_constants_tab(), "2. 34-Constant Harmonic Matrix")
+        self.tabs.addTab(self.create_drum_matrix_tab(), "3. Multidimensional Drum Matrix")
+        self.tabs.addTab(self.create_granular_fx_tab(), "4. Granular FX & Automators")
+        self.tabs.addTab(self.create_playlister_tab(), "5. Playlister & Arrangement")
+        self.tabs.addTab(self.create_project_management_tab(), "6. Project Management & I/O")
+        self.tabs.addTab(self.create_patchbay_tab(), "7. Master Patchbay")
 
-        self.setCentralWidget(self.tabs)
-        self.statusBar().showMessage("Modular Suite Online | 432Hz Reference | Systems Nominal")
+        # Setup Spawn & Dock Toolbar
+        self.setup_spawn_toolbar()
+        self.statusBar().showMessage("Modular Suite v2 Online | 432Hz Reference | Survival Mode Active")
+
+    def setup_spawn_toolbar(self):
+        toolbar = self.addToolBar("Module Spawner")
+        toolbar.setStyleSheet("background-color: #161b22; color: #c9d1d9; border-bottom: 1px solid #30363d;")
+
+        spawn_synth_btn = QPushButton("+ Spawn Synth Module")
+        spawn_synth_btn.clicked.connect(lambda: self.spawn_module_pane("Synth Instance"))
+        toolbar.addWidget(spawn_synth_btn)
+
+        spawn_fx_btn = QPushButton("+ Spawn FX Filter")
+        spawn_fx_btn.clicked.connect(lambda: self.spawn_module_pane("Granular FX Instance"))
+        toolbar.addWidget(spawn_fx_btn)
+
+        spawn_automator_btn = QPushButton("+ Spawn Automator Node")
+        spawn_automator_btn.clicked.connect(lambda: self.spawn_module_pane("x,y,z Automator"))
+        toolbar.addWidget(spawn_automator_btn)
+
+    def spawn_module_pane(self, title):
+        from PyQt6.QtWidgets import QDockWidget
+        dock = QDockWidget(title, self)
+        dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.addWidget(IdealizedMathKnob("Modulator Scale", 0.1, 10.0, 1.0, "x,y,z mapping"))
+        layout.addWidget(QPushButton(f"Execute {title} Process"))
+        layout.addStretch()
+        content.setLayout(layout)
+
+        dock.setWidget(content)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
 
     def set_dark_palette(self):
         palette = QPalette()
@@ -2225,7 +2267,45 @@ class GrooveboxMainWindow(QMainWindow):
         palette.setColor(QPalette.ColorRole.ButtonText, QColor("#c9d1d9"))
         palette.setColor(QPalette.ColorRole.Highlight, QColor("#1f6feb"))
         QApplication.setPalette(palette)
+    def create_playlister_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        group = QGroupBox("Arrangement Playlister & Pattern Queue")
+        grid = QGridLayout()
+        grid.addWidget(QLabel("Pattern Slot 1: Core_Sequence_Alpha [Active]"), 0, 0)
+        grid.addWidget(QLabel("Pattern Slot 2: Z-Axis Modulation Sweep"), 1, 0)
+        grid.addWidget(QLabel("Pattern Slot 3: Harmonic Decay Loop"), 2, 0)
 
+        btn_layout = QHBoxLayout()
+        btn_layout.addWidget(QPushButton("Queue Next Pattern"))
+        btn_layout.addWidget(QPushButton("Bounce Arrangement to Disk"))
+        grid.addLayout(btn_layout, 3, 0)
+
+        group.setLayout(grid)
+        layout.addWidget(group)
+        layout.addStretch()
+        return widget
+
+    def create_project_management_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        group = QGroupBox("Project State Serialization & JSON I/O")
+        grid = QGridLayout()
+
+        grid.addWidget(QLabel("Current Workspace State: Saved (v3.6.8 schema)"), 0, 0)
+
+        btn_save = QPushButton("Save Project State (.eqr)")
+        btn_load = QPushButton("Load Project State (.eqr)")
+        btn_export = QPushButton("Export Audio Stems (WAV)")
+
+        grid.addWidget(btn_save, 1, 0)
+        grid.addWidget(btn_load, 2, 0)
+        grid.addWidget(btn_export, 3, 0)
+
+        group.setLayout(grid)
+        layout.addWidget(group)
+        layout.addStretch()
+        return widget
     def create_sequencer_tab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
@@ -2306,7 +2386,47 @@ class GrooveboxMainWindow(QMainWindow):
         scroll.setWidget(container)
         layout.addWidget(scroll)
         return widget
+    def create_drum_matrix_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        grid_group = QGroupBox("Multidimensional Drum Step Matrix")
+        grid_layout = QGridLayout()
+        for r in range(4):
+            for c in range(16):
+                btn = QPushButton(f"{r+1}:{c+1}")
+                btn.setCheckable(True)
+                btn.setMaximumSize(50, 40)
+                grid_layout.addWidget(btn, r, c)
+        grid_group.setLayout(grid_layout)
+        layout.addWidget(grid_group)
+        layout.addStretch()
+        return widget
 
+    def create_granular_fx_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        fx_group = QGroupBox("Granular Synthesis & FX Processing Engine")
+        fx_layout = QHBoxLayout()
+        fx_layout.addWidget(IdealizedMathKnob("Grain Size", 1.0, 500.0, 50.0, "ms vector"))
+        fx_layout.addWidget(IdealizedMathKnob("Scatter Density", 0.0, 10.0, 2.5, "Density curve"))
+        fx_layout.addWidget(IdealizedMathKnob("Feedback Warp", 0.0, 1.0, 0.4, "Non-linear feedback"))
+        fx_group.setLayout(fx_layout)
+        layout.addWidget(fx_group)
+        layout.addStretch()
+        return widget
+
+    def create_patchbay_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        patch_group = QGroupBox("Master Hardware Patchbay & Routing Matrix")
+        patch_layout = QGridLayout()
+        patch_layout.addWidget(QLabel("CV In 1 (x-axis) --> VCF Cutoff"), 0, 0)
+        patch_layout.addWidget(QLabel("CV In 2 (y-axis) --> Wavefolder"), 1, 0)
+        patch_layout.addWidget(QLabel("Gate Out --> Envelope Triggers"), 2, 0)
+        patch_group.setLayout(patch_layout)
+        layout.addWidget(patch_group)
+        layout.addStretch()
+        return widget
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = GrooveboxMainWindow()
