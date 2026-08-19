@@ -46,6 +46,57 @@ FREQUENCY_432HZ = 432.0
 # -------------------------------------------------------------------------
 # GLOBAL CABLE ROUTING & RESAMPLING BUS MANAGER
 # -------------------------------------------------------------------------
+class JackButton(QPushButton):
+    """Custom interactive jack button assignable to every waveform and musical parameter."""
+    def __init__(self, param_name, parent=None):
+        super().__init__("JACK", parent)
+        self.param_name = param_name
+        self.setCheckable(True)
+        self.setStyleSheet("""
+            QPushButton {
+                background-color: #2b2b2b;
+                color: #00ffcc;
+                border: 1px solid #00ffcc;
+                border-radius: 4px;
+                font-size: 10px;
+                font-weight: bold;
+                padding: 3px;
+            }
+            QPushButton:checked {
+                background-color: #00ffcc;
+                color: #121212;
+            }
+        """)
+        self.toggled.connect(self.on_toggle)
+
+    def on_toggle(self, checked):
+        state = "PATCHED" if checked else "UNPATCHED"
+        print(f"Jack Control [{self.param_name}]: {state}")
+
+
+class ParameterControlRow(QWidget):
+    """A wrapper widget containing a label, slider, and an assigned JackButton for modulation routing."""
+    def __init__(self, label_text, min_val=0, max_val=100, default_val=50, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.label = QLabel(label_text)
+        self.label.setStyleSheet("color: #ffffff; font-size: 11px;")
+
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(min_val, max_val)
+        self.slider.setValue(default_val)
+
+        self.jack_btn = JackButton(label_text)
+
+        layout.addWidget(self.label, 2)
+        layout.addWidget(self.slider, 3)
+        layout.addWidget(self.jack_btn, 1)
+
+        self.setLayout(layout)
+
+
 class GlobalCrossTabBusManager:
     """Manages universal inter-synth wiring, dedicated synth input/output jacks, master audio routing, and resampling."""
     def __init__(self):
@@ -118,7 +169,6 @@ class ActiveEngineClock:
         return self.current_step
 
     def evaluate_drum_trigger(self, kit_name, step_index):
-        # Enforces active gate trigger verification across runtime drum matrices
         return (step_index % 4 == 0) or (step_index % 3 == 0 and self.engine.survival_mode)
 
     def evaluate_sequencer_gate(self, seq_name, step_index):
@@ -126,7 +176,7 @@ class ActiveEngineClock:
 
 
 # -------------------------------------------------------------------------
-# CORE GROOVEBOX & HARDWARE ENGINE (Enhanced v3.6.7 - Normal Music Profile)
+# CORE GROOVEBOX & HARDWARE ENGINE
 # -------------------------------------------------------------------------
 class GrooveboxEngine:
     """Core groovebox engine supporting advanced x,y,z operator equations, stochastic micro-timing, and automated patching."""
@@ -137,30 +187,25 @@ class GrooveboxEngine:
         self.scale_increment = 0.25
         self.divergence_steps_count = 16
 
-        # Operational modes & processors state flags optimized for normal musical composition
         self.survival_mode = False
         self.creative_mode = False
         self.normal_mode = True
         self.fractallizer_enabled = True
         self.eqr_processor_enabled = True
 
-        # Runtime Clock for Drum Machines, Sequencers, and Automations
         self.runtime_clock = ActiveEngineClock(self)
         self.runtime_clock.transport_active = True
 
-        # Core Engines
         self.reality_synth = RealitySynthEngine()
         self.reality_synth.survival_mode = self.survival_mode
         self.fractalizer = MusicFractallizer(dimensions=('x', 'y', 'z'))
         self.fractalizer.survival_mode = self.survival_mode
 
-        # Dynamic Synthesizer Pool
         self.available_synths = [f"Synth_Node_{i+1}" for i in range(32)]
         self.active_synth_count = 32
         self.active_synths = []
         self.synth_wiring_matrix = {}
 
-        # Mathematical chord libraries utilizing x, y, z variables
         self.math_chord_library = {
             "Unit Harmonic Stack (+/- 1, 2, 3)": [(-3.0, 0.4), (-2.0, 0.6), (-1.0, 0.8), (1.0, 1.0), (2.0, 0.7), (3.0, 0.4)],
             "Divergent Asymmetric Point Pair": [(-4.25, 0.5), (-1.5, 0.9), (0.25, 1.0), (3.75, 0.6)],
@@ -210,7 +255,6 @@ class GrooveboxEngine:
         for i, synth in enumerate(self.active_synths):
             downstream_target = self.active_synths[(i + 1) % len(self.active_synths)]
             modulation_source = random.choice(self.active_synths)
-
             attenuation_val = 0.75 if self.survival_mode else (1.25 if self.creative_mode else 1.0)
 
             self.synth_wiring_matrix[synth] = {
@@ -271,7 +315,6 @@ class GrooveboxEngine:
             del self.playlist_clips[(track, bar_pos)]
 
     def randomize_song(self):
-        """Randomizes equations, wavetables, knobs, synth panels, drum machines, vector setups, patchbay cables, and dynamic modules for full composition."""
         self.playlist_clips.clear()
         GLOBAL_BUS.clear_all()
         self.randomize_synth_routing()
@@ -354,7 +397,7 @@ class GrooveboxEngine:
         freqs = []
         for i in range(self.divergence_steps_count):
             x = i * self.scale_increment
-            y = x * 1.618  # Operator scaling mapped to variables x, y, z
+            y = x * 1.618
             z = 1.0 if (i % 4 == 0 or i % 3 == 0) else 0.0
             try:
                 val = eval(self.scale_equation, {"__builtins__": None}, {"x": x, "y": y, "z": z, "math": math})
@@ -655,7 +698,6 @@ class PatchableKnob(QWidget):
             QPushButton { background-color: #161b22; color: #8b949e; border: 1px solid #30363d; border-radius: 4px; font-weight: bold; font-size: 9px; }
             QPushButton:checked { background-color: #00ffcc; color: #0d1117; border: 1px solid #ffffff; }
         """)
-        self.port_btn.setToolTip("Click to toggle activation/deactivation of this parameter in the global patch matrix!")
         self.port_btn.clicked.connect(self._toggle_patch)
         bottom_row.addWidget(self.port_btn)
         layout.addLayout(bottom_row)
@@ -1294,6 +1336,54 @@ class GranularFXPage(QWidget):
 # -------------------------------------------------------------------------
 # TAB 4: FULLY ACTIVATED AUTOMATION & STEP SEQUENCER SUITE
 # -------------------------------------------------------------------------
+class AutomationCurveCanvas(QWidget):
+    def __init__(self, points_list, parent=None):
+        super().__init__(parent)
+        self.points_list = points_list
+        self.setMinimumHeight(120)
+        self.setStyleSheet("background-color: #0b0f15; border: 1px solid #30363d; border-radius: 4px;")
+
+    def paintEvent(self, event):
+        p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.fillRect(self.rect(), QColor("#0b0f15"))
+
+        p.setPen(QPen(QColor("#161b22"), 1, Qt.PenStyle.DashLine))
+        for x in range(0, self.width(), 50): p.drawLine(x, 0, x, self.height())
+        for y in range(0, self.height(), 30): p.drawLine(0, y, self.width(), y)
+
+        n = len(self.points_list)
+        if n >= 2:
+            step_w = self.width() / max(1, n - 1)
+            path = QPainterPath()
+            pts = []
+            for i, val in enumerate(self.points_list):
+                px = i * step_w
+                py = self.height() - (val / 100.0) * (self.height() - 20) - 10
+                pts.append(QPointF(px, py))
+
+            path.moveTo(pts[0])
+            for pt in pts[1:]:
+                path.lineTo(pt)
+
+            p.setPen(QPen(QColor("#f5d97d"), 2.0))
+            p.drawPath(path)
+
+            p.setBrush(QBrush(QColor("#00ffcc")))
+            p.setPen(QPen(QColor("#ffffff"), 1))
+            for pt in pts:
+                p.drawEllipse(pt, 4, 4)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            pos = event.position()
+            n = len(self.points_list)
+            if n > 0:
+                idx = min(n - 1, max(0, int(round((pos.x() / self.width()) * (n - 1)))))
+                val = max(0.0, min(100.0, round((self.height() - pos.y() - 10) / (self.height() - 20) * 100.0, 1)))
+                self.points_list[idx] = val
+                self.update()
+
+
 class AutomationPatternPage(QWidget):
     def __init__(self, engine):
         super().__init__()
@@ -1426,298 +1516,9 @@ class AutomationPatternPage(QWidget):
             QMessageBox.warning(self, "Despawn Failed", "At least one sequencer module must remain active.")
 
 
-class AutomationCurveCanvas(QWidget):
-    def __init__(self, points_list, parent=None):
-        super().__init__(parent)
-        self.points_list = points_list
-        self.setMinimumHeight(120)
-        self.setStyleSheet("background-color: #0b0f15; border: 1px solid #30363d; border-radius: 4px;")
-
-    def paintEvent(self, event):
-        p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.fillRect(self.rect(), QColor("#0b0f15"))
-
-        p.setPen(QPen(QColor("#161b22"), 1, Qt.PenStyle.DashLine))
-        for x in range(0, self.width(), 50): p.drawLine(x, 0, x, self.height())
-        for y in range(0, self.height(), 30): p.drawLine(0, y, self.width(), y)
-
-        n = len(self.points_list)
-        if n >= 2:
-            step_w = self.width() / max(1, n - 1)
-            path = QPainterPath()
-            pts = []
-            for i, val in enumerate(self.points_list):
-                px = i * step_w
-                py = self.height() - (val / 100.0) * (self.height() - 20) - 10
-                pts.append(QPointF(px, py))
-
-            path.moveTo(pts[0])
-            for pt in pts[1:]:
-                path.lineTo(pt)
-
-            p.setPen(QPen(QColor("#f5d97d"), 2.0))
-            p.drawPath(path)
-
-            p.setBrush(QBrush(QColor("#00ffcc")))
-            p.setPen(QPen(QColor("#ffffff"), 1))
-            for pt in pts:
-                p.drawEllipse(pt, 4, 4)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            pos = event.position()
-            n = len(self.points_list)
-            if n > 0:
-                idx = min(n - 1, max(0, int(round((pos.x() / self.width()) * (n - 1)))))
-                val = max(0.0, min(100.0, round((self.height() - pos.y() - 10) / (self.height() - 20) * 100.0, 1)))
-                self.points_list[idx] = val
-                self.update()
-
-
-# -------------------------------------------------------------------------
-# TAB 5: EQUATION SCALES, INFINITE PLAYLIST & PATCHBAY
-# -------------------------------------------------------------------------
-class MasterControlPatchbayPage(QWidget):
-    def __init__(self, engine, main_window):
-        super().__init__()
-        self.engine = engine
-        self.main_window = main_window
-        self.setStyleSheet("background-color: #070b10;")
-        GLOBAL_BUS.register_subscriber(self)
-        layout = QVBoxLayout(self)
-
-        top_group = QGroupBox("Project Management, Equation Tonal Scale & Song Randomizer")
-        top_group.setStyleSheet("color: #f5d97d; font-weight: bold; background-color: #0d1117; border: 1px solid #30363d;")
-        top_layout = QGridLayout()
-
-        lbl_bpm = QLabel("Global BPM:")
-        lbl_bpm.setStyleSheet("color: #c9d1d9; background: transparent;")
-        top_layout.addWidget(lbl_bpm, 0, 0)
-
-        self.bpm_slider = QSlider(Qt.Orientation.Horizontal)
-        self.bpm_slider.setRange(400, 2400); self.bpm_slider.setValue(int(self.engine.global_bpm * 10))
-        self.bpm_slider.setStyleSheet("""
-            QSlider::groove:horizontal { background: #161b22; height: 4px; border-radius: 2px; }
-            QSlider::handle:horizontal { background: #00ffcc; width: 12px; margin: -4px 0; border-radius: 6px; }
-        """)
-        self.bpm_slider.valueChanged.connect(self._on_bpm_changed)
-        top_layout.addWidget(self.bpm_slider, 0, 1)
-
-        self.bpm_label = QLabel(f"{self.engine.global_bpm:.1f} BPM")
-        self.bpm_label.setStyleSheet("color: #00ffcc; font-weight: bold; background: transparent;")
-        top_layout.addWidget(self.bpm_label, 0, 2)
-
-        lbl_eq = QLabel("Scale Equation (Step-Gated x, y, z Variables):")
-        lbl_eq.setStyleSheet("color: #c9d1d9; background: transparent;")
-        top_layout.addWidget(lbl_eq, 1, 0)
-
-        self.eq_input = QLineEdit(self.engine.scale_equation)
-        self.eq_input.setStyleSheet("background-color: #161b22; color: #00ffcc; font-family: monospace; border: 1px solid #30363d;")
-        top_layout.addWidget(self.eq_input, 1, 1)
-
-        inc_layout = QHBoxLayout()
-        lbl_inc = QLabel("Increment:")
-        lbl_inc.setStyleSheet("color: #c9d1d9; background: transparent;")
-        inc_layout.addWidget(lbl_inc)
-
-        self.inc_spin = QDoubleSpinBox(); self.inc_spin.setRange(0.01, 10.0); self.inc_spin.setValue(self.engine.scale_increment); self.inc_spin.setSingleStep(0.05)
-        self.inc_spin.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
-        inc_layout.addWidget(self.inc_spin)
-
-        lbl_st = QLabel("Steps:")
-        lbl_st.setStyleSheet("color: #c9d1d9; background: transparent;")
-        inc_layout.addWidget(lbl_st)
-
-        self.steps_spin = QSpinBox(); self.steps_spin.setRange(4, 64); self.steps_spin.setValue(self.engine.divergence_steps_count)
-        self.steps_spin.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
-        inc_layout.addWidget(self.steps_spin)
-
-        apply_scale_btn = QPushButton("⚙ Generate Scale")
-        apply_scale_btn.setStyleSheet("background-color: #1f242c; color: #f5d97d; font-weight: bold; border: 1px solid #f5d97d;")
-        apply_scale_btn.clicked.connect(self._apply_equation_scale)
-        inc_layout.addWidget(apply_scale_btn)
-        top_layout.addLayout(inc_layout, 1, 2)
-
-        btn_row = QHBoxLayout()
-        randomize_song_btn = QPushButton("🎲 Full Algorithmic Randomizer (Human-Like Song Writer)")
-        randomize_song_btn.setStyleSheet("background-color: #2b1135; color: #ff7b72; font-weight: bold; border: 1px solid #ff7b72; padding: 6px;")
-        randomize_song_btn.clicked.connect(self._randomize_song_action)
-        btn_row.addWidget(randomize_song_btn)
-
-        export_audio_btn = QPushButton("🎵 Export Master Audio (Custom WAV)")
-        export_audio_btn.setStyleSheet("background-color: #1f242c; color: #00ffcc; font-weight: bold; border: 1px solid #00ffcc; padding: 6px;")
-        export_audio_btn.clicked.connect(self._export_audio)
-        btn_row.addWidget(export_audio_btn)
-
-        save_proj_btn = QPushButton("💾 Save Project")
-        save_proj_btn.setStyleSheet("background-color: #1f242c; color: #f5d97d; font-weight: bold; border: 1px solid #f5d97d; padding: 6px;")
-        save_proj_btn.clicked.connect(self._save_project)
-        btn_row.addWidget(save_proj_btn)
-
-        load_proj_btn = QPushButton("📂 Load Project")
-        load_proj_btn.setStyleSheet("background-color: #1f242c; color: #f5d97d; font-weight: bold; border: 1px solid #f5d97d; padding: 6px;")
-        load_proj_btn.clicked.connect(self._load_project)
-        btn_row.addWidget(load_proj_btn)
-        top_layout.addLayout(btn_row, 2, 0, 1, 3)
-
-        top_group.setLayout(top_layout)
-        layout.addWidget(top_group)
-
-        splitter = QSplitter(Qt.Orientation.Vertical)
-        splitter.setStyleSheet("QSplitter::handle { background-color: #30363d; }")
-
-        playlist_group = QGroupBox("Infinite Playlist Timeline (Advanced Clip Customizer & Automation Lanes)")
-        playlist_group.setStyleSheet("color: #f5d97d; font-weight: bold; background-color: #0d1117; border: 1px solid #30363d;")
-        p_layout = QVBoxLayout()
-
-        clip_toolbar = QHBoxLayout()
-        lbl_pat = QLabel("Insert Pattern:")
-        lbl_pat.setStyleSheet("color: #c9d1d9; background: transparent;")
-        clip_toolbar.addWidget(lbl_pat)
-
-        self.pattern_combo = QComboBox()
-        self.pattern_combo.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
-        self.pattern_combo.addItems(self.engine.available_patterns)
-        clip_toolbar.addWidget(self.pattern_combo)
-
-        lbl_ch = QLabel("Math Chord:")
-        lbl_ch.setStyleSheet("color: #c9d1d9; background: transparent;")
-        clip_toolbar.addWidget(lbl_ch)
-
-        self.playlist_chord_combo = QComboBox()
-        self.playlist_chord_combo.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
-        self.playlist_chord_combo.addItems(list(self.engine.math_chord_library.keys()))
-        clip_toolbar.addWidget(self.playlist_chord_combo)
-
-        lbl_ps = QLabel("Pitch Shift:")
-        lbl_ps.setStyleSheet("color: #c9d1d9; background: transparent;")
-        clip_toolbar.addWidget(lbl_ps)
-
-        self.playlist_pitch_spin = QDoubleSpinBox(); self.playlist_pitch_spin.setRange(-24.0, 24.0); self.playlist_pitch_spin.setValue(0.0); self.playlist_pitch_spin.setSuffix(" st")
-        self.playlist_pitch_spin.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
-        clip_toolbar.addWidget(self.playlist_pitch_spin)
-
-        lbl_ap = QLabel("Amp:")
-        lbl_ap.setStyleSheet("color: #c9d1d9; background: transparent;")
-        clip_toolbar.addWidget(lbl_ap)
-
-        self.playlist_amp_spin = QDoubleSpinBox(); self.playlist_amp_spin.setRange(0.1, 2.0); self.playlist_amp_spin.setValue(1.0); self.playlist_amp_spin.setSingleStep(0.1)
-        self.playlist_amp_spin.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
-        clip_toolbar.addWidget(self.playlist_amp_spin)
-
-        lbl_aut = QLabel("Automation Pattern:")
-        lbl_aut.setStyleSheet("color: #c9d1d9; background: transparent;")
-        clip_toolbar.addWidget(lbl_aut)
-
-        self.playlist_auto_combo = QComboBox()
-        self.playlist_auto_combo.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
-        self.playlist_auto_combo.addItems(list(self.engine.automation_patterns.keys()))
-        clip_toolbar.addWidget(self.playlist_auto_combo)
-
-        p_layout.addLayout(clip_toolbar)
-
-        self.infinite_playlist_canvas = InfinitePlaylistCanvas(self.engine, self)
-        p_layout.addWidget(self.infinite_playlist_canvas)
-        playlist_group.setLayout(p_layout)
-        splitter.addWidget(playlist_group)
-
-        patch_group = QGroupBox("Universal Patchbay (Dedicated Synth Jacks, Audio I/O & Cross-Tab Cable Matrix)")
-        patch_group.setStyleSheet("color: #f5d97d; font-weight: bold; background-color: #0d1117; border: 1px solid #30363d;")
-        b_layout = QVBoxLayout()
-        self.patch_canvas = MasterPatchCanvas()
-        b_layout.addWidget(self.patch_canvas)
-        patch_group.setLayout(b_layout)
-        splitter.addWidget(patch_group)
-
-        layout.addWidget(splitter)
-
-    def _on_bpm_changed(self, val):
-        self.engine.global_bpm = val / 10.0
-        self.bpm_label.setText(f"{self.engine.global_bpm:.1f} BPM")
-
-    def _apply_equation_scale(self):
-        self.engine.scale_equation = self.eq_input.text()
-        self.engine.scale_increment = self.inc_spin.value()
-        self.engine.divergence_steps_count = self.steps_spin.value()
-        freqs = self.engine.generate_equation_scale_frequencies()
-        QMessageBox.information(self, "Equation Scale Generated", f"Successfully computed {len(freqs)} rhythmic frequencies using increment {self.engine.scale_increment}!")
-
-    def _randomize_song_action(self):
-        self.engine.randomize_song()
-        self.bpm_slider.setValue(int(self.engine.global_bpm * 10))
-        self.eq_input.setText(self.engine.scale_equation)
-        self.infinite_playlist_canvas.canvas_inner.update()
-        self.patch_canvas.update()
-
-        if hasattr(self.main_window, "tabs"):
-            for i in range(self.main_window.tabs.count()):
-                widget = self.main_window.tabs.widget(i)
-                if hasattr(widget, "refresh_fx_grid"):
-                    widget.refresh_fx_grid()
-                elif hasattr(widget, "refresh_synth_grid"):
-                    widget.refresh_synth_grid()
-                elif hasattr(widget, "refresh_drum_grid"):
-                    widget.refresh_drum_grid()
-                elif hasattr(widget, "_refresh_automation_panels"):
-                    widget._refresh_automation_panels()
-
-        QMessageBox.information(self, "Human-Like Song Randomizer Complete", f"Randomized active FX modules ({len(self.engine.active_fx_modules)}), drum kits ({len(self.engine.active_drum_kits)}), synth panels ({len(self.engine.active_synth_panels)}), sequencers, patchbay cables, wavetables, equations, and step-gated beat patterns!")
-
-    def _save_project(self):
-        filepath, _ = QFileDialog.getSaveFileName(self, "Save EQR Project", "", "EQR Project Files (*.eqrproj)")
-        if filepath:
-            self.engine.serialize_project(filepath)
-            QMessageBox.information(self, "Project Saved", f"Project saved to:\n{filepath}")
-
-    def _load_project(self):
-        filepath, _ = QFileDialog.getOpenFileName(self, "Load EQR Project", "", "EQR Project Files (*.eqrproj)")
-        if filepath:
-            self.engine.deserialize_project(filepath)
-            self.bpm_slider.setValue(int(self.engine.global_bpm * 10))
-            self.eq_input.setText(self.engine.scale_equation)
-            self.infinite_playlist_canvas.canvas_inner.update()
-            self.patch_canvas.update()
-
-            if hasattr(self.main_window, "tabs"):
-                for i in range(self.main_window.tabs.count()):
-                    widget = self.main_window.tabs.widget(i)
-                    if hasattr(widget, "refresh_fx_grid"):
-                        widget.refresh_fx_grid()
-                    elif hasattr(widget, "refresh_synth_grid"):
-                        widget.refresh_synth_grid()
-                    elif hasattr(widget, "refresh_drum_grid"):
-                        widget.refresh_drum_grid()
-                    elif hasattr(widget, "_refresh_automation_panels"):
-                        widget._refresh_automation_panels()
-
-            QMessageBox.information(self, "Project Loaded", f"Project loaded from:\n{filepath}")
-
-    def _export_audio(self):
-        filepath, _ = QFileDialog.getSaveFileName(self, "Export Master Audio", "eqr_extended_master_render.wav", "WAV Audio (*.wav)")
-        if filepath:
-            random_export_duration = float(random.randint(60, 600))
-            self.engine.export_audio(filepath, duration_sec=random_export_duration)
-            QMessageBox.information(self, "Extended Audio Export Successful", f"Rhythmic arrangement ({random_export_duration:.1f} seconds / {random_export_duration/60:.1f} minutes) rendered to:\n{filepath}")
-
-    def on_global_patch_updated(self, cables):
-        self.patch_canvas.cables = cables
-        self.patch_canvas.update()
-
-
 # -------------------------------------------------------------------------
 # INFINITE SCROLLABLE PLAYLIST CANVAS
 # -------------------------------------------------------------------------
-class InfinitePlaylistCanvas(QScrollArea):
-    def __init__(self, engine, parent_page, parent=None):
-        super().__init__(parent)
-        self.engine = engine
-        self.parent_page = parent_page
-        self.setWidgetResizable(True)
-        self.setStyleSheet("background-color: #070b10; border: none;")
-        self.canvas_inner = InfinitePlaylistInnerWidget(self.engine, self.parent_page)
-        self.setWidget(self.canvas_inner)
-
-
 class InfinitePlaylistInnerWidget(QWidget):
     def __init__(self, engine, parent_page, parent=None):
         super().__init__(parent)
@@ -1772,67 +1573,324 @@ class InfinitePlaylistInnerWidget(QWidget):
             self.update()
 
 
+class InfinitePlaylistCanvas(QScrollArea):
+    def __init__(self, engine, parent_page, parent=None):
+        super().__init__(parent)
+        self.engine = engine
+        self.parent_page = parent_page
+        self.setWidgetResizable(True)
+        self.setStyleSheet("background-color: #070b10; border: none;")
+        self.canvas_inner = InfinitePlaylistInnerWidget(self.engine, self.parent_page)
+        self.setWidget(self.canvas_inner)
+
+
 # -------------------------------------------------------------------------
 # MASTER PATCH CANVAS (Visual Wires & Dedicated Synth Jacks)
 # -------------------------------------------------------------------------
 class MasterPatchCanvas(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setMinimumHeight(280); self.setStyleSheet("background-color: #070b10;")
-        self.cables = []
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.cables = GLOBAL_BUS.global_cables
+        self.setMinimumHeight(220)
+        self.setStyleSheet("background-color: #0b0f15; border: 1px solid #30363d; border-radius: 4px;")
 
     def paintEvent(self, event):
         p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.fillRect(self.rect(), QColor("#070b10"))
+        p.fillRect(self.rect(), QColor("#0b0f15"))
 
-        p.setPen(QPen(QColor("#00ffcc"), 1))
-        p.drawText(25, 20, f"Active Cross-Tab Patch Cables & Dedicated Synth Jacks: {len(self.cables)} [Bridging All Tabs]")
+        p.setPen(QPen(QColor("#161b22"), 1, Qt.PenStyle.DashLine))
+        for x in range(0, self.width(), 60): p.drawLine(x, 0, x, self.height())
+        for y in range(0, self.height(), 40): p.drawLine(0, y, self.width(), y)
 
         if not self.cables:
-            p.setPen(QPen(QColor("#484f58"), 1))
-            p.drawText(25, 45, "No patch cables connected. Click jack buttons on any synth, drum, or audio module to route wires across tabs.")
+            p.setPen(QPen(QColor("#8b949e"), 10))
+            p.drawText(20, 30, "No active patch cables. Activate Parameter Jacks in synth modules or use the Song Randomizer.")
+            return
 
-        for i, c in enumerate(self.cables):
-            y_offset = 65 + (i * 35)
+        for i, cable in enumerate(self.cables):
+            src = cable.get("src_module", "Src")
+            tgt = cable.get("tgt_module", "Tgt")
+            pol = cable.get("polarity", "Neutral")
+            gain = cable.get("gain", 1.0)
 
-            path = QPainterPath()
-            path.moveTo(30, y_offset)
-            path.cubicTo(140, y_offset - 30, 200, y_offset + 30, 340, y_offset)
+            y_pos = 35 + (i * 30) % max(40, self.height() - 40)
+            color = "#00ffcc" if pol == "+" else ("#ff7b72" if pol == "-" else "#f5d97d")
 
-            p.setPen(QPen(QColor("#ff7b72" if c['polarity'] == "-" else ("#f5d97d" if c['polarity'] == "+" else "#00ffcc")), 2.5, Qt.PenStyle.SolidLine))
-            p.drawPath(path)
+            p.setPen(QPen(QColor(color), 2.0))
+            p.drawLine(30, y_pos, self.width() - 30, y_pos)
 
-            p.setBrush(QBrush(QColor("#00ffcc")))
-            p.drawEllipse(QPointF(30, y_offset), 5, 5)
-            p.setPen(QPen(QColor("#c9d1d9"), 1))
-            p.drawText(45, y_offset - 4, f"[{c['src_module']}] ➔ '{c['src_node']}'")
+            p.setBrush(QBrush(QColor("#161b22")))
+            p.setPen(QPen(QColor(color), 1))
+            p.drawRoundedRect(35, y_pos - 12, 190, 24, 4, 4)
+            p.drawRoundedRect(self.width() - 225, y_pos - 12, 190, 24, 4, 4)
 
-            p.setBrush(QBrush(QColor("#f5d97d")))
-            p.drawEllipse(QPointF(340, y_offset), 5, 5)
-            p.setPen(QPen(QColor("#c9d1d9"), 1))
-            p.drawText(355, y_offset - 4, f"Target: [{c['tgt_module']}] (Pol: {c['polarity']} | Gain: {c['gain']}x)")
+            p.setPen(QPen(QColor("#ffffff"), 9))
+            p.drawText(43, y_pos + 4, f"{src}")
+            p.drawText(self.width() - 217, y_pos + 4, f"{tgt} [{pol}, {gain}x]")
 
 
 # -------------------------------------------------------------------------
-# MAIN WINDOW SUITE CONTAINER (Multi-Tab Architecture)
+# TAB 5: EQUATION SCALES, INFINITE PLAYLIST & PATCHBAY
 # -------------------------------------------------------------------------
-class GrooveboxMasterSuite(QMainWindow):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.setWindowTitle("Groovebox DAW & Hardware Suite (v36.7 - Activated Drums, Sequencers & Automations)")
-        self.resize(1620, 1000)
-        self.setStyleSheet("""
-            QMainWindow { background-color: #070b10; }
-            QTabWidget::pane { border: 1px solid #2a2f34; background-color: #070b10; }
-            QTabBar::tab { background-color: #161b22; color: #8b949e; padding: 10px 16px; border: 1px solid #2a2f34; font-weight: bold; }
-            QTabBar::tab:selected { background-color: #1f242c; color: #00ffcc; }
-            QGroupBox { color: #f5d97d; font-weight: bold; border: 1px solid #30363d; border-radius: 6px; margin-top: 10px; padding-top: 15px; }
-            QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; }
-        """)
+class MasterControlPatchbayPage(QWidget):
+    def __init__(self, engine, main_window):
+        super().__init__()
+        self.engine = engine
+        self.main_window = main_window
+        GLOBAL_BUS.register_subscriber(self)
 
-        self.engine = GrooveboxEngine()
+        layout = QVBoxLayout(self)
+
+        # Top Global Controls Group
+        controls_group = QGroupBox("Master Engine Controls & Equation Scale Settings")
+        controls_group.setStyleSheet("QGroupBox { color: #00ffcc; font-weight: bold; border: 1px solid #30363d; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 3px; }")
+        ctrl_layout = QGridLayout(controls_group)
+
+        # BPM Slider
+        self.bpm_label = QLabel(f"{self.engine.global_bpm:.1f} BPM")
+        self.bpm_label.setStyleSheet("color: #f5d97d; font-weight: bold;")
+        self.bpm_slider = QSlider(Qt.Orientation.Horizontal)
+        self.bpm_slider.setRange(400, 2400)
+        self.bpm_slider.setValue(int(self.engine.global_bpm * 10))
+        self.bpm_slider.valueChanged.connect(self._on_bpm_changed)
+
+        ctrl_layout.addWidget(QLabel("Global Tempo:"), 0, 0)
+        ctrl_layout.addWidget(self.bpm_slider, 0, 1)
+        ctrl_layout.addWidget(self.bpm_label, 0, 2)
+
+        # Equation Controls
+        self.eq_input = QLineEdit(self.engine.scale_equation)
+        self.eq_input.setStyleSheet("background-color: #161b22; color: #00ffcc; font-family: monospace; border: 1px solid #30363d;")
+
+        self.inc_spin = QDoubleSpinBox()
+        self.inc_spin.setRange(0.01, 5.0)
+        self.inc_spin.setValue(self.engine.scale_increment)
+        self.inc_spin.setSingleStep(0.05)
+        self.inc_spin.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
+
+        self.steps_spin = QSpinBox()
+        self.steps_spin.setRange(4, 64)
+        self.steps_spin.setValue(self.engine.divergence_steps_count)
+        self.steps_spin.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
+
+        apply_eq_btn = QPushButton("Apply Equation Scale")
+        apply_eq_btn.setStyleSheet("background-color: #1f242c; color: #f5d97d; font-weight: bold; border: 1px solid #f5d97d; padding: 4px;")
+        apply_eq_btn.clicked.connect(self._apply_equation_scale)
+
+        ctrl_layout.addWidget(QLabel("Scale Equation:"), 1, 0)
+        ctrl_layout.addWidget(self.eq_input, 1, 1)
+        ctrl_layout.addWidget(apply_eq_btn, 1, 2)
+
+        ctrl_layout.addWidget(QLabel("Increment:"), 2, 0)
+        ctrl_layout.addWidget(self.inc_spin, 2, 1)
+        ctrl_layout.addWidget(QLabel("Steps:"), 2, 2)
+        ctrl_layout.addWidget(self.steps_spin, 2, 3)
+
+        # Action Buttons Row
+        actions_layout = QHBoxLayout()
+        rand_btn = QPushButton("🎲 Randomize Song & Patchbay")
+        rand_btn.setStyleSheet("background-color: #2b1135; color: #00ffcc; font-weight: bold; border: 1px solid #00ffcc; padding: 6px;")
+        rand_btn.clicked.connect(self._randomize_song_action)
+
+        save_btn = QPushButton("💾 Save Project")
+        save_btn.setStyleSheet("background-color: #1f242c; color: #ffffff; border: 1px solid #30363d; padding: 6px;")
+        save_btn.clicked.connect(self._save_project)
+
+        load_btn = QPushButton("📂 Load Project")
+        load_btn.setStyleSheet("background-color: #1f242c; color: #ffffff; border: 1px solid #30363d; padding: 6px;")
+        load_btn.clicked.connect(self._load_project)
+
+        export_btn = QPushButton("📻 Export Master WAV Audio")
+        export_btn.setStyleSheet("background-color: #112b35; color: #f5d97d; font-weight: bold; border: 1px solid #f5d97d; padding: 6px;")
+        export_btn.clicked.connect(self._export_audio)
+
+        actions_layout.addWidget(rand_btn)
+        actions_layout.addWidget(save_btn)
+        actions_layout.addWidget(load_btn)
+        actions_layout.addWidget(export_btn)
+
+        layout.addWidget(controls_group)
+        layout.addLayout(actions_layout)
+
+        # Playlist Options & Controls
+        pl_options_layout = QHBoxLayout()
+        pl_options_layout.addWidget(QLabel("Pattern:"))
+        self.pattern_combo = QComboBox()
+        self.pattern_combo.addItems(self.engine.available_patterns)
+        self.pattern_combo.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
+        pl_options_layout.addWidget(self.pattern_combo)
+
+        pl_options_layout.addWidget(QLabel("Chord:"))
+        self.playlist_chord_combo = QComboBox()
+        self.playlist_chord_combo.addItems(list(self.engine.math_chord_library.keys()))
+        self.playlist_chord_combo.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
+        pl_options_layout.addWidget(self.playlist_chord_combo)
+
+        pl_options_layout.addWidget(QLabel("Pitch St:"))
+        self.playlist_pitch_spin = QDoubleSpinBox()
+        self.playlist_pitch_spin.setRange(-24.0, 24.0)
+        self.playlist_pitch_spin.setValue(0.0)
+        self.playlist_pitch_spin.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
+        pl_options_layout.addWidget(self.playlist_pitch_spin)
+
+        pl_options_layout.addWidget(QLabel("Amp:"))
+        self.playlist_amp_spin = QDoubleSpinBox()
+        self.playlist_amp_spin.setRange(0.1, 2.0)
+        self.playlist_amp_spin.setValue(1.0)
+        self.playlist_amp_spin.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
+        pl_options_layout.addWidget(self.playlist_amp_spin)
+
+        pl_options_layout.addWidget(QLabel("Auto Pattern:"))
+        self.playlist_auto_combo = QComboBox()
+        self.playlist_auto_combo.addItems(list(self.engine.automation_patterns.keys()))
+        self.playlist_auto_combo.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
+        pl_options_layout.addWidget(self.playlist_auto_combo)
+
+        layout.addLayout(pl_options_layout)
+
+        # Splitter for Playlist and Patch Canvas
+        splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # Infinite Playlist Section
+        playlist_group = QGroupBox("Infinite Playlist Arrangement Canvas (Click to Place Clip)")
+        playlist_group.setStyleSheet("QGroupBox { color: #f5d97d; font-weight: bold; border: 1px solid #30363d; margin-top: 6px; }")
+        pl_layout = QVBoxLayout(playlist_group)
+        self.infinite_playlist_canvas = InfinitePlaylistCanvas(self.engine, self)
+        pl_layout.addWidget(self.infinite_playlist_canvas)
+        splitter.addWidget(playlist_group)
+
+        # Patch Canvas Section
+        patch_group = QGroupBox("Master Visual Patchbay & Cable Wiring Matrix")
+        patch_group.setStyleSheet("QGroupBox { color: #00ffcc; font-weight: bold; border: 1px solid #30363d; margin-top: 6px; }")
+        patch_layout = QVBoxLayout(patch_group)
+        self.patch_canvas = MasterPatchCanvas(self)
+        patch_layout.addWidget(self.patch_canvas)
+
+        # Manual Target Override Route
+        manual_patch_panel = QWidget()
+        manual_patch_layout = QHBoxLayout(manual_patch_panel)
+        manual_patch_layout.setContentsMargins(0, 0, 0, 0)
+        manual_patch_layout.addWidget(QLabel("Manual Target Override Route:"))
+        self.manual_patch_combo = QComboBox()
+        self.manual_patch_combo.addItems([
+            "Direct Bus Sum [Master Audio]",
+            "Auxiliary Shifter Loop A",
+            "Auxiliary Shifter Loop B",
+            "Quantum Resonator Feedback In",
+            "Stochastic Granular Direct Send"
+        ])
+        self.manual_patch_combo.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
+        manual_patch_layout.addWidget(self.manual_patch_combo)
+
+        apply_manual_route_btn = QPushButton("Apply Override Route")
+        apply_manual_route_btn.setStyleSheet("background-color: #1f242c; color: #f5d97d; font-weight: bold; border: 1px solid #f5d97d; padding: 3px;")
+        apply_manual_route_btn.clicked.connect(self._apply_manual_override_route)
+        manual_patch_layout.addWidget(apply_manual_route_btn)
+
+        patch_layout.addWidget(manual_patch_panel)
+        splitter.addWidget(patch_group)
+
+        layout.addWidget(splitter)
+
+    def _apply_manual_override_route(self):
+        selected_route = self.manual_patch_combo.currentText()
+        if GLOBAL_BUS.global_cables:
+            GLOBAL_BUS.global_cables[-1]["tgt_module"] = selected_route
+            GLOBAL_BUS.broadcast_update()
+            QMessageBox.information(self, "Manual Patch Route Applied", f"Successfully reconfigured the patch route to target: {selected_route}")
+        else:
+            QMessageBox.warning(self, "No Active Cables", "There are no active global cables in the patchbay to re-route. Create a patch or run the randomizer first.")
+
+    def _on_bpm_changed(self, val):
+        self.engine.global_bpm = val / 10.0
+        self.bpm_label.setText(f"{self.engine.global_bpm:.1f} BPM")
+
+    def _apply_equation_scale(self):
+        self.engine.scale_equation = self.eq_input.text()
+        self.engine.scale_increment = self.inc_spin.value()
+        self.engine.divergence_steps_count = self.steps_spin.value()
+        freqs = self.engine.generate_equation_scale_frequencies()
+        QMessageBox.information(self, "Equation Scale Generated", f"Successfully computed {len(freqs)} rhythmic frequencies using increment {self.engine.scale_increment}!")
+
+    def _randomize_song_action(self):
+        self.engine.randomize_song()
+        self.bpm_slider.setValue(int(self.engine.global_bpm * 10))
+        self.eq_input.setText(self.engine.scale_equation)
+        self.infinite_playlist_canvas.canvas_inner.update()
+        self.patch_canvas.update()
+
+        if hasattr(self.main_window, "tabs"):
+            for i in range(self.main_window.tabs.count()):
+                widget = self.main_window.tabs.widget(i)
+                if hasattr(widget, "refresh_fx_grid"):
+                    widget.refresh_fx_grid()
+                elif hasattr(widget, "refresh_synth_grid"):
+                    widget.refresh_synth_grid()
+                elif hasattr(widget, "refresh_drum_grid"):
+                    widget.refresh_drum_grid()
+                elif hasattr(widget, "_refresh_automation_panels"):
+                    widget._refresh_automation_panels()
+
+        QMessageBox.information(self, "Song Randomizer Complete", f"Randomized active FX modules ({len(self.engine.active_fx_modules)}), drum kits ({len(self.engine.active_drum_kits)}), synth panels ({len(self.engine.active_synth_panels)}), sequencers, patchbay cables, wavetables, equations, and step-gated beat patterns!")
+
+    def _save_project(self):
+        filepath, _ = QFileDialog.getSaveFileName(self, "Save EQR Project", "", "EQR Project Files (*.eqrproj)")
+        if filepath:
+            self.engine.serialize_project(filepath)
+            QMessageBox.information(self, "Project Saved", f"Project saved to:\n{filepath}")
+
+    def _load_project(self):
+        filepath, _ = QFileDialog.getOpenFileName(self, "Load EQR Project", "", "EQR Project Files (*.eqrproj)")
+        if filepath:
+            self.engine.deserialize_project(filepath)
+            self.bpm_slider.setValue(int(self.engine.global_bpm * 10))
+            self.eq_input.setText(self.engine.scale_equation)
+            self.infinite_playlist_canvas.canvas_inner.update()
+            self.patch_canvas.update()
+
+            if hasattr(self.main_window, "tabs"):
+                for i in range(self.main_window.tabs.count()):
+                    widget = self.main_window.tabs.widget(i)
+                    if hasattr(widget, "refresh_fx_grid"):
+                        widget.refresh_fx_grid()
+                    elif hasattr(widget, "refresh_synth_grid"):
+                        widget.refresh_synth_grid()
+                    elif hasattr(widget, "refresh_drum_grid"):
+                        widget.refresh_drum_grid()
+                    elif hasattr(widget, "_refresh_automation_panels"):
+                        widget._refresh_automation_panels()
+
+            QMessageBox.information(self, "Project Loaded", f"Project loaded from:\n{filepath}")
+
+    def _export_audio(self):
+        filepath, _ = QFileDialog.getSaveFileName(self, "Export Master Audio", "eqr_extended_master_render.wav", "WAV Audio (*.wav)")
+        if filepath:
+            random_export_duration = float(random.randint(60, 600))
+            self.engine.export_audio(filepath, duration_sec=random_export_duration)
+            QMessageBox.information(self, "Extended Audio Export Successful", f"Rhythmic arrangement ({random_export_duration:.1f} seconds / {random_export_duration/60:.1f} minutes) rendered to:\n{filepath}")
+
+    def on_global_patch_updated(self, cables):
+        self.patch_canvas.cables = cables
+        self.patch_canvas.update()
+
+
+# -------------------------------------------------------------------------
+# MAIN WINDOW SUITE CONTAINER
+# -------------------------------------------------------------------------
+class EQRGrooveboxMain(QMainWindow):
+    def __init__(self, engine):
+        super().__init__()
+        self.engine = engine
+        self.setWindowTitle("EQR Groovebox Engine v3.6.7 - Professional Composition Suite")
+        self.resize(1500, 950)
+        self.setStyleSheet("background-color: #070b10; color: #ffffff;")
+
         self.tabs = QTabWidget()
-        self.setCentralWidget(self.tabs)
+        self.tabs.setStyleSheet("""
+            QTabWidget::pane { border: 1px solid #30363d; background: #070b10; }
+            QTabBar::tab { background: #161b22; color: #8b949e; padding: 8px 16px; margin-right: 2px; border-top-left-radius: 4px; border-top-right-radius: 4px; font-weight: bold; }
+            QTabBar::tab:selected { background: #0d1117; color: #00ffcc; border-bottom: 2px solid #00ffcc; }
+        """)
 
         self.synth_page = SynthModulePage(self.engine)
         self.drum_page = DrumMatrixPage(self.engine)
@@ -1840,15 +1898,18 @@ class GrooveboxMasterSuite(QMainWindow):
         self.auto_page = AutomationPatternPage(self.engine)
         self.master_page = MasterControlPatchbayPage(self.engine, self)
 
-        self.tabs.addTab(self.synth_page, "🎹 Synths & Multi-Seq Banks")
-        self.tabs.addTab(self.drum_page, "🥁 Drum & Percussion Matrix")
-        self.tabs.addTab(self.fx_page, "🌌 Granular FX & Shifter")
-        self.tabs.addTab(self.auto_page, "⚙️ Sequencers & Automations")
-        self.tabs.addTab(self.master_page, "🎛 Master Control, Playlist & Patchbay")
+        self.tabs.addTab(self.synth_page, "🎛 Synths & Poly-Stack")
+        self.tabs.addTab(self.drum_page, "🥁 Drum Matrices")
+        self.tabs.addTab(self.fx_page, "🌌 Granular FX")
+        self.tabs.addTab(self.auto_page, "⚙️ Sequencers & Automation")
+        self.tabs.addTab(self.master_page, "Master Equation Scale & Patchbay")
+
+        self.setCentralWidget(self.tabs)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app = QApplication(sys.argv)
-    suite = GrooveboxMasterSuite()
-    suite.show()
+    engine = GrooveboxEngine()
+    main_win = EQRGrooveboxMain(engine)
+    main_win.show()
     sys.exit(app.exec())
