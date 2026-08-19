@@ -2001,7 +2001,8 @@ class GrooveboxMainWindow(QMainWindow):
         # Engine state initialization
         from math_engine import MathEngine
         self.engine = MathEngine()
-
+        self.step_sequence = list(range(16))
+        self.step_labels = []
         # Then call your grid builder
         self.build_step_grid()
 
