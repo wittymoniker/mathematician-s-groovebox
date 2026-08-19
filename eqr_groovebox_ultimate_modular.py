@@ -1957,83 +1957,148 @@ class MasterControlPatchbayPage(QWidget):
 # -------------------------------------------------------------------------
 
 class GrooveboxMainWindow(QMainWindow):
+    """
+    Fully unified EQR Groovebox Suite combining sequencer automation lanes,
+    coordinate matrices ($x, y, z$), and transcendental constants into an ideal UI.
+    """
     def __init__(self):
         super().__init__()
-        from math_engine import MathEngine
-        # Initialize the step sequence attribute to prevent the AttributeError
-        # Example: a standard 16-step sequence array (adjust size as needed)
-        self.step_sequence = list(range(16))
-        # Initialize the engine first so it exists when the grid is built
-        self.step_labels = []
-        self.grid_layout = QGridLayout()
-        self.engine = MathEngine()  # Replace with your actual engine initialization class/method
+        self.setWindowTitle("Equation of Reality (EQR) - Master Groovebox Suite")
+        self.resize(1550, 950)
+        self.set_dark_palette()
 
-        # Now build the grid which references self.engine
-        self.build_step_grid()
-        self.setWindowTitle("EQR Groovebox Engine")
-        self.resize(1200, 800)
-
-        # Main Central Widget Layout
-        central_widget = QWidget()
-        main_layout = QVBoxLayout(central_widget)
-
-        # Control Panel for Shuffling and States
-        control_layout = QHBoxLayout()
-        self.shuffle_btn = QPushButton("Shuffle Sequence / Modules")
-        self.shuffle_btn.clicked.connect(self.trigger_shuffle)
-        control_layout.addWidget(self.shuffle_btn)
-
-        main_layout.addLayout(control_layout)
-
-        # Workspace Grid for Modules
-        self.grid_widget = QWidget()
-        self.grid_layout = QGridLayout(self.grid_widget)
-
-        # Initialize steps / tracks array
-        self.step_sequence = list(range(16))
-        self.step_labels = []
-
-        self.build_step_grid()
-
-        # Wrap workspace in FitToFrame container framework
-        self.fit_container = FitToFrameContainer(self.grid_widget)
-        main_layout.addWidget(self.fit_container)
-
-        self.setCentralWidget(central_widget)
-
-        # Engine state initialization
-        from math_engine import MathEngine
+        # Initialize Math Engine and Sequencer State
         self.engine = MathEngine()
         self.step_sequence = list(range(16))
         self.step_labels = []
-        # Then call your grid builder
+
+        self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(True)
+
+        # Build System Tabs
+        self.tabs.addTab(self.create_sequencer_tab(), "1. Sequencer & Automation Hub")
+        self.tabs.addTab(self.create_constants_tab(), "2. 34-Constant Harmonic Matrix")
+
+        self.setCentralWidget(self.tabs)
+        self.statusBar().showMessage("Suite Online | 432Hz Master Reference | Equations Locked ($x, y, z$) | All Systems Nominal")
+
+    def set_dark_palette(self):
+        palette = QPalette()
+        palette.setColor(QPalette.ColorRole.Window, QColor("#0d1117"))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#c9d1d9"))
+        palette.setColor(QPalette.ColorRole.Base, QColor("#161b22"))
+        palette.setColor(QPalette.ColorRole.Text, QColor("#c9d1d9"))
+        palette.setColor(QPalette.ColorRole.Button, QColor("#21262d"))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor("#c9d1d9"))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor("#1f6feb"))
+        QApplication.setPalette(palette)
+
+    def create_sequencer_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        doc_label = QLabel(
+            "<b>Sequencer & Vector Automation Guide:</b><br>"
+            "• <b>Canvas Nodes:</b> Drag nodes to shape automation curves; right-click to add nodes.<br>"
+            "• <b>Patch Wires:</b> Click and drag from one node jack to another to create hardware-style modulation paths."
+        )
+        doc_label.setStyleSheet("background-color: #161b22; padding: 10px; border-radius: 6px; color: #8b949e;")
+        layout.addWidget(doc_label)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+
+        # Add Canvas and Control Matrix
+        self.lane = IdealizedSequencerCanvas(clone_id=1)
+        container_layout.addWidget(self.lane)
+
+        # Step Grid Control Bar & Shuffle Action
+        control_layout = QHBoxLayout()
+        self.shuffle_btn = QPushButton("Shuffle Sequence / Modules")
+        self.shuffle_btn.setStyleSheet("background-color: #21262d; color: #00ffcc; border: 1px solid #30363d; padding: 6px 12px; font-weight: bold;")
+        self.shuffle_btn.clicked.connect(self.trigger_shuffle)
+        control_layout.addWidget(self.shuffle_btn)
+        control_layout.addStretch()
+        container_layout.addLayout(control_layout)
+
+        # 16-Step Grid Layout powered by Engine Coordinates
+        self.step_labels = []
+        self.grid_layout = QGridLayout()
         self.build_step_grid()
+        container_layout.addLayout(self.grid_layout)
+
+        matrix_group = QGroupBox("Clone #1 Architectural Parameter Matrix ($x, y, z$)")
+        matrix_grid = QGridLayout()
+        params = [
+            ("Harmonic Shift", 0.1, 16.0, 1.618, "x-domain scalar"),
+            ("Sub-Bass Gain", 0.0, 2.0, 0.8, "y-domain gain"),
+            ("Resonance Decay", 0.01, 5.0, 0.5, "z-domain decay"),
+            ("Wave Folding", 0.0, 100.0, 25.0, "Non-linear fold")
+        ]
+        for idx, (lbl, min_v, max_v, def_v, note) in enumerate(params):
+            matrix_grid.addWidget(IdealizedMathKnob(lbl, min_v, max_v, def_v, note), 0, idx)
+        matrix_group.setLayout(matrix_grid)
+        container_layout.addWidget(matrix_group)
+
+        container_layout.addStretch()
+        scroll.setWidget(container)
+        layout.addWidget(scroll)
+        return widget
 
     def build_step_grid(self):
-        """Builds module/step components dynamically."""
+        """Builds module/step components dynamically using x, y, z engine evaluation."""
         for i, step in enumerate(self.step_sequence):
             lbl = QLabel(f"Step {step}\nVal: {self.engine.evaluate_coordinates(step, 0, 0):.2f}")
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl.setStyleSheet("background-color: #2a2a2a; color: #ffffff; border: 1px solid #444; padding: 10px;")
+            lbl.setStyleSheet("background-color: #161b22; color: #ffffff; border: 1px solid #30363d; padding: 10px; border-radius: 4px;")
             row = i // 4
             col = i % 4
             self.grid_layout.addWidget(lbl, row, col)
             self.step_labels.append(lbl)
 
     def trigger_shuffle(self):
-        """Triggers the sequence/module shuffle and updates grid elements cleanly."""
-        shuffle_groovebox_sequence(self.step_sequence)
-
-        # Clear current layout widgets and rebuild with new shuffled order
+        """Triggers the sequence/module shuffle and updates grid elements cleanly in place."""
+        random.shuffle(self.step_sequence)
         for i, step in enumerate(self.step_sequence):
             lbl = self.step_labels[i]
-            # Change evaluate_state() to evaluate_coordinates()
             lbl.setText(f"Step {step}\nVal: {self.engine.evaluate_coordinates(step, 0, 0):.2f}")
-def main():
-    app = QApplication(sys.argv)
-    window = GrooveboxMainWindow()
-    window.show()
-    sys.exit(app.exec())
+
+    def create_constants_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        doc_label = QLabel(
+            "<b>Harmonic Constant Matrix:</b><br>"
+            "Exact mathematical constants driving the groovebox synthesis engine."
+        )
+        doc_label.setStyleSheet("background-color: #161b22; padding: 10px; border-radius: 6px; color: #8b949e;")
+        layout.addWidget(doc_label)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        grid = QGridLayout(container)
+
+        constants = [
+            ("Plastic Number", 1.0, 2.0, 1.324, "ρ Constant"),
+            ("Silver Ratio", 1.0, 3.0, 2.414, "δ_s Constant"),
+            ("Supergolden", 1.0, 2.5, 1.465, "ψ Constant"),
+            ("Apéry Constant", 1.0, 2.0, 1.202, "ζ(3) Vector"),
+            ("Euler-Mascheroni", 0.0, 1.0, 0.577, "γ Constant"),
+            ("Gauss Lemniscate", 1.0, 4.0, 2.622, "ϖ Constant"),
+            ("Khinchin Constant", 1.0, 3.0, 2.685, "K_0 Vector"),
+            ("Core Lock", 0.0, 2.0, 1.618, "Primary Ratio")
+        ]
+        for idx, (lbl, min_v, max_v, def_v, note) in enumerate(constants):
+            grid.addWidget(IdealizedMathKnob(lbl, min_v, max_v, def_v, note), idx // 4, idx % 4)
+
+        container.setLayout(grid)
+        scroll.setWidget(container)
+        layout.addWidget(scroll)
+        return widget
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
