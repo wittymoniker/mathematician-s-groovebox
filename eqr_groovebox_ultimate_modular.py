@@ -46,7 +46,7 @@ FREQUENCY_432HZ = 432.0
 # GLOBAL CABLE ROUTING & RESAMPLING BUS MANAGER
 # -------------------------------------------------------------------------
 class GlobalCrossTabBusManager:
-    """Manages universal inter-synth wiring, dedicated synth input/output jacks, master audio routing, and resampling[cite: 10]."""
+    """Manages universal inter-synth wiring, dedicated synth input/output jacks, master audio routing, and resampling."""
     def __init__(self):
         self.global_cables = []
         self.subscribers = []
@@ -102,7 +102,7 @@ GLOBAL_BUS = GlobalCrossTabBusManager()
 # CORE GROOVEBOX & HARDWARE ENGINE (Enhanced v3.6.5)
 # -------------------------------------------------------------------------
 class GrooveboxEngine:
-    """Core groovebox engine supporting advanced x,y,z operator equations, stochastic micro-timing, and automated patching[cite: 10]."""
+    """Core groovebox engine supporting advanced x,y,z operator equations, stochastic micro-timing, and automated patching."""
     def __init__(self):
         self.global_bpm = 120.0
         self.scale_system = "Equation Tonal Scale (Dynamic)"
@@ -129,7 +129,7 @@ class GrooveboxEngine:
         self.active_synths = []
         self.synth_wiring_matrix = {}
 
-        # Mathematical chord libraries utilizing x, y, z variables[cite: 10]
+        # Mathematical chord libraries utilizing x, y, z variables
         self.math_chord_library = {
             "Unit Harmonic Stack (+/- 1, 2, 3)": [(-3.0, 0.4), (-2.0, 0.6), (-1.0, 0.8), (1.0, 1.0), (2.0, 0.7), (3.0, 0.4)],
             "Divergent Asymmetric Point Pair": [(-4.25, 0.5), (-1.5, 0.9), (0.25, 1.0), (3.75, 0.6)],
@@ -238,7 +238,7 @@ class GrooveboxEngine:
             del self.playlist_clips[(track, bar_pos)]
 
     def randomize_song(self):
-        """Randomizes equations, wavetables, knobs, patchbay cables, and dynamic modules for full composition[cite: 10]."""
+        """Randomizes equations, wavetables, knobs, patchbay cables, and dynamic modules for full composition."""
         self.playlist_clips.clear()
         GLOBAL_BUS.clear_all()
         self.randomize_synth_routing()
@@ -310,7 +310,7 @@ class GrooveboxEngine:
         freqs = []
         for i in range(self.divergence_steps_count):
             x = i * self.scale_increment
-            y = x * 1.618  # Golden ratio operator scaling
+            y = x * 1.618  # Operator scaling mapped to variables x, y, z
             z = 1.0 if (i % 4 == 0 or i % 3 == 0) else 0.0
             try:
                 val = eval(self.scale_equation, {"__builtins__": None}, {"x": x, "y": y, "z": z, "math": math})
@@ -772,18 +772,26 @@ class SynthModulePage(QWidget):
         top_bar.addWidget(spawn_random_instr_btn)
         top_bar.addWidget(activate_fractal_btn)
         top_bar.addWidget(activate_reality_btn)
-        top_bar.addStretch(); layout.addLayout(top_bar)
+        top_bar.addStretch()
+        layout.addLayout(top_bar)
 
         # UI Toggles for Fractallizer and EQR Processor
         toggles_bar = QHBoxLayout()
+
         self.fractal_toggle = QCheckBox("Enable Music Fractallizer")
-        self.fractal_toggle.setChecked(self.engine.fractallizer_enabled)
-        self.fractal_toggle.setStyleSheet("color: #00ffcc; font-weight: bold; background: #161b22; padding: 4px; border: 1px solid #30363d;")
+        self.fractal_toggle.setChecked(getattr(self.engine, 'fractallizer_enabled', True))
+        self.fractal_toggle.setStyleSheet("""
+            QCheckBox { color: #888888; font-weight: bold; background: #161b22; padding: 4px; border: 1px solid #30363d; }
+            QCheckBox:checked { color: #00ffcc; border-color: #00ffcc; }
+        """)
         self.fractal_toggle.stateChanged.connect(self._toggle_fractalizer_state)
 
         self.eqr_toggle = QCheckBox("Enable EQR Processor")
-        self.eqr_toggle.setChecked(self.engine.eqr_processor_enabled)
-        self.eqr_toggle.setStyleSheet("color: #f5d97d; font-weight: bold; background: #161b22; padding: 4px; border: 1px solid #30363d;")
+        self.eqr_toggle.setChecked(getattr(self.engine, 'eqr_processor_enabled', True))
+        self.eqr_toggle.setStyleSheet("""
+            QCheckBox { color: #888888; font-weight: bold; background: #161b22; padding: 4px; border: 1px solid #30363d; }
+            QCheckBox:checked { color: #f5d97d; border-color: #f5d97d; }
+        """)
         self.eqr_toggle.stateChanged.connect(self._toggle_eqr_processor_state)
 
         toggles_bar.addWidget(self.fractal_toggle)
@@ -805,9 +813,11 @@ class SynthModulePage(QWidget):
         mode_bar.addStretch()
         layout.addLayout(mode_bar)
 
-        self.scroll = QScrollArea(); self.scroll.setWidgetResizable(True)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
         self.scroll.setStyleSheet("background-color: #070b10; border: none;")
-        self.container = QWidget(); self.container.setStyleSheet("background-color: #070b10;")
+        self.container = QWidget()
+        self.container.setStyleSheet("background-color: #070b10;")
         self.container_layout = QGridLayout(self.container)
 
         self._add_panel_to_grid("Master Equation Polynomial Synthesizer", is_polynomial=True, row=0, col=0)
@@ -818,12 +828,12 @@ class SynthModulePage(QWidget):
         layout.addWidget(self.scroll)
 
     def _toggle_fractalizer_state(self, state):
-        self.engine.fractallizer_enabled = (state == 2)
+        self.engine.fractallizer_enabled = bool(state)
         status = "Enabled" if self.engine.fractallizer_enabled else "Disabled"
         QMessageBox.information(self, "Fractallizer State", f"Music Fractallizer has been {status}.")
 
     def _toggle_eqr_processor_state(self, state):
-        self.engine.eqr_processor_enabled = (state == 2)
+        self.engine.eqr_processor_enabled = bool(state)
         status = "Enabled" if self.engine.eqr_processor_enabled else "Disabled"
         QMessageBox.information(self, "EQR Processor State", f"EQR Processor has been {status}.")
 
