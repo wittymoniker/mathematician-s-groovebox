@@ -46,7 +46,7 @@ FREQUENCY_432HZ = 432.0
 # GLOBAL CABLE ROUTING & RESAMPLING BUS MANAGER
 # -------------------------------------------------------------------------
 class GlobalCrossTabBusManager:
-    """Manages universal inter-synth wiring, dedicated synth input/output jacks, master audio routing, and resampling[cite: 10]."""
+    """Manages universal inter-synth wiring, dedicated synth input/output jacks, master audio routing, and resampling[cite: 10, 13]."""
     def __init__(self):
         self.global_cables = []
         self.subscribers = []
@@ -102,7 +102,7 @@ GLOBAL_BUS = GlobalCrossTabBusManager()
 # CORE GROOVEBOX & HARDWARE ENGINE (Enhanced v3.6.5)
 # -------------------------------------------------------------------------
 class GrooveboxEngine:
-    """Core groovebox engine supporting advanced x,y,z operator equations, stochastic micro-timing, and automated patching[cite: 10]."""
+    """Core groovebox engine supporting advanced x,y,z operator equations, stochastic micro-timing, and automated patching[cite: 10, 13]."""
     def __init__(self):
         self.global_bpm = 120.0
         self.scale_system = "Equation Tonal Scale (Dynamic)"
@@ -110,7 +110,7 @@ class GrooveboxEngine:
         self.scale_increment = 0.25
         self.divergence_steps_count = 16
 
-        # Operational modes (Survival mode active by default)
+        # Operational modes (Survival mode active by default)[cite: 13]
         self.survival_mode = True
         self.creative_mode = False
         self.normal_mode = False
@@ -127,7 +127,7 @@ class GrooveboxEngine:
         self.active_synths = []
         self.synth_wiring_matrix = {}
 
-        # Mathematical chord libraries utilizing x, y, z variables[cite: 10]
+        # Mathematical chord libraries utilizing x, y, z variables[cite: 10, 13]
         self.math_chord_library = {
             "Unit Harmonic Stack (+/- 1, 2, 3)": [(-3.0, 0.4), (-2.0, 0.6), (-1.0, 0.8), (1.0, 1.0), (2.0, 0.7), (3.0, 0.4)],
             "Divergent Asymmetric Point Pair": [(-4.25, 0.5), (-1.5, 0.9), (0.25, 1.0), (3.75, 0.6)],
@@ -234,7 +234,7 @@ class GrooveboxEngine:
             del self.playlist_clips[(track, bar_pos)]
 
     def randomize_song(self):
-        """Randomizes equations, wavetables, knobs, patchbay cables, and dynamic modules for full composition[cite: 10]."""
+        """Randomizes equations, wavetables, knobs, patchbay cables, and dynamic modules for full composition[cite: 10, 13]."""
         self.playlist_clips.clear()
         GLOBAL_BUS.clear_all()
         self.randomize_synth_routing()
@@ -323,7 +323,7 @@ class GrooveboxEngine:
 
         resolved = []
         for offset_mult, amp_val in point_pairs:
-            # Enhanced with explicit x, y, z variable operator evaluation supporting user equations
+            # Explicit x, y, z variable operator evaluation supporting user equations
             adjusted_offset = offset_mult * x_var * y_var - (z_var * 0.1)
             freq = base_f + (adjusted_offset * self.scale_increment * 55.0)
             resolved.append((max(20.0, freq), amp_val))
@@ -392,7 +392,6 @@ class GrooveboxEngine:
                 bank_amp = bank.get("amp", 1.0)
 
                 for freq, pt_amp in resolved_pairs:
-                    # Stochastic gate modulation with micro-timing drift & tempo differentiation
                     tempo_mod_factor = 1.0 + 0.15 * np.sin(2.0 * np.pi * (self.global_bpm / 120.0) * t * 0.05)
                     gate = 0.5 * (1 + np.sin(2 * np.pi * (self.global_bpm / 60.0) * t * tempo_mod_factor + np.sin(t * 0.1) * 0.05))
                     wave_data += bank_amp * pt_amp * 0.08 * gate * np.sin(2 * np.pi * (freq * tempo_mod_factor) * t)
@@ -557,7 +556,6 @@ class PatchableKnob(QWidget):
         self.slider.valueChanged.connect(self._on_slider_changed)
         layout.addWidget(self.slider)
 
-        # Simplified Target Dropdown Menu for Precise Modulation Routing
         target_row = QHBoxLayout()
         target_lbl = QLabel("Tgt:")
         target_lbl.setStyleSheet("color: #8b949e; font-size: 8px; background: transparent;")
@@ -581,7 +579,6 @@ class PatchableKnob(QWidget):
         self.polarity_btn.clicked.connect(self._toggle_polarity)
         bottom_row.addWidget(self.polarity_btn)
 
-        # Corrected Activation/Deactivation Button Logic and UI State Binding
         self.port_btn = QPushButton("Activate")
         self.port_btn.setFixedSize(65, 22)
         self.port_btn.setCheckable(True)
@@ -620,7 +617,6 @@ class PatchableKnob(QWidget):
 
     def _on_target_changed(self, index):
         if self.is_patched:
-            # Update existing cable target
             target_name = self.target_combo.currentText()
             for i, c in enumerate(GLOBAL_BUS.global_cables):
                 if c["src_module"] == self.module_name and c["src_node"] == self.label_text:
@@ -839,12 +835,10 @@ class SynthModulePage(QWidget):
         self._add_panel_to_grid(f"{kind} #{idx}", is_synth=is_synth, is_audio_in=is_audio_in, is_polynomial=is_polynomial, row=row, col=col)
 
     def _spawn_randomizer_instrument(self):
-        """Allows spawning a randomizer instrument with differentiated tempo interval variables and cross-mod heuristics."""
         rand_prefixes = ["Stochastic", "Quantum", "Algebraic", "Fractal", "Harmonic", "Resonant", "Vectoreski"]
         rand_suffixes = ["Oscillator", "Sling", "Resonator", "Generator", "Synth Node", "Phase Wave"]
         instr_name = f"{random.choice(rand_prefixes)} {random.choice(rand_suffixes)} {random.randint(100, 999)}"
 
-        # Add default sequence bank for the randomizer instrument
         chords = list(self.engine.math_chord_library.keys())
         chosen_chord = random.choice(chords)
         self.engine.add_instrument_sequence_bank(instr_name, "Differentiated Tempo Bank", pitch=float(random.randint(-12, 12)), amp=round(random.uniform(0.5, 1.5), 2), math_chord=chosen_chord)
@@ -1647,7 +1641,7 @@ class GrooveboxMasterSuite(QMainWindow):
         self.engine = GrooveboxEngine()
 
         self.tabs = QTabWidget()
-        self.setCentralWindow = self.setCentralWidget(self.tabs)
+        self.setCentralWidget(self.tabs)
 
         self.tabs.addTab(SynthModulePage(self.engine), "1. Synths & Audio I/O")
         self.tabs.addTab(DrumMatrixPage(self.engine), "2. Drum & Percussion Matrix")
