@@ -1,4 +1,4 @@
-# Updated EQR Groovebox Engine v3.6.6 (eqr_groovebox_engine_v366.py)
+# Updated EQR Groovebox Engine v3.6.7 (eqr_groovebox_engine_v367.py)
 # Enhanced with Fully Activated Drum Machines, Sequencers, and Automation Lanes,
 # Stochastic Micro-Timing Drift, Quantum Probability Gating,
 # and Advanced Multidimensional x, y, z Operator Scaling for Professional Composition.
@@ -126,7 +126,7 @@ class ActiveEngineClock:
 
 
 # -------------------------------------------------------------------------
-# CORE GROOVEBOX & HARDWARE ENGINE (Enhanced v3.6.6)
+# CORE GROOVEBOX & HARDWARE ENGINE (Enhanced v3.6.7)
 # -------------------------------------------------------------------------
 class GrooveboxEngine:
     """Core groovebox engine supporting advanced x,y,z operator equations, stochastic micro-timing, and automated patching."""
@@ -318,7 +318,6 @@ class GrooveboxEngine:
         for mod in modules:
             rand_points = [QPointF(i * (500 / 16), random.randint(10, 90)) for i in range(17)]
             self.save_custom_wavetable(mod, rand_points)
-            # Ensure instrument banks exist for randomized synths
             self.get_instrument_banks(mod)
 
         sources = [(self.active_synth_panels[0], "Audio Gain"), (self.active_synth_panels[min(1, len(self.active_synth_panels)-1)], "Filter Q")] + [(fx, "Scatter") for fx in self.active_fx_modules[:2]]
@@ -577,7 +576,7 @@ class WavetableCanvas(QWidget):
 
 
 # -------------------------------------------------------------------------
-# INTERACTIVE PATCHABLE KNOB & PATCH JACK
+# INTERACTIVE PATCHABLE KNOB & PATCH JACK (Updated with Randomized Default Activation)
 # -------------------------------------------------------------------------
 class PatchableKnob(QWidget):
     def __init__(self, label_text, min_val=0.0, max_val=100.0, default_val=50.0, unit="", module_name="Synth 1", parent=None):
@@ -588,7 +587,9 @@ class PatchableKnob(QWidget):
         self.current_val = default_val
         self.unit = unit
         self.module_name = module_name
-        self.is_patched = False
+
+        # Randomized initial activation state (at least sometimes active)
+        self.is_patched = random.choice([True, False])
 
         self.polarity = "Neutral"
         self.gain_multiplier = 1.0
@@ -637,9 +638,10 @@ class PatchableKnob(QWidget):
         self.polarity_btn.clicked.connect(self._toggle_polarity)
         bottom_row.addWidget(self.polarity_btn)
 
-        self.port_btn = QPushButton("Activate")
+        self.port_btn = QPushButton("Deactivate" if self.is_patched else "Activate")
         self.port_btn.setFixedSize(65, 22)
         self.port_btn.setCheckable(True)
+        self.port_btn.setChecked(self.is_patched)
         self.port_btn.setStyleSheet("""
             QPushButton { background-color: #161b22; color: #8b949e; border: 1px solid #30363d; border-radius: 4px; font-weight: bold; font-size: 9px; }
             QPushButton:checked { background-color: #00ffcc; color: #0d1117; border: 1px solid #ffffff; }
@@ -668,6 +670,14 @@ class PatchableKnob(QWidget):
         gain_row.addWidget(self.gain_lbl)
         gain_row.addWidget(self.gain_up_btn)
         layout.addLayout(gain_row)
+
+        # Register initial cable if randomly activated
+        if self.is_patched:
+            GLOBAL_BUS.add_cable(
+                src_module=self.module_name, src_node=self.label_text,
+                tgt_module=self.target_combo.currentText(), tgt_node="Primary Sum Node",
+                polarity=self.polarity, gain=self.gain_multiplier
+            )
 
     def _on_slider_changed(self, val):
         self.current_val = val / 10.0
@@ -826,7 +836,6 @@ class SynthModulePage(QWidget):
         top_bar.addStretch()
         layout.addLayout(top_bar)
 
-        # UI Toggles for Fractallizer and EQR Processor
         toggles_bar = QHBoxLayout()
 
         self.fractal_toggle = QCheckBox("Enable Music Fractallizer")
@@ -1155,7 +1164,6 @@ class DrumMatrixPage(QWidget):
             for step in range(16):
                 btn = QPushButton(str(step + 1))
                 btn.setCheckable(True)
-                # Activated with live engine clock evaluation
                 is_active_gate = self.engine.runtime_clock.evaluate_drum_trigger(kit_name, step)
                 btn.setChecked(is_active_gate)
                 if is_active_gate:
@@ -1810,32 +1818,34 @@ class MasterPatchCanvas(QWidget):
 class GrooveboxMasterSuite(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.setWindowTitle("Groovebox DAW & Hardware Suite (v36.6 - Activated Drums, Sequencers & Automations)")
+        self.setWindowTitle("Groovebox DAW & Hardware Suite (v36.7 - Activated Drums, Sequencers & Automations)")
         self.resize(1620, 1000)
         self.setStyleSheet("""
             QMainWindow { background-color: #070b10; }
             QTabWidget::pane { border: 1px solid #2a2f34; background-color: #070b10; }
             QTabBar::tab { background-color: #161b22; color: #8b949e; padding: 10px 16px; border: 1px solid #2a2f34; font-weight: bold; }
             QTabBar::tab:selected { background-color: #1f242c; color: #00ffcc; }
-            QGroupBox { color: #f5d97d; font-weight: bold; border: 1px solid #30363d; border-radius: 6px; margin-top: 10px; padding-top: 15px; background-color: #0d1117; }
+            QGroupBox { color: #f5d97d; font-weight: bold; border: 1px solid #30363d; border-radius: 6px; margin-top: 10px; padding-top: 15px; }
             QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; }
-            QLabel { color: #c9d1d9; }
         """)
 
         self.engine = GrooveboxEngine()
-
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
 
-        self.tabs.addTab(SynthModulePage(self.engine), "1. Synths & Audio I/O")
-        self.tabs.addTab(DrumMatrixPage(self.engine), "2. Drum & Percussion Matrix")
-        self.tabs.addTab(GranularFXPage(self.engine), "3. Granular FX & Wavefolder")
-        self.tabs.addTab(AutomationPatternPage(self.engine), "4. Automation & Sequencer Patterns")
-        self.tabs.addTab(MasterControlPatchbayPage(self.engine, self), "5. Equation Scales, Playlist & Patchbay")
+        self.synth_page = SynthModulePage(self.engine)
+        self.drum_page = DrumMatrixPage(self.engine)
+        self.fx_page = GranularFXPage(self.engine)
+        self.auto_page = AutomationPatternPage(self.engine)
+        self.master_page = MasterControlPatchbayPage(self.engine, self)
 
-        self.statusBar().showMessage("Groovebox Suite v36.6 Ready | Drum Machines, Sequencers & Automations Fully Activated")
+        self.tabs.addTab(self.synth_page, "🎹 Synths & Multi-Seq Banks")
+        self.tabs.addTab(self.drum_page, "🥁 Drum & Percussion Matrix")
+        self.tabs.addTab(self.fx_page, "🌌 Granular FX & Shifter")
+        self.tabs.addTab(self.auto_page, "⚙️ Step Sequencers & Automations")
+        self.tabs.addTab(self.master_page, "🎛 Master Patchbay & Playlist")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app = QApplication(sys.argv)
     suite = GrooveboxMasterSuite()
     suite.show()
