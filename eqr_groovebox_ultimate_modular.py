@@ -4,6 +4,7 @@
 # Quantum Probability Gating, and Advanced Multidimensional x, y, z Operator Scaling.
 import random
 import sys
+import math
 from PyQt6.QtCore import Qt, QPoint, QRectF
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -1067,8 +1068,7 @@ class FreeformSequencerCanvas(QWidget):
 
         p.setPen(QPen(QColor("#161b22"), 1, Qt.PenStyle.DashLine))
         for x in range(0, self.width(), 60): p.drawLine(x, 0, x, self.height())
-
-        notes = self.seq_data.get("notes", [])
+        notes = self.seq_data.get("notes", []) if isinstance(self.seq_data, dict) else self.seq_data
         max_time = max([n["time"] + n["duration"] for n in notes] + [16.0])
         scale_x = self.width() / max(16.0, max_time)
 
