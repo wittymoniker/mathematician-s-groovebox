@@ -8,34 +8,121 @@ import math
 import json
 import numpy as np
 from PyQt6.QtCore import Qt, QPoint, QRectF
+import sys
+import math
+import random
+import numpy as np
+
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QGridLayout, QLabel, QPushButton, QScrollArea, QTabWidget,
-    QSizePolicy, QDockWidget, QSpinBox, QComboBox, QSlider, QToolBar,
-    QLineEdit, QTextEdit, QProgressBar, QCheckBox
+    QSizePolicy, QDockWidget, QSpinBox, QComboBox, QSlider, QLineEdit, QTextEdit
 )
-from PyQt6.QtCore import Qt, QPointF, QTimer, QPoint, QRectF
+from PyQt6.QtCore import Qt, QPointF, QTimer, QRectF
 from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPalette, QPainterPath
-
 from math_engine import MathEngine
 
-class EQRCoordEngine:
-    """Core mathematical engine using strict x, y, and z coordinate variables."""
-    def __init__(self, x=0.0, y=0.0, z=0.0):
-        self.x = x
-        self.y = y
-        self.z = z
+class EQRCoordinateEngine:
+    def __init__(self):
+        # Initializing the coordinate framework for x, y, and z variables
+        self.x = 0.0
+        self.y = 0.0
+        self.z = 0.0
 
-    def evaluate_state(self):
-        # Pure spatial coordinate evaluation without auxiliary factors
-        return (self.x ** 2 + self.y ** 2 + self.z ** 2) ** 0.5
+    def isn(self, value):
+        # Isosceles sine implementation
+        return np.sin(value) / (1.0 + abs(np.cos(value)))
 
+    def ics(self, value):
+        # Isosceles cosine implementation
+        return np.cos(value) / (1.0 + abs(np.sin(value)))
 
-def shuffle_groovebox_sequence(sequence_array):
-    """In-place sequence and module layout randomization."""
-    random.shuffle(sequence_array)
-    return sequence_array
+    def evaluate_reality(self, x, y, z):
+        """
+        Evaluates the system state based strictly on x, y, and z coordinates.
+        Maintains realistic output by omitting Meum scaling factors.
+        """
+        term_x = self.isn(x)
+        term_y = self.ics(y)
+        term_z = z ** 2 - term_x * term_y
 
+        # Combined spatial output
+        result = (term_x + term_y) / (1.0 + abs(term_z))
+        return result
+class MathEngine:
+    """Evaluates mathematical expressions using strict x, y, and z variables."""
+    @staticmethod
+    def evaluate(expression: str, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> np.ndarray:
+        # Safe namespace mapping for custom functions like isn, ics
+        safe_dict = {
+            'x': x, 'y': y, 'z': z,
+            'sin': np.sin, 'cos': np.cos, 'tan': np.tan,
+            'isn': lambda val: np.sin(val) * np.cos(val),  # Isosceles custom trig stub
+            'ics': lambda val: np.cos(val) - np.sin(val),
+            'np': np, 'abs': np.abs, 'exp': np.exp, 'log': np.log
+        }
+        try:
+            # Clean and evaluate string expression
+            cleaned_expr = expression.replace('^', '**')
+            result = eval(cleaned_expr, {"__builtins__": {}}, safe_dict)
+            if isinstance(result, (int, float)):
+                result = np.full_like(x, result, dtype=float)
+            return np.nan_to_num(result)
+        except Exception as e:
+            print(f"Math Error: {e}")
+            return np.zeros_like(x, dtype=float)
+
+# --- Memory Bank Selector Pane ---
+class MemoryBankPane(QGroupBox):
+    """Manages project states, memory banks, and quick preset switching."""
+    def __init__(self, parent=None):
+        super().__init__("Memory Bank & Project Workflow", parent)
+        layout = QGridLayout()
+
+        self.bank_combo = QComboBox()
+        self.bank_combo.addItems([f"Bank {chr(65+i)}: Preset {i+1}" for i in range(8)])
+
+        btn_save = QPushButton("Save State")
+        btn_load = QPushButton("Load State")
+        btn_export = QPushButton("Export Buffer")
+        btn_clear = QPushButton("Clear Bank")
+
+        layout.addWidget(QLabel("Active Bank:"), 0, 0)
+        layout.addWidget(self.bank_combo, 0, 1, 1, 3)
+        layout.addWidget(btn_save, 1, 0)
+        layout.addWidget(btn_load, 1, 1)
+        layout.addWidget(btn_export, 1, 2)
+        layout.addWidget(btn_clear, 1, 3)
+
+        self.setLayout(layout)
+
+# --- Modular Synthesizer/Sequencer Node ---
+class SynthNodeWidget(QFrame):
+    """Interactive modular channel strip for x, y, z sound/modulation parameters."""
+    def __init__(self, channel_name: str, parent=None):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        layout = QVBoxLayout()
+
+        layout.addWidget(QLabel(f"<b>{channel_name}</b>"))
+
+        self.expr_input = QLineEdit("sin(x) * y + z")
+        layout.addWidget(QLabel("Expression (x, y, z):"))
+        layout.addWidget(self.expr_input)
+
+        # Multi-lane sequencer parameters (Amp, Freq, Duration)
+        param_layout = QGridLayout()
+        self.sliders = {}
+        for idx, param in enumerate(["Amp", "Freq", "Dur"]):
+            param_layout.addWidget(QLabel(param), idx, 0)
+            slider = QSlider(Qt.Orientation.Horizontal)
+            slider.setRange(0, 100)
+            slider.setValue(50)
+            param_layout.addWidget(slider, idx, 1)
+            self.sliders[param] = slider
+
+        layout.addLayout(param_layout)
+        self.setLayout(layout)
 class FitToFrameContainer(QWidget):
     """A responsive container that scales its inner child widget to fit window bounds."""
     def __init__(self, inner_widget, base_width=1200, base_height=800):
@@ -193,7 +280,6 @@ class AdvancedWaveformVisualizerCanvas(QWidget):
         p.setPen(QPen(QColor("#58a6ff"), 1, Qt.PenStyle.DashLine))
         p.drawLine(0, int(center_y), w, int(center_y))
         p.drawText(15, 25, f"Visualizer Active Model: [{self.active_mode}] — Isosceles Trig & Algebraic Waveform")
-
 class MultiLaneSequencerCanvas(QWidget):
     """Multi-lane sequencer canvas supporting independent editing for Amplitude, Frequency, Duration, and Triggers."""
     def __init__(self, parent=None):
@@ -202,7 +288,6 @@ class MultiLaneSequencerCanvas(QWidget):
         self.setMinimumHeight(340)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        # Lanes: Amplitude, Frequency, Duration, Trigger
         self.steps = [
             {"amp": 0.8, "freq": 440.0, "dur": 1.0, "trigger": True},
             {"amp": 0.4, "freq": 220.0, "dur": 0.5, "trigger": False},
@@ -221,7 +306,7 @@ class MultiLaneSequencerCanvas(QWidget):
             {"amp": 0.65, "freq": 500.0, "dur": 0.9, "trigger": True},
             {"amp": 0.1, "freq": 200.0, "dur": 0.2, "trigger": False},
         ]
-        self.active_lane = "amp" # amp, freq, dur, trigger
+        self.active_lane = "amp"
 
     def set_step_count(self, count):
         self.step_count = count
@@ -385,6 +470,97 @@ class IdealizedMathKnob(QWidget):
         self.value = max(self.min_val, min(self.max_val, self.value + step))
         self.update()
 
+
+class InteractivePatchbayCanvas(QWidget):
+    """Interactive patchbay supporting visible dragging cords from jack to jack."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(450)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        self.inputs = [
+            {"name": "Eskivector CV In", "pos": QPointF(120, 100)},
+            {"name": "Eskitable Mod In", "pos": QPointF(120, 200)},
+            {"name": "Eskiosc Filter In", "pos": QPointF(120, 300)},
+            {"name": "Eskiequation Trig In", "pos": QPointF(120, 400)},
+        ]
+        self.outputs = [
+            {"name": "isn / ics Gen Out", "pos": QPointF(750, 100)},
+            {"name": "Reality Chaotic Out", "pos": QPointF(750, 200)},
+            {"name": "Fractallizer Out", "pos": QPointF(750, 300)},
+            {"name": "Master Audio Out", "pos": QPointF(750, 400)},
+        ]
+        self.cables = [("isn / ics Gen Out", "Eskivector CV In")]
+        self.dragging_jack = None
+        self.drag_source_name = ""
+        self.current_mouse_pos = QPointF(0, 0)
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        p.fillRect(0, 0, w, h, QColor("#0a0e14"))
+
+        for inp in self.inputs:
+            p.setBrush(QBrush(QColor("#161b22")))
+            p.setPen(QPen(QColor("#00ffcc"), 2))
+            p.drawEllipse(inp["pos"], 12, 12)
+            p.setPen(QPen(QColor("#c9d1d9"), 1))
+            p.drawText(int(inp["pos"].x() + 20), int(inp["pos"].y() + 5), inp["name"])
+
+        for out in self.outputs:
+            p.setBrush(QBrush(QColor("#161b22")))
+            p.setPen(QPen(QColor("#58a6ff"), 2))
+            p.drawEllipse(out["pos"], 12, 12)
+            p.setPen(QPen(QColor("#c9d1d9"), 1))
+            p.drawText(int(out["pos"].x() - 150), int(out["pos"].y() + 5), out["name"])
+
+        out_dict = {o["name"]: o["pos"] for o in self.outputs}
+        in_dict = {i["name"]: i["pos"] for i in self.inputs}
+        for src, dst in self.cables:
+            if src in out_dict and dst in in_dict:
+                p1, p2 = out_dict[src], in_dict[dst]
+                ctrl = QPointF((p1.x() + p2.x()) / 2, p1.y() + 80)
+                path = QPainterPath()
+                path.moveTo(p1)
+                path.cubicTo(ctrl, ctrl, p2)
+                p.setPen(QPen(QColor("#ff7b72"), 2.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                p.drawPath(path)
+
+        if self.dragging_jack:
+            p1 = self.dragging_jack
+            p2 = self.current_mouse_pos
+            ctrl = QPointF((p1.x() + p2.x()) / 2, p1.y() + 80)
+            path = QPainterPath()
+            path.moveTo(p1)
+            path.cubicTo(ctrl, ctrl, p2)
+            p.setPen(QPen(QColor("#00ffcc"), 2.5, Qt.PenStyle.DashLine, Qt.PenCapStyle.RoundCap))
+            p.drawPath(path)
+
+        p.setPen(QPen(QColor("#8b949e"), 1))
+        p.drawText(20, 30, "Master Patchbay: Click & Drag from any Output Jack (Blue) to any Input Jack (Teal) to patch live cords.")
+
+    def mousePressEvent(self, event):
+        pos = event.position()
+        for out in self.outputs:
+            if (out["pos"] - pos).manhattanLength() < 18:
+                self.dragging_jack = out["pos"]
+                self.drag_source_name = out["name"]
+                return
+
+    def mouseMoveEvent(self, event):
+        self.current_mouse_pos = event.position()
+        self.update()
+
+    def mouseReleaseEvent(self, event):
+        if self.dragging_jack:
+            pos = event.position()
+            for inp in self.inputs:
+                if (inp["pos"] - pos).manhattanLength() < 18:
+                    self.cables.append((self.drag_source_name, inp["name"]))
+                    break
+            self.dragging_jack = None
+            self.update()
 class FreeformSequencerCanvas(QWidget):
     """Sequencer canvas supporting dynamic step length and micro-timing."""
     def __init__(self, sequence_data=None, parent=None):
@@ -2507,222 +2683,50 @@ class MasterControlPatchbayPage(QWidget):
 class GrooveboxMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Equation of Reality (EQR) - Streamlined Mathematician DAW Suite")
-        self.resize(1850, 1024)
-        self.set_dark_palette()
+        self.setWindowTitle("The Mathematician's Groovebox (EQR Engine)")
+        self.resize(1200, 800)
 
-        self.engine = MathEngine()
+        central_widget = QWidget()
+        main_layout = QHBoxLayout(central_widget)
 
-        self.anim_timer = QTimer(self)
-        self.anim_timer.timeout.connect(self.run_engine_tick)
-        self.anim_timer.start(30)
+        # Left Sidebar: Memory Banks & Global Workflow
+        left_layout = QVBoxLayout()
+        self.memory_pane = MemoryBankPane()
+        left_layout.addWidget(self.memory_pane)
+        left_layout.addStretch()
 
-        self.tabs = QTabWidget()
-        self.tabs.setDocumentMode(True)
-        self.setCentralWidget(self.tabs)
+        # Right Workspace: Modular Channels & Patch Canvas Tabs
+        workspace_tabs = QTabWidget()
 
-        # Unified tabs containing all core sound generation, sequencing, reality/fractal, and patching features
-        self.tabs.addTab(self.create_sequencer_tab(), "1. Multi-Lane Sequencer")
-        self.tabs.addTab(self.create_synths_tab(), "2. Synths (Eskivector/Table/Osc/Equation)")
-        self.tabs.addTab(self.create_visualizer_tab(), "3. Visualizer & Isosceles Trig")
-        self.tabs.addTab(self.create_reality_fractal_tab(), "4. Reality & Fractallizer")
-        self.tabs.addTab(self.create_patchbay_tab(), "5. Master Interactive Patchbay")
-        self.tabs.addTab(self.create_playlister_tab(), "6. Arrangement Playlister")
-        self.tabs.addTab(self.create_compiler_tab(), "7. EQR Algebraic Compiler")
-
-        self.statusBar().showMessage("EQR Master Suite Active | All Mathematical Sound Synthesis & Patching Modules Loaded")
-
-    def set_dark_palette(self):
-        palette = QPalette()
-        palette.setColor(QPalette.ColorRole.Window, QColor("#0d1117"))
-        palette.setColor(QPalette.ColorRole.WindowText, QColor("#c9d1d9"))
-        palette.setColor(QPalette.ColorRole.Base, QColor("#161b22"))
-        palette.setColor(QPalette.ColorRole.Text, QColor("#c9d1d9"))
-        palette.setColor(QPalette.ColorRole.Button, QColor("#21262d"))
-        palette.setColor(QPalette.ColorRole.ButtonText, QColor("#c9d1d9"))
-        palette.setColor(QPalette.ColorRole.Highlight, QColor("#1f6feb"))
-        QApplication.setPalette(palette)
-
-    def run_engine_tick(self):
-        self.engine.update_tempo(120.0)
-        if hasattr(self, 'wave_visualizer'):
-            self.wave_visualizer.update_phase()
-
-    def create_sequencer_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        doc = QLabel(
-            "<b>Multi-Lane Step Sequencer & Trigger Hub:</b><br>"
-            "Edit Amplitude, Frequency, Duration, and Gate Triggers independently across steps. "
-            "Click or drag directly on any lane to paint values in real-time."
-        )
-        doc.setStyleSheet("background-color: #161b22; padding: 10px; border-radius: 6px; color: #8b949e;")
-        layout.addWidget(doc)
-
-        ctrl_bar = QHBoxLayout()
-        ctrl_bar.addWidget(QLabel("Step Count:"))
-        self.step_spin = QSpinBox()
-        self.step_spin.setRange(4, 32)
-        self.step_spin.setValue(16)
-        self.step_spin.valueChanged.connect(lambda val: self.seq_canvas.set_step_count(val))
-        ctrl_bar.addWidget(self.step_spin)
-        ctrl_bar.addStretch()
-        layout.addLayout(ctrl_bar)
-
-        self.seq_canvas = MultiLaneSequencerCanvas()
-        layout.addWidget(self.seq_canvas)
-        layout.addStretch()
-        return widget
-
-    def create_synths_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        doc = QLabel(
-            "<b>Synthesizer Architecture (Eskivector, Eskitable, Eskiosc, Eskiequation):</b><br>"
-            "Full parameter control for envelope shaping, gating heuristics, and mathematical sound definition."
-        )
-        doc.setStyleSheet("background-color: #161b22; padding: 10px; border-radius: 6px; color: #8b949e;")
-        layout.addWidget(doc)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        container = QWidget()
-        grid = QGridLayout(container)
-
-        synths = [
-            ("Eskivector", "Vector Synthesis", "isn/ics Vector"),
-            ("Eskitable", "Wavetable Morphing", "Meum Wavetable"),
-            ("Eskiosc", "Isosceles Oscillator", "arcisn Feedback"),
-            ("Eskiequation", "Algebraic Voice", "XYZT Dynamic")
+        # Synthesizer Voice Tab
+        voices_widget = QWidget()
+        voices_layout = QGridLayout()
+        self.nodes = [
+            SynthNodeWidget("Voice 1 (Eskivector)"),
+            SynthNodeWidget("Voice 2 (Eskitable)"),
+            SynthNodeWidget("Voice 3 (Fractallizer)"),
+            SynthNodeWidget("Voice 4 (Reality Node)")
         ]
+        for i, node in enumerate(self.nodes):
+            voices_layout.addWidget(node, i // 2, i % 2)
+        voices_widget.setLayout(voices_layout)
+        workspace_tabs.addTab(voices_widget, "Modular Voices")
 
-        for i, (name, subtitle, note) in enumerate(synths):
-            group = QGroupBox(f"{name} — {subtitle}")
-            glayout = QGridLayout()
-            glayout.addWidget(IdealizedMathKnob("Drive / Gain", 0.0, 10.0, 2.5, note), 0, 0)
-            glayout.addWidget(IdealizedMathKnob("Env Attack", 0.001, 2.0, 0.05, "Attack"), 0, 1)
-            glayout.addWidget(IdealizedMathKnob("Gate Decay", 0.01, 5.0, 0.8, "Decay"), 0, 2)
-            glayout.addWidget(IdealizedMathKnob("Resonance", 0.0, 1.0, 0.4, "Filter Q"), 0, 3)
-            group.setLayout(glayout)
-            grid.addWidget(group, i // 2, i % 2)
+        # Patchbay Canvas Tab
+        patchbay_widget = QWidget()
+        pb_layout = QVBoxLayout()
+        pb_layout.addWidget(QLabel("Interactive Patchbay Canvas (Route x, y, z coordinate signal streams)"))
+        patchbay_widget.setLayout(pb_layout)
+        workspace_tabs.addTab(workspace_tabs, "Patchbay Canvas" if False else patchbay_widget)
 
-        container.setLayout(grid)
-        scroll.setWidget(container)
-        layout.addWidget(scroll)
-        return widget
+        # Assemble Layout
+        main_layout.addLayout(left_layout, 1)
+        main_layout.addWidget(workspace_tabs, 3)
 
-    def create_visualizer_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        ctrl = QHBoxLayout()
-        ctrl.addWidget(QLabel("Select Active Engine Model:"))
-        model_combo = QComboBox()
-        model_combo.addItems(["Eskivector", "Eskitable", "Eskiosc", "Eskiequation"])
-        model_combo.currentTextChanged.connect(lambda txt: setattr(self.wave_visualizer, 'active_mode', txt))
-        ctrl.addWidget(model_combo)
-        ctrl.addStretch()
-        layout.addLayout(ctrl)
-
-        self.wave_visualizer = AdvancedWaveformVisualizerCanvas()
-        layout.addWidget(self.wave_visualizer)
-
-        group = QGroupBox("Isosceles Trig & Polynomial Parameters")
-        glayout = QHBoxLayout()
-        glayout.addWidget(IdealizedMathKnob("isn Scale", -5.0, 5.0, 1.0, "isn(x)"))
-        glayout.addWidget(IdealizedMathKnob("ics Scale", -5.0, 5.0, 1.618, "ics(y)"))
-        glayout.addWidget(IdealizedMathKnob("arcisn Depth", 0.0, 10.0, 3.14, "arcisn(z)"))
-        glayout.addWidget(IdealizedMathKnob("Tempo dt (T)", 0.0, 60.0, 120.0, "Time Derivative"))
-        group.setLayout(glayout)
-        layout.addWidget(group)
-        layout.addStretch()
-        return widget
-
-    def create_reality_fractal_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        doc = QLabel(
-            "<b>Reality & Fractallizer Modules:</b><br>"
-            "Drive self-inducing chaotic modulation processes and recursive fractal harmonic generation."
-        )
-        doc.setStyleSheet("background-color: #161b22; padding: 10px; border-radius: 6px; color: #8b949e;")
-        layout.addWidget(doc)
-
-        grid = QGridLayout()
-
-        r_group = QGroupBox("Reality Module (Chaotic Self-Inducing Processes)")
-        r_layout = QHBoxLayout()
-        r_layout.addWidget(IdealizedMathKnob("Entropy Rate", 0.0, 1.0, 0.25, "Chaos"))
-        r_layout.addWidget(IdealizedMathKnob("Feedback Loop", 0.0, 10.0, 1.618, "Recursive CV"))
-        r_group.setLayout(r_layout)
-        grid.addWidget(r_group, 0, 0)
-
-        f_group = QGroupBox("Fractallizer Module (Recursive Harmonics)")
-        f_layout = QHBoxLayout()
-        f_layout.addWidget(IdealizedMathKnob("Recursion Depth", 1.0, 10.0, 4.0, "Depth"))
-        f_layout.addWidget(IdealizedMathKnob("Self-Similarity", 0.0, 1.0, 0.75, "Ratio"))
-        f_group.setLayout(f_layout)
-        grid.addWidget(f_group, 0, 1)
-
-        layout.addWidget(grid)
-        layout.addStretch()
-        return widget
-
-    def create_patchbay_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        self.patchbay_canvas = InteractivePatchbayCanvas()
-        layout.addWidget(self.patchbay_canvas)
-        return widget
-
-    def create_playlister_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        group = QGroupBox("Arrangement Playlister & Pattern Queue")
-        grid = QGridLayout()
-        grid.addWidget(QLabel("Pattern Slot 1: Eskivector Isosceles Groove [Playing]"), 0, 0)
-        grid.addWidget(QLabel("Pattern Slot 2: Eskitable Harmonic Sweep Matrix"), 1, 0)
-        grid.addWidget(QLabel("Pattern Slot 3: Reality Chaos Modulation Layer"), 2, 0)
-
-        btn_layout = QHBoxLayout()
-        btn_layout.addWidget(QPushButton("Queue Next Pattern Block"))
-        btn_layout.addWidget(QPushButton("Bounce DAW Stems to Disk (WAV)"))
-        grid.addLayout(btn_layout, 3, 0)
-
-        group.setLayout(grid)
-        layout.addWidget(group)
-        layout.addStretch()
-        return widget
-
-    def create_compiler_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        group = QGroupBox("EQR Algebraic Polynomial Compiler (x, y, z, t)")
-        grid = QGridLayout()
-
-        grid.addWidget(QLabel("Coordinate Expression (isn, ics, arcisn, arcics, isn_inv, ics_inv):"), 0, 0)
-        self.eq_input = QLineEdit("isn(x * 1.618) + ics(y) * arcisn(max(-1.0, min(1.0, z))) + t")
-        grid.addWidget(self.eq_input, 0, 1)
-
-        compile_btn = QPushButton("Compile Polynomial Matrix & Evaluate")
-        grid.addWidget(compile_btn, 1, 0, 1, 2)
-
-        self.compiler_output = QTextEdit()
-        self.compiler_output.setText("System ready. Algebraic compiler fully loaded with isn, ics, arcisn, arcics, isn_inv, and ics_inv functions.")
-        grid.addWidget(self.compiler_output, 2, 0, 1, 2)
-
-        group.setLayout(grid)
-        layout.addWidget(group)
-        return widget
-
+        self.setCentralWidget(central_widget)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = GrooveboxMainWindow()
+    window = MathematiciansGroovebox()
     window.show()
     sys.exit(app.exec())
