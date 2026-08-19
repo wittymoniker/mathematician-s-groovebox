@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGridLayout, QLabel, QPushButton, QSlider, QTabWidget, QGroupBox,
     QComboBox, QScrollArea, QSplitter, QLineEdit,
-    QMessageBox, QFileDialog, QDoubleSpinBox, QSpinBox, QTextEdit
+    QMessageBox, QFileDialog, QDoubleSpinBox, QSpinBox, QTextEdit, QCheckBox
 )
 from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QBrush
@@ -46,7 +46,7 @@ FREQUENCY_432HZ = 432.0
 # GLOBAL CABLE ROUTING & RESAMPLING BUS MANAGER
 # -------------------------------------------------------------------------
 class GlobalCrossTabBusManager:
-    """Manages universal inter-synth wiring, dedicated synth input/output jacks, master audio routing, and resampling[cite: 10, 13]."""
+    """Manages universal inter-synth wiring, dedicated synth input/output jacks, master audio routing, and resampling[cite: 10]."""
     def __init__(self):
         self.global_cables = []
         self.subscribers = []
@@ -102,7 +102,7 @@ GLOBAL_BUS = GlobalCrossTabBusManager()
 # CORE GROOVEBOX & HARDWARE ENGINE (Enhanced v3.6.5)
 # -------------------------------------------------------------------------
 class GrooveboxEngine:
-    """Core groovebox engine supporting advanced x,y,z operator equations, stochastic micro-timing, and automated patching[cite: 10, 13]."""
+    """Core groovebox engine supporting advanced x,y,z operator equations, stochastic micro-timing, and automated patching[cite: 10]."""
     def __init__(self):
         self.global_bpm = 120.0
         self.scale_system = "Equation Tonal Scale (Dynamic)"
@@ -110,10 +110,12 @@ class GrooveboxEngine:
         self.scale_increment = 0.25
         self.divergence_steps_count = 16
 
-        # Operational modes (Survival mode active by default)[cite: 13]
+        # Operational modes & processors state flags
         self.survival_mode = True
         self.creative_mode = False
         self.normal_mode = False
+        self.fractallizer_enabled = True
+        self.eqr_processor_enabled = True
 
         # Core Engines
         self.reality_synth = RealitySynthEngine()
@@ -127,7 +129,7 @@ class GrooveboxEngine:
         self.active_synths = []
         self.synth_wiring_matrix = {}
 
-        # Mathematical chord libraries utilizing x, y, z variables[cite: 10, 13]
+        # Mathematical chord libraries utilizing x, y, z variables[cite: 10]
         self.math_chord_library = {
             "Unit Harmonic Stack (+/- 1, 2, 3)": [(-3.0, 0.4), (-2.0, 0.6), (-1.0, 0.8), (1.0, 1.0), (2.0, 0.7), (3.0, 0.4)],
             "Divergent Asymmetric Point Pair": [(-4.25, 0.5), (-1.5, 0.9), (0.25, 1.0), (3.75, 0.6)],
@@ -186,6 +188,8 @@ class GrooveboxEngine:
         return self.active_synths, self.synth_wiring_matrix
 
     def activate_fractalizer_stream(self):
+        if not self.fractallizer_enabled:
+            return {}
         dummy_seed = np.linspace(-1, 1, 512)
         self.last_fractal_output = self.fractalizer.generate_fractal_stream(dummy_seed)
         self.fractal_stream_active = True
@@ -234,7 +238,7 @@ class GrooveboxEngine:
             del self.playlist_clips[(track, bar_pos)]
 
     def randomize_song(self):
-        """Randomizes equations, wavetables, knobs, patchbay cables, and dynamic modules for full composition[cite: 10, 13]."""
+        """Randomizes equations, wavetables, knobs, patchbay cables, and dynamic modules for full composition[cite: 10]."""
         self.playlist_clips.clear()
         GLOBAL_BUS.clear_all()
         self.randomize_synth_routing()
@@ -323,7 +327,6 @@ class GrooveboxEngine:
 
         resolved = []
         for offset_mult, amp_val in point_pairs:
-            # Explicit x, y, z variable operator evaluation supporting user equations
             adjusted_offset = offset_mult * x_var * y_var - (z_var * 0.1)
             freq = base_f + (adjusted_offset * self.scale_increment * 55.0)
             resolved.append((max(20.0, freq), amp_val))
@@ -339,6 +342,8 @@ class GrooveboxEngine:
             "survival_mode": self.survival_mode,
             "creative_mode": self.creative_mode,
             "normal_mode": self.normal_mode,
+            "fractallizer_enabled": self.fractallizer_enabled,
+            "eqr_processor_enabled": self.eqr_processor_enabled,
             "math_chord_library": self.math_chord_library,
             "instrument_sequence_banks": self.instrument_sequence_banks,
             "automation_patterns": self.automation_patterns,
@@ -363,6 +368,8 @@ class GrooveboxEngine:
         self.survival_mode = data.get("survival_mode", True)
         self.creative_mode = data.get("creative_mode", False)
         self.normal_mode = data.get("normal_mode", False)
+        self.fractallizer_enabled = data.get("fractallizer_enabled", True)
+        self.eqr_processor_enabled = data.get("eqr_processor_enabled", True)
         if "math_chord_library" in data:
             self.math_chord_library = data.get("math_chord_library")
         self.instrument_sequence_banks = data.get("instrument_sequence_banks", {})
@@ -767,6 +774,23 @@ class SynthModulePage(QWidget):
         top_bar.addWidget(activate_reality_btn)
         top_bar.addStretch(); layout.addLayout(top_bar)
 
+        # UI Toggles for Fractallizer and EQR Processor
+        toggles_bar = QHBoxLayout()
+        self.fractal_toggle = QCheckBox("Enable Music Fractallizer")
+        self.fractal_toggle.setChecked(self.engine.fractallizer_enabled)
+        self.fractal_toggle.setStyleSheet("color: #00ffcc; font-weight: bold; background: #161b22; padding: 4px; border: 1px solid #30363d;")
+        self.fractal_toggle.stateChanged.connect(self._toggle_fractalizer_state)
+
+        self.eqr_toggle = QCheckBox("Enable EQR Processor")
+        self.eqr_toggle.setChecked(self.engine.eqr_processor_enabled)
+        self.eqr_toggle.setStyleSheet("color: #f5d97d; font-weight: bold; background: #161b22; padding: 4px; border: 1px solid #30363d;")
+        self.eqr_toggle.stateChanged.connect(self._toggle_eqr_processor_state)
+
+        toggles_bar.addWidget(self.fractal_toggle)
+        toggles_bar.addWidget(self.eqr_toggle)
+        toggles_bar.addStretch()
+        layout.addLayout(toggles_bar)
+
         mode_bar = QHBoxLayout()
         self.mode_status_lbl = QLabel()
         self._update_mode_label()
@@ -792,6 +816,16 @@ class SynthModulePage(QWidget):
         self.container.setLayout(self.container_layout)
         self.scroll.setWidget(self.container)
         layout.addWidget(self.scroll)
+
+    def _toggle_fractalizer_state(self, state):
+        self.engine.fractallizer_enabled = (state == 2)
+        status = "Enabled" if self.engine.fractallizer_enabled else "Disabled"
+        QMessageBox.information(self, "Fractallizer State", f"Music Fractallizer has been {status}.")
+
+    def _toggle_eqr_processor_state(self, state):
+        self.engine.eqr_processor_enabled = (state == 2)
+        status = "Enabled" if self.engine.eqr_processor_enabled else "Disabled"
+        QMessageBox.information(self, "EQR Processor State", f"EQR Processor has been {status}.")
 
     def _update_mode_label(self):
         s_mode = "ON" if self.engine.survival_mode else "OFF"
@@ -821,6 +855,9 @@ class SynthModulePage(QWidget):
         QMessageBox.information(self, "Operational Mode Updated", f"Electron Sling mode switched to: {active_name} Mode.")
 
     def _trigger_fractalizer(self):
+        if not self.engine.fractallizer_enabled:
+            QMessageBox.warning(self, "Fractallizer Disabled", "Cannot trigger stream: Music Fractallizer is currently disabled via UI controls.")
+            return
         stream = self.engine.activate_fractalizer_stream()
         QMessageBox.information(self, "Music Fractallizer Activated", f"Music Fractallizer stream successfully generated with spatial dimensions: {list(stream.keys())}.")
 
@@ -979,7 +1016,7 @@ class SynthModulePage(QWidget):
 
 
 # -------------------------------------------------------------------------
-# TAB 2: DRUM & PERCUSSION MATRIX
+# TAB 2: DRUM & PERCUSSION MATRIX (With Spawning Capability)
 # -------------------------------------------------------------------------
 class DrumMatrixPage(QWidget):
     def __init__(self, engine):
@@ -988,23 +1025,52 @@ class DrumMatrixPage(QWidget):
         self.setStyleSheet("background-color: #070b10;")
         layout = QVBoxLayout(self)
 
+        top_bar = QHBoxLayout()
         top_info = QLabel("🥁 Drum & Percussion Synthesizer Matrix (Step-Clock Gated Transients)")
         top_info.setStyleSheet("color: #f5d97d; font-weight: bold; font-size: 12px; background: transparent;")
-        layout.addWidget(top_info)
+        top_bar.addWidget(top_info)
+        top_bar.addStretch()
+
+        spawn_drum_btn = QPushButton("+ Spawn Drum Machine Unit")
+        spawn_drum_btn.setStyleSheet("background-color: #1f242c; color: #00ffcc; font-weight: bold; border: 1px solid #00ffcc; padding: 6px;")
+        spawn_drum_btn.clicked.connect(self._spawn_new_drum_unit)
+        top_bar.addWidget(spawn_drum_btn)
+        layout.addLayout(top_bar)
 
         self.scroll = QScrollArea(); self.scroll.setWidgetResizable(True)
         self.scroll.setStyleSheet("background-color: #070b10; border: none;")
-        container = QWidget(); container.setStyleSheet("background-color: #070b10;")
-        grid = QGridLayout(container)
+        self.container = QWidget(); self.container.setStyleSheet("background-color: #070b10;")
+        self.grid = QGridLayout(self.container)
 
-        drum_kits = ["Kick Matrix 808", "Snare Divergence Engine", "Hi-Hat Noise Burst", "Percussion Cluster"]
-        for idx, kit_name in enumerate(drum_kits):
+        self.drum_kits = ["Kick Matrix 808", "Snare Divergence Engine", "Hi-Hat Noise Burst", "Percussion Cluster"]
+        self.refresh_drum_grid()
+
+        self.container.setLayout(self.grid)
+        self.scroll.setWidget(self.container)
+        layout.addWidget(self.scroll)
+
+    def refresh_drum_grid(self):
+        for i in reversed(range(self.grid.count())):
+            item = self.grid.itemAt(i)
+            if item and item.widget():
+                item.widget().setParent(None)
+
+        for idx, kit_name in enumerate(self.drum_kits):
             w = QWidget(); w.setStyleSheet("background-color: #0d1117;")
             l = QVBoxLayout(w)
 
+            kit_header = QHBoxLayout()
             lbl_kit = QLabel(f"Kit: {kit_name}")
             lbl_kit.setStyleSheet("color: #c9d1d9; font-weight: bold; background: transparent;")
-            l.addWidget(lbl_kit)
+            kit_header.addWidget(lbl_kit)
+            kit_header.addStretch()
+
+            despawn_btn = QPushButton("✕ Despawn")
+            despawn_btn.setFixedSize(70, 20)
+            despawn_btn.setStyleSheet("background-color: #2b1115; color: #ff7b72; border: 1px solid #ff7b72; font-size: 8px; font-weight: bold;")
+            despawn_btn.clicked.connect(lambda checked, name=kit_name: self._despawn_drum_unit(name))
+            kit_header.addWidget(despawn_btn)
+            l.addLayout(kit_header)
 
             grid_row = QGridLayout()
             for step in range(16):
@@ -1025,11 +1091,21 @@ class DrumMatrixPage(QWidget):
             l.addLayout(knobs)
 
             panel = ResizableWorkspacePanel(kit_name, w)
-            grid.addWidget(panel, idx // 2, idx % 2)
+            self.grid.addWidget(panel, idx // 2, idx % 2)
 
-        container.setLayout(grid)
-        self.scroll.setWidget(container)
-        layout.addWidget(self.scroll)
+    def _spawn_new_drum_unit(self):
+        new_name = f"Custom Drum Unit {len(self.drum_kits) + 1}"
+        self.drum_kits.append(new_name)
+        self.refresh_drum_grid()
+        QMessageBox.information(self, "Drum Machine Spawned", f"Successfully spawned new drum machine unit '{new_name}' under Tab 2.")
+
+    def _despawn_drum_unit(self, kit_name):
+        if len(self.drum_kits) > 1:
+            self.drum_kits.remove(kit_name)
+            self.refresh_drum_grid()
+            QMessageBox.information(self, "Drum Machine Despawned", f"Successfully despawned drum machine '{kit_name}'.")
+        else:
+            QMessageBox.warning(self, "Despawn Failed", "At least one drum machine unit must remain active.")
 
 
 # -------------------------------------------------------------------------
@@ -1067,10 +1143,8 @@ class GranularFXPage(QWidget):
     def refresh_fx_grid(self):
         for i in reversed(range(self.grid.count())):
             item = self.grid.itemAt(i)
-            if item:
-                widget = item.widget()
-                if widget:
-                    widget.setParent(None)
+            if item and item.widget():
+                item.widget().setParent(None)
 
         for idx, fx_name in enumerate(self.engine.active_fx_modules):
             w = QWidget(); w.setStyleSheet("background-color: #0d1117;")
@@ -1159,10 +1233,8 @@ class AutomationPatternPage(QWidget):
     def _refresh_automation_panels(self):
         for i in reversed(range(self.grid.count())):
             item = self.grid.itemAt(i)
-            if item:
-                widget = item.widget()
-                if widget:
-                    widget.setParent(None)
+            if item and item.widget():
+                item.widget().setParent(None)
 
         total_idx = 0
         for pat_name, points in self.engine.automation_patterns.items():
