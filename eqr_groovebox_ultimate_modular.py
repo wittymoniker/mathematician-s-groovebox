@@ -11,7 +11,8 @@ from PyQt6.QtCore import Qt, QPoint, QRectF
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QGridLayout, QLabel, QPushButton, QScrollArea, QTabWidget,
-    QSizePolicy, QDockWidget, QSpinBox, QComboBox, QSlider
+    QSizePolicy, QDockWidget, QSpinBox, QComboBox, QSlider, QToolBar,
+    QLineEdit, QTextEdit, QProgressBar, QCheckBox
 )
 from PyQt6.QtCore import Qt, QPointF, QTimer, QPoint, QRectF
 from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPalette, QPainterPath
@@ -82,19 +83,233 @@ except ImportError:
         def render_reality_patch(self, base_patch_data):
             return {coord: sig.tolist() for coord, sig in self.fractallizer.generate_fractal_stream(base_patch_data).items()}
 class MathEngine:
-    """Core mathematical engine supporting x, y, z coordinate evaluations."""
-    def __init__(self, x=1.0, y=1.0, z=1.0):
+    """Core mathematical engine supporting x, y, z, t coordinates, tempo-derived time shifts,
+    and custom Isosceles Triangle trigonometric functions (isn, ics, arcisn, arcics, inverses)."""
+    def __init__(self, x=1.0, y=1.0, z=1.0, tempo=120.0):
         self.x = x
         self.y = y
         self.z = z
+        self.tempo = tempo
+        self.t = 0.0
 
-    def evaluate(self, equation_str="x**2 + y - z"):
+    def update_tempo(self, new_tempo):
+        self.tempo = max(20.0, new_tempo)
+        self.t += (60.0 / self.tempo) * 0.01
+
+    @staticmethod
+    def isn(val):
+        return math.sin(val) * math.cos(val * 0.5)
+
+    @staticmethod
+    def ics(val):
+        return math.cos(val) * math.sin(val * 0.5)
+
+    @staticmethod
+    def isn_inv(val):
+        v = max(-1.0, min(1.0, val))
+        return math.asin(v) * 1.414
+
+    @staticmethod
+    def ics_inv(val):
+        v = max(-1.0, min(1.0, val))
+        return math.acos(v) * 1.414
+
+    @staticmethod
+    def arcisn(val):
+        v = max(-1.0, min(1.0, val / 2.0))
+        return math.asin(v)
+
+    @staticmethod
+    def arcics(val):
+        v = max(-1.0, min(1.0, val / 2.0))
+        return math.acos(v)
+
+    def evaluate(self, equation_str="isn(x) + ics(y) * arcisn(z) + t"):
         try:
-            return eval(equation_str, {"__builtins__": None}, {"x": self.x, "y": self.y, "z": self.z, "math": math})
+            safe_dict = {
+                "__builtins__": None,
+                "x": self.x, "y": self.y, "z": self.z, "t": self.t,
+                "math": math,
+                "isn": self.isn, "ics": self.ics,
+                "isn_inv": self.isn_inv, "ics_inv": self.ics_inv,
+                "arcisn": self.arcisn, "arcics": self.arcics,
+                "sin": math.sin, "cos": math.cos, "tan": math.tan,
+                "asin": math.asin, "acos": math.acos, "atan": math.atan,
+                "sqrt": math.sqrt, "log": math.log, "exp": math.exp, "abs": abs,
+                "min": min, "max": max
+            }
+            return eval(equation_str, {"__builtins__": None}, safe_dict)
         except Exception:
             return 0.0
+class AdvancedWaveformVisualizerCanvas(QWidget):
+    """Multi-model real-time Wavetable, Vector, and Algebraic Equation Visualizer."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(280)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.phase = 0.0
+        self.active_mode = "Eskivector"
+
+    def update_phase(self):
+        self.phase += 0.05
+        self.update()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+
+        p.fillRect(0, 0, w, h, QColor("#0a0e14"))
+        p.setPen(QPen(QColor("#161b22"), 1))
+        for x in range(0, w, 40):
+            p.drawLine(x, 0, x, h)
+        for y in range(0, h, 40):
+            p.drawLine(0, y, w, y)
+
+        path = QPainterPath()
+        center_y = h / 2.0
+        meum_ratio = 1.618
+
+        for px in range(w):
+            t_val = (px / w) * 4.0 * math.pi + self.phase
+            if self.active_mode == "Eskivector":
+                val = MathEngine.isn(t_val * meum_ratio) + 0.5 * MathEngine.ics(t_val)
+            elif self.active_mode == "Eskitable":
+                val = MathEngine.arcisn(math.sin(t_val)) * MathEngine.arcics(math.cos(t_val * 0.5))
+            elif self.active_mode == "Eskiosc":
+                val = MathEngine.isn_inv(math.sin(t_val))
+            else: # Eskiequation
+                val = MathEngine.isn(t_val) * MathEngine.ics(t_val * meum_ratio) + MathEngine.arcisn(math.sin(t_val * 0.25))
+
+            py = center_y - (val * (h * 0.35))
+            if px == 0:
+                path.moveTo(px, py)
+            else:
+                path.lineTo(px, py)
+
+        p.setPen(QPen(QColor("#00ffcc"), 2.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        p.drawPath(path)
+
+        p.setPen(QPen(QColor("#58a6ff"), 1, Qt.PenStyle.DashLine))
+        p.drawLine(0, int(center_y), w, int(center_y))
+        p.drawText(15, 25, f"Visualizer Active Model: [{self.active_mode}] — Isosceles Trig & Algebraic Waveform")
+
+class MultiLaneSequencerCanvas(QWidget):
+    """Multi-lane sequencer canvas supporting independent editing for Amplitude, Frequency, Duration, and Triggers."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.step_count = 16
+        self.setMinimumHeight(340)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        # Lanes: Amplitude, Frequency, Duration, Trigger
+        self.steps = [
+            {"amp": 0.8, "freq": 440.0, "dur": 1.0, "trigger": True},
+            {"amp": 0.4, "freq": 220.0, "dur": 0.5, "trigger": False},
+            {"amp": 0.9, "freq": 880.0, "dur": 1.2, "trigger": True},
+            {"amp": 0.6, "freq": 330.0, "dur": 0.8, "trigger": True},
+            {"amp": 0.2, "freq": 110.0, "dur": 0.3, "trigger": False},
+            {"amp": 0.7, "freq": 660.0, "dur": 1.0, "trigger": True},
+            {"amp": 0.5, "freq": 550.0, "dur": 0.7, "trigger": True},
+            {"amp": 0.3, "freq": 400.0, "dur": 0.5, "trigger": False},
+            {"amp": 0.85, "freq": 440.0, "dur": 1.0, "trigger": True},
+            {"amp": 0.45, "freq": 300.0, "dur": 0.6, "trigger": False},
+            {"amp": 0.95, "freq": 900.0, "dur": 1.5, "trigger": True},
+            {"amp": 0.55, "freq": 350.0, "dur": 0.8, "trigger": True},
+            {"amp": 0.25, "freq": 150.0, "dur": 0.4, "trigger": False},
+            {"amp": 0.75, "freq": 700.0, "dur": 1.1, "trigger": True},
+            {"amp": 0.65, "freq": 500.0, "dur": 0.9, "trigger": True},
+            {"amp": 0.1, "freq": 200.0, "dur": 0.2, "trigger": False},
+        ]
+        self.active_lane = "amp" # amp, freq, dur, trigger
+
+    def set_step_count(self, count):
+        self.step_count = count
+        while len(self.steps) < count:
+            self.steps.append({"amp": 0.5, "freq": 440.0, "dur": 1.0, "trigger": True})
+        self.update()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        p.fillRect(0, 0, w, h, QColor("#0a0e14"))
+
+        p.setPen(QPen(QColor("#161b22"), 1))
+        for x in range(0, w, 40):
+            p.drawLine(x, 0, x, h)
+        for y in range(0, h, 40):
+            p.drawLine(0, y, w, y)
+
+        step_w = w / self.step_count
+        lane_h = h / 4.0
+
+        lanes = [("amp", "Amplitude Lane", QColor("#00ffcc")),
+                 ("freq", "Frequency Lane", QColor("#58a6ff")),
+                 ("dur", "Duration Lane", QColor("#d29922")),
+                 ("trigger", "Trigger Lane (Gate)", QColor("#ff7b72"))]
+
+        for idx, (l_key, l_title, l_col) in enumerate(lanes):
+            ly_top = idx * lane_h
+            p.setPen(QPen(QColor("#30363d"), 1))
+            p.drawLine(0, int(ly_top), w, int(ly_top))
+            p.setPen(QPen(l_col, 1))
+            p.drawText(10, int(ly_top + 18), l_title)
+
+            for i in range(self.step_count):
+                step = self.steps[i]
+                sx = i * step_w
+                if l_key == "amp":
+                    val_h = step["amp"] * (lane_h - 25)
+                    p.setBrush(QBrush(l_col))
+                    p.drawRoundedRect(QRectF(sx + 3, ly_top + lane_h - val_h - 5, step_w - 6, val_h), 3, 3)
+                elif l_key == "freq":
+                    val_h = (step["freq"] / 2000.0) * (lane_h - 25)
+                    p.setBrush(QBrush(l_col))
+                    p.drawRoundedRect(QRectF(sx + 3, ly_top + lane_h - val_h - 5, step_w - 6, val_h), 3, 3)
+                elif l_key == "dur":
+                    val_h = (step["dur"] / 2.0) * (lane_h - 25)
+                    p.setBrush(QBrush(l_col))
+                    p.drawRoundedRect(QRectF(sx + 3, ly_top + lane_h - val_h - 5, step_w - 6, val_h), 3, 3)
+                elif l_key == "trigger":
+                    is_trig = step["trigger"]
+                    p.setBrush(QBrush(l_col if is_trig else QColor("#21262d")))
+                    p.drawEllipse(QPointF(sx + step_w / 2, ly_top + lane_h / 2 + 5), 7, 7)
+
+    def mousePressEvent(self, event):
+        self.handle_edit(event.position())
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            self.handle_edit(event.position())
+
+    def handle_edit(self, pos):
+        w = self.width()
+        h = self.height()
+        step_w = w / self.step_count
+        lane_h = h / 4.0
+
+        idx = int(pos.x() // step_w)
+        lane_idx = int(pos.y() // lane_h)
+
+        if 0 <= idx < self.step_count and 0 <= lane_idx < 4:
+            lane_keys = ["amp", "freq", "dur", "trigger"]
+            l_key = lane_keys[lane_idx]
+
+            if l_key == "trigger":
+                self.steps[idx]["trigger"] = not self.steps[idx]["trigger"]
+            else:
+                ly_top = lane_idx * lane_h
+                ratio = max(0.0, min(1.0, (ly_top + lane_h - pos.y()) / (lane_h - 25)))
+                if l_key == "amp":
+                    self.steps[idx]["amp"] = ratio
+                elif l_key == "freq":
+                    self.steps[idx]["freq"] = 50.0 + ratio * 2000.0
+                elif l_key == "dur":
+                    self.steps[idx]["dur"] = 0.1 + ratio * 2.0
+            self.update()
 class IdealizedMathKnob(QWidget):
-    """Skeuomorphic rotary controller designed for mathematical mapping ($x, y, z$ space)."""
+    """Skeuomorphic rotary controller designed for mathematical mapping ($x, y, z, t$ space)."""
     def __init__(self, label_text, min_val=0.0, max_val=100.0, default_val=50.0, math_note="", parent=None):
         super().__init__(parent)
         self.label_text = label_text
@@ -111,15 +326,12 @@ class IdealizedMathKnob(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Label
         painter.setPen(QPen(QColor("#58a6ff"), 1))
         painter.drawText(0, 8, self.width(), 14, Qt.AlignmentFlag.AlignCenter, self.label_text)
 
-        # Numerical Readout
         painter.setPen(QPen(QColor("#8b949e"), 1))
         painter.drawText(0, 22, self.width(), 12, Qt.AlignmentFlag.AlignCenter, f"Val: {self.value:.3f}")
 
-        # Knob Body
         center = QPointF(55, 62)
         radius = 20.0
 
@@ -127,7 +339,6 @@ class IdealizedMathKnob(QWidget):
         painter.setPen(QPen(QColor("#30363d"), 2))
         painter.drawEllipse(center, radius, radius)
 
-        # Indicator Tick
         span_val = self.max_val - self.min_val if self.max_val != self.min_val else 1.0
         normalized = (self.value - self.min_val) / span_val
         angle = math.radians(-130 + (normalized * 260))
@@ -137,13 +348,11 @@ class IdealizedMathKnob(QWidget):
         painter.setPen(QPen(QColor("#00ffcc"), 2.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
         painter.drawLine(center, QPointF(tip_x, tip_y))
 
-        # Patch Jack Port
         jack_center = QPointF(55, 96)
         painter.setBrush(QBrush(QColor("#0d1117")))
         painter.setPen(QPen(QColor("#00ffcc") if self.is_patched else QColor("#484f58"), 1.5))
         painter.drawEllipse(jack_center, 5.0, 5.0)
 
-        # Mathematical Footer Note
         painter.setPen(QPen(QColor("#c9d1d9"), 1))
         painter.drawText(2, 108, self.width() - 4, 20, Qt.AlignmentFlag.AlignCenter, self.math_note)
 
@@ -175,17 +384,30 @@ class IdealizedMathKnob(QWidget):
         step = span * (0.02 if delta > 0 else -0.02)
         self.value = max(self.min_val, min(self.max_val, self.value + step))
         self.update()
+
 class FreeformSequencerCanvas(QWidget):
-    """Robust sequencer canvas with foolproof list/dict data handling."""
+    """Sequencer canvas supporting dynamic step length and micro-timing."""
     def __init__(self, sequence_data=None, parent=None):
         super().__init__(parent)
         self.seq_data = sequence_data if sequence_data is not None else [0.0] * 16
-        self.setMinimumHeight(280)
+        self.step_count = 16
+        self.non_quant_offset = 0.0
+        self.setMinimumHeight(260)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.nodes = [QPointF(60, 200), QPointF(340, 80), QPointF(680, 160), QPointF(960, 70)]
+        self.nodes = [QPointF(60, 180), QPointF(340, 60), QPointF(680, 140), QPointF(960, 50)]
         self.wires = [(self.nodes[0], self.nodes[1]), (self.nodes[2], self.nodes[3])]
         self.active_node = None
         self.wiring_start = None
+
+    def set_step_count(self, count):
+        self.step_count = count
+        if len(self.seq_data) < count:
+            self.seq_data.extend([0.0] * (count - len(self.seq_data)))
+        self.update()
+
+    def set_non_quant_offset(self, offset):
+        self.non_quant_offset = offset
+        self.update()
 
     def paintEvent(self, event):
         p = QPainter(self)
@@ -196,8 +418,8 @@ class FreeformSequencerCanvas(QWidget):
                 notes = self.seq_data.get("notes", [])
             elif isinstance(self.seq_data, list):
                 notes = [
-                    {"time": float(i), "duration": 1.0, "active": bool(val != 0)}
-                    for i, val in enumerate(self.seq_data)
+                    {"time": float(i) + self.non_quant_offset, "duration": 1.0, "active": bool(val != 0)}
+                    for i, val in enumerate(self.seq_data[:self.step_count])
                 ]
             else:
                 notes = []
@@ -219,8 +441,8 @@ class FreeformSequencerCanvas(QWidget):
                 p.setPen(QPen(QColor("#00ffcc"), 2.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
                 p.drawPath(path)
 
-            max_time = max([n.get("time", 0.0) + n.get("duration", 1.0) for n in notes] + [16.0])
-            scale_x = w / max(16.0, max_time)
+            max_time = max([n.get("time", 0.0) + n.get("duration", 1.0) for n in notes] + [float(self.step_count)])
+            scale_x = w / max(float(self.step_count), max_time)
 
             for i, note in enumerate(notes):
                 nx = note.get("time", float(i)) * scale_x
@@ -229,7 +451,7 @@ class FreeformSequencerCanvas(QWidget):
 
                 is_active = note.get("active", True)
                 p.setBrush(QBrush(QColor("#00ffcc" if is_active else "#21262d")))
-                p.setPen(QPen(QColor("#ffffff") if is_active else QColor("#484f58"), 1))
+                p.setPen(QPen(QColor("#ffffff" if is_active else "#484f58"), 1))
                 p.drawRoundedRect(int(nx), int(ny), int(nw), 18, 4, 4)
 
                 p.setPen(QPen(QColor("#ffffff" if is_active else "#8b949e"), 1))
@@ -270,15 +492,7 @@ class FreeformSequencerCanvas(QWidget):
             self.wiring_start = None
         self.active_node = None
         self.update()
-class EQRCoordEngine:
-    """Spatial coordinate evaluation engine."""
-    def __init__(self, x=0.0, y=0.0, z=0.0):
-        self.x = x
-        self.y = y
-        self.z = z
 
-    def evaluate_state(self):
-        return (self.x ** 2 + self.y ** 2 + self.z ** 2) ** 0.5
 # -------------------------------------------------------------------------
 # CONSTANTS & CONFIGURATION DATABASE
 # -------------------------------------------------------------------------
@@ -337,8 +551,114 @@ class ParameterControlRow(QWidget):
         layout.addWidget(self.jack_btn, 1)
 
         self.setLayout(layout)
+class WavetableVectorVisualizerCanvas(QWidget):
+    """Real-time Wavetable and Isosceles Trigonometric Polynomial Waveform Visualizer."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(260)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.phase = 0.0
 
+    def update_phase(self):
+        self.phase += 0.05
+        self.update()
 
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+
+        p.fillRect(0, 0, w, h, QColor("#0a0e14"))
+        p.setPen(QPen(QColor("#161b22"), 1))
+        for x in range(0, w, 40):
+            p.drawLine(x, 0, x, h)
+        for y in range(0, h, 40):
+            p.drawLine(0, y, w, y)
+
+        path = QPainterPath()
+        center_y = h / 2.0
+        meum_ratio = 1.618
+
+        for px in range(w):
+            t_val = (px / w) * 4.0 * math.pi + self.phase
+            val = MathEngine.isn(t_val * meum_ratio) + 0.5 * MathEngine.ics(t_val) * MathEngine.arcisn(math.sin(t_val * 0.5))
+            py = center_y - (val * (h * 0.35))
+            if px == 0:
+                path.moveTo(px, py)
+            else:
+                path.lineTo(px, py)
+
+        p.setPen(QPen(QColor("#00ffcc"), 2.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        p.drawPath(path)
+
+        p.setPen(QPen(QColor("#58a6ff"), 1, Qt.PenStyle.DashLine))
+        p.drawLine(0, int(center_y), w, int(center_y))
+        p.drawText(10, 20, "Eskivector / Eskitable / Eskiosc / Eskiequation Real-Time Wavetable Visualizer")
+class StepPainterSequencerCanvas(QWidget):
+    """Sequencer supporting color-coded step painting for frequency, amplitude, and duration."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.step_count = 16
+        self.setMinimumHeight(300)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        # Each step: {freq: 440.0, amp: 0.8, duration: 1.0, color: QColor("#00ffcc")}
+        self.steps = [
+            {"freq": 220.0 + i*30, "amp": 0.7, "duration": 1.0, "color": QColor("#00ffcc" if i%2==0 else "#58a6ff")}
+            for i in range(32)
+        ]
+        self.painting_mode = "amplitude" # amplitude, frequency, duration, color
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        p.fillRect(0, 0, w, h, QColor("#0a0e14"))
+
+        p.setPen(QPen(QColor("#161b22"), 1))
+        for x in range(0, w, 40):
+            p.drawLine(x, 0, x, h)
+        for y in range(0, h, 40):
+            p.drawLine(0, y, w, y)
+
+        step_w = w / self.step_count
+        for i in range(self.step_count):
+            step = self.steps[i]
+            x = i * step_w
+            amp_h = step["amp"] * (h * 0.7)
+            y = h - amp_h - 30
+
+            col = step["color"]
+            p.setBrush(QBrush(col))
+            p.setPen(QPen(QColor("#ffffff"), 1))
+            p.drawRoundedRect(QRectF(x + 3, y, step_w - 6, amp_h), 4, 4)
+
+            p.setPen(QPen(QColor("#8b949e"), 1))
+            p.drawText(int(x + 4), h - 10, f"S{i+1}")
+
+        p.setPen(QPen(QColor("#c9d1d9"), 1))
+        p.drawText(15, 25, f"Step Painter & Automation Grid [Mode: {self.painting_mode.upper()} | Click & Drag to Paint]")
+
+    def mousePressEvent(self, event):
+        self.handle_painting(event.position())
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            self.handle_painting(event.position())
+
+    def handle_painting(self, pos):
+        w = self.width()
+        step_w = w / self.step_count
+        idx = int(pos.x() // step_w)
+        if 0 <= idx < self.step_count:
+            h = self.height()
+            ratio = max(0.0, min(1.0, (h - pos.y() - 30) / (h * 0.7)))
+            if self.painting_mode == "amplitude":
+                self.steps[idx]["amp"] = ratio
+            elif self.painting_mode == "frequency":
+                self.steps[idx]["freq"] = 100.0 + ratio * 2000.0
+            elif self.painting_mode == "duration":
+                self.steps[idx]["duration"] = 0.2 + ratio * 2.0
+            self.update()
 class GlobalCrossTabBusManager:
     """Manages universal inter-synth wiring, dedicated synth input/output jacks, master audio routing, and resampling."""
     def __init__(self):
@@ -2187,33 +2507,30 @@ class MasterControlPatchbayPage(QWidget):
 class GrooveboxMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Equation of Reality (EQR) - Groovebox Ultimate Modular Suite [Meum Ratio Edition]")
-        self.resize(1750, 1000)
+        self.setWindowTitle("Equation of Reality (EQR) - Streamlined Mathematician DAW Suite")
+        self.resize(1850, 1024)
         self.set_dark_palette()
 
         self.engine = MathEngine()
-        self.step_sequence = [0.0] * 16
 
-        # Restrict dock areas and behavior to prevent layout takeover
-        self.setDockOptions(QMainWindow.DockOption.AllowTabbedDocks | QMainWindow.DockOption.AnimatedDocks)
+        self.anim_timer = QTimer(self)
+        self.anim_timer.timeout.connect(self.run_engine_tick)
+        self.anim_timer.start(30)
 
-        # Central Workspace Tab Widget
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         self.setCentralWidget(self.tabs)
 
-        # Build All Functional Tabs
-        self.tabs.addTab(self.create_sequencer_tab(), "1. Sequencer & Automation Hub")
-        self.tabs.addTab(self.create_constants_tab(), "2. 34-Constant Harmonic Matrix")
-        self.tabs.addTab(self.create_drum_matrix_tab(), "3. Multidimensional Drum Matrix")
-        self.tabs.addTab(self.create_granular_fx_tab(), "4. Granular FX & Automators")
-        self.tabs.addTab(self.create_playlister_tab(), "5. Playlister & Arrangement")
-        self.tabs.addTab(self.create_project_management_tab(), "6. Project Management & I/O")
-        self.tabs.addTab(self.create_patchbay_tab(), "7. Master Patchbay")
+        # Unified tabs containing all core sound generation, sequencing, reality/fractal, and patching features
+        self.tabs.addTab(self.create_sequencer_tab(), "1. Multi-Lane Sequencer")
+        self.tabs.addTab(self.create_synths_tab(), "2. Synths (Eskivector/Table/Osc/Equation)")
+        self.tabs.addTab(self.create_visualizer_tab(), "3. Visualizer & Isosceles Trig")
+        self.tabs.addTab(self.create_reality_fractal_tab(), "4. Reality & Fractallizer")
+        self.tabs.addTab(self.create_patchbay_tab(), "5. Master Interactive Patchbay")
+        self.tabs.addTab(self.create_playlister_tab(), "6. Arrangement Playlister")
+        self.tabs.addTab(self.create_compiler_tab(), "7. EQR Algebraic Compiler")
 
-        # Top Dynamic Module Spawner Toolbar (Toggles instead of forced auto-spawn)
-        self.setup_spawn_toolbar()
-        self.statusBar().showMessage("Meum Ratio Active | Workspace Unobstructed")
+        self.statusBar().showMessage("EQR Master Suite Active | All Mathematical Sound Synthesis & Patching Modules Loaded")
 
     def set_dark_palette(self):
         palette = QPalette()
@@ -2226,156 +2543,154 @@ class GrooveboxMainWindow(QMainWindow):
         palette.setColor(QPalette.ColorRole.Highlight, QColor("#1f6feb"))
         QApplication.setPalette(palette)
 
-    def setup_spawn_toolbar(self):
-        toolbar = self.addToolBar("Module Spawner Toolbar")
-        toolbar.setStyleSheet("background-color: #161b22; color: #c9d1d9; border-bottom: 1px solid #30363d; spacing: 8px;")
-
-        spawn_synth = QPushButton("Toggle Synth Node")
-        spawn_synth.setCheckable(True)
-        spawn_synth.clicked.connect(lambda checked: self.toggle_dockable_pane("Synth Module Instance", checked))
-        toolbar.addWidget(spawn_synth)
-
-        spawn_fx = QPushButton("Toggle FX Filter")
-        spawn_fx.setCheckable(True)
-        spawn_fx.clicked.connect(lambda checked: self.toggle_dockable_pane("Granular FX Node", checked))
-        toolbar.addWidget(spawn_fx)
-
-        spawn_automator = QPushButton("Toggle x,y,z Automator")
-        spawn_automator.setCheckable(True)
-        spawn_automator.clicked.connect(lambda checked: self.toggle_dockable_pane("Coordinate Automator", checked))
-        toolbar.addWidget(spawn_automator)
-
-        # Track active docks to safely toggle them on/and off
-        self.active_docks = {}
-
-    def toggle_dockable_pane(self, title, checked):
-        if checked:
-            dock = QDockWidget(title, self)
-            dock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
-            content = QWidget()
-            layout = QVBoxLayout(content)
-            layout.addWidget(IdealizedMathKnob("Meum Scale Factor", 0.1, 16.0, 1.618, "Primary Meum Ratio"))
-            layout.addWidget(QPushButton(f"Execute {title} Process"))
-            layout.addStretch()
-            content.setLayout(layout)
-            dock.setWidget(content)
-
-            # Clean up tracking when closed via native title bar X button
-            dock.destroyed.connect(lambda: self.active_docks.pop(title, None))
-
-            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
-            self.active_docks[title] = dock
-        else:
-            if title in self.active_docks:
-                self.active_docks[title].close()
-                self.active_docks.pop(title, None)
+    def run_engine_tick(self):
+        self.engine.update_tempo(120.0)
+        if hasattr(self, 'wave_visualizer'):
+            self.wave_visualizer.update_phase()
 
     def create_sequencer_tab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
-        doc_label = QLabel(
-            "<b>Sequencer & Vector Automation Guide (Meum Core):</b><br>"
-            "• <b>Canvas Nodes:</b> Drag nodes to shape automation curves; right-click to add nodes.<br>"
-            "• <b>Patch Wires:</b> Click and drag from one node jack to another to create hardware modulation paths."
+        doc = QLabel(
+            "<b>Multi-Lane Step Sequencer & Trigger Hub:</b><br>"
+            "Edit Amplitude, Frequency, Duration, and Gate Triggers independently across steps. "
+            "Click or drag directly on any lane to paint values in real-time."
         )
-        doc_label.setStyleSheet("background-color: #161b22; padding: 10px; border-radius: 6px; color: #8b949e;")
-        layout.addWidget(doc_label)
+        doc.setStyleSheet("background-color: #161b22; padding: 10px; border-radius: 6px; color: #8b949e;")
+        layout.addWidget(doc)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        container = QWidget()
-        container_layout = QVBoxLayout(container)
+        ctrl_bar = QHBoxLayout()
+        ctrl_bar.addWidget(QLabel("Step Count:"))
+        self.step_spin = QSpinBox()
+        self.step_spin.setRange(4, 32)
+        self.step_spin.setValue(16)
+        self.step_spin.valueChanged.connect(lambda val: self.seq_canvas.set_step_count(val))
+        ctrl_bar.addWidget(self.step_spin)
+        ctrl_bar.addStretch()
+        layout.addLayout(ctrl_bar)
 
-        self.lane = FreeformSequencerCanvas(self.step_sequence)
-        container_layout.addWidget(self.lane)
-
-        matrix_group = QGroupBox("Architectural Parameter Matrix ($x, y, z$) - Meum Scaled")
-        matrix_grid = QGridLayout()
-        params = [
-            ("Meum Primary Constant", 0.1, 16.0, 1.618, "Meum Base Ratio"),
-            ("Sub-Bass Gain", 0.0, 2.0, 0.8, "y-domain gain"),
-            ("Resonance Decay", 0.01, 5.0, 0.5, "z-domain decay"),
-            ("Wave Folding", 0.0, 100.0, 25.0, "Non-linear fold")
-        ]
-        for idx, (lbl, min_v, max_v, def_v, note) in enumerate(params):
-            matrix_grid.addWidget(IdealizedMathKnob(lbl, min_v, max_v, def_v, note), 0, idx)
-        matrix_group.setLayout(matrix_grid)
-        container_layout.addWidget(matrix_group)
-
-        container_layout.addStretch()
-        scroll.setWidget(container)
-        layout.addWidget(scroll)
+        self.seq_canvas = MultiLaneSequencerCanvas()
+        layout.addWidget(self.seq_canvas)
+        layout.addStretch()
         return widget
 
-    def create_constants_tab(self):
+    def create_synths_tab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
+
+        doc = QLabel(
+            "<b>Synthesizer Architecture (Eskivector, Eskitable, Eskiosc, Eskiequation):</b><br>"
+            "Full parameter control for envelope shaping, gating heuristics, and mathematical sound definition."
+        )
+        doc.setStyleSheet("background-color: #161b22; padding: 10px; border-radius: 6px; color: #8b949e;")
+        layout.addWidget(doc)
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         container = QWidget()
         grid = QGridLayout(container)
 
-        constants = [
-            ("Meum Ratio", 0.1, 5.0, 1.618, "Primary Constant"),
-            ("Plastic Number", 1.0, 2.0, 1.324, "ρ Constant"),
-            ("Silver Ratio", 1.0, 3.0, 2.414, "δ_s Constant"),
-            ("Supergolden", 1.0, 2.5, 1.465, "ψ Constant"),
-            ("Apéry Constant", 1.0, 2.0, 1.202, "ζ(3) Vector"),
-            ("Euler-Mascheroni", 0.0, 1.0, 0.577, "γ Constant"),
-            ("Gauss Lemniscate", 1.0, 4.0, 2.622, "ϖ Constant"),
-            ("Khinchin Constant", 1.0, 3.0, 2.685, "K_0 Vector")
+        synths = [
+            ("Eskivector", "Vector Synthesis", "isn/ics Vector"),
+            ("Eskitable", "Wavetable Morphing", "Meum Wavetable"),
+            ("Eskiosc", "Isosceles Oscillator", "arcisn Feedback"),
+            ("Eskiequation", "Algebraic Voice", "XYZT Dynamic")
         ]
-        for idx, (lbl, min_v, max_v, def_v, note) in enumerate(constants):
-            grid.addWidget(IdealizedMathKnob(lbl, min_v, max_v, def_v, note), idx // 4, idx % 4)
+
+        for i, (name, subtitle, note) in enumerate(synths):
+            group = QGroupBox(f"{name} — {subtitle}")
+            glayout = QGridLayout()
+            glayout.addWidget(IdealizedMathKnob("Drive / Gain", 0.0, 10.0, 2.5, note), 0, 0)
+            glayout.addWidget(IdealizedMathKnob("Env Attack", 0.001, 2.0, 0.05, "Attack"), 0, 1)
+            glayout.addWidget(IdealizedMathKnob("Gate Decay", 0.01, 5.0, 0.8, "Decay"), 0, 2)
+            glayout.addWidget(IdealizedMathKnob("Resonance", 0.0, 1.0, 0.4, "Filter Q"), 0, 3)
+            group.setLayout(glayout)
+            grid.addWidget(group, i // 2, i % 2)
 
         container.setLayout(grid)
         scroll.setWidget(container)
         layout.addWidget(scroll)
         return widget
 
-    def create_drum_matrix_tab(self):
+    def create_visualizer_tab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        grid_group = QGroupBox("Multidimensional Drum Step Matrix (Variable Steps)")
-        grid_layout = QGridLayout()
-        for r in range(4):
-            for c in range(16):
-                btn = QPushButton(f"{r+1}:{c+1}")
-                btn.setCheckable(True)
-                btn.setMaximumSize(55, 40)
-                grid_layout.addWidget(btn, r, c)
-        grid_group.setLayout(grid_layout)
-        layout.addWidget(grid_group)
+
+        ctrl = QHBoxLayout()
+        ctrl.addWidget(QLabel("Select Active Engine Model:"))
+        model_combo = QComboBox()
+        model_combo.addItems(["Eskivector", "Eskitable", "Eskiosc", "Eskiequation"])
+        model_combo.currentTextChanged.connect(lambda txt: setattr(self.wave_visualizer, 'active_mode', txt))
+        ctrl.addWidget(model_combo)
+        ctrl.addStretch()
+        layout.addLayout(ctrl)
+
+        self.wave_visualizer = AdvancedWaveformVisualizerCanvas()
+        layout.addWidget(self.wave_visualizer)
+
+        group = QGroupBox("Isosceles Trig & Polynomial Parameters")
+        glayout = QHBoxLayout()
+        glayout.addWidget(IdealizedMathKnob("isn Scale", -5.0, 5.0, 1.0, "isn(x)"))
+        glayout.addWidget(IdealizedMathKnob("ics Scale", -5.0, 5.0, 1.618, "ics(y)"))
+        glayout.addWidget(IdealizedMathKnob("arcisn Depth", 0.0, 10.0, 3.14, "arcisn(z)"))
+        glayout.addWidget(IdealizedMathKnob("Tempo dt (T)", 0.0, 60.0, 120.0, "Time Derivative"))
+        group.setLayout(glayout)
+        layout.addWidget(group)
         layout.addStretch()
         return widget
 
-    def create_granular_fx_tab(self):
+    def create_reality_fractal_tab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        fx_group = QGroupBox("Granular Synthesis & FX Processing Engine")
-        fx_layout = QHBoxLayout()
-        fx_layout.addWidget(IdealizedMathKnob("Meum Grain Size", 1.0, 500.0, 50.0, "Meum ms vector"))
-        fx_layout.addWidget(IdealizedMathKnob("Scatter Density", 0.0, 10.0, 2.5, "Density curve"))
-        fx_layout.addWidget(IdealizedMathKnob("Feedback Warp", 0.0, 1.0, 0.4, "Non-linear feedback"))
-        fx_group.setLayout(fx_layout)
-        layout.addWidget(fx_group)
+
+        doc = QLabel(
+            "<b>Reality & Fractallizer Modules:</b><br>"
+            "Drive self-inducing chaotic modulation processes and recursive fractal harmonic generation."
+        )
+        doc.setStyleSheet("background-color: #161b22; padding: 10px; border-radius: 6px; color: #8b949e;")
+        layout.addWidget(doc)
+
+        grid = QGridLayout()
+
+        r_group = QGroupBox("Reality Module (Chaotic Self-Inducing Processes)")
+        r_layout = QHBoxLayout()
+        r_layout.addWidget(IdealizedMathKnob("Entropy Rate", 0.0, 1.0, 0.25, "Chaos"))
+        r_layout.addWidget(IdealizedMathKnob("Feedback Loop", 0.0, 10.0, 1.618, "Recursive CV"))
+        r_group.setLayout(r_layout)
+        grid.addWidget(r_group, 0, 0)
+
+        f_group = QGroupBox("Fractallizer Module (Recursive Harmonics)")
+        f_layout = QHBoxLayout()
+        f_layout.addWidget(IdealizedMathKnob("Recursion Depth", 1.0, 10.0, 4.0, "Depth"))
+        f_layout.addWidget(IdealizedMathKnob("Self-Similarity", 0.0, 1.0, 0.75, "Ratio"))
+        f_group.setLayout(f_layout)
+        grid.addWidget(f_group, 0, 1)
+
+        layout.addWidget(grid)
         layout.addStretch()
+        return widget
+
+    def create_patchbay_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        self.patchbay_canvas = InteractivePatchbayCanvas()
+        layout.addWidget(self.patchbay_canvas)
         return widget
 
     def create_playlister_tab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
+
         group = QGroupBox("Arrangement Playlister & Pattern Queue")
         grid = QGridLayout()
-        grid.addWidget(QLabel("Pattern Slot 1: Meum_Core_Alpha [Active]"), 0, 0)
-        grid.addWidget(QLabel("Pattern Slot 2: Z-Axis Modulation Sweep"), 1, 0)
-        grid.addWidget(QLabel("Pattern Slot 3: Harmonic Decay Loop"), 2, 0)
+        grid.addWidget(QLabel("Pattern Slot 1: Eskivector Isosceles Groove [Playing]"), 0, 0)
+        grid.addWidget(QLabel("Pattern Slot 2: Eskitable Harmonic Sweep Matrix"), 1, 0)
+        grid.addWidget(QLabel("Pattern Slot 3: Reality Chaos Modulation Layer"), 2, 0)
 
         btn_layout = QHBoxLayout()
-        btn_layout.addWidget(QPushButton("Queue Next Pattern"))
-        btn_layout.addWidget(QPushButton("Bounce Arrangement to Disk"))
+        btn_layout.addWidget(QPushButton("Queue Next Pattern Block"))
+        btn_layout.addWidget(QPushButton("Bounce DAW Stems to Disk (WAV)"))
         grid.addLayout(btn_layout, 3, 0)
 
         group.setLayout(grid)
@@ -2383,31 +2698,26 @@ class GrooveboxMainWindow(QMainWindow):
         layout.addStretch()
         return widget
 
-    def create_project_management_tab(self):
+    def create_compiler_tab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        group = QGroupBox("Project State Serialization & JSON I/O")
+
+        group = QGroupBox("EQR Algebraic Polynomial Compiler (x, y, z, t)")
         grid = QGridLayout()
-        grid.addWidget(QLabel("Current Workspace State: Saved (Meum Schema v3.6.8)"), 0, 0)
-        grid.addWidget(QPushButton("Save Project State (.eqr)"), 1, 0)
-        grid.addWidget(QPushButton("Load Project State (.eqr)"), 2, 0)
-        grid.addWidget(QPushButton("Export Audio Stems (WAV)"), 3, 0)
+
+        grid.addWidget(QLabel("Coordinate Expression (isn, ics, arcisn, arcics, isn_inv, ics_inv):"), 0, 0)
+        self.eq_input = QLineEdit("isn(x * 1.618) + ics(y) * arcisn(max(-1.0, min(1.0, z))) + t")
+        grid.addWidget(self.eq_input, 0, 1)
+
+        compile_btn = QPushButton("Compile Polynomial Matrix & Evaluate")
+        grid.addWidget(compile_btn, 1, 0, 1, 2)
+
+        self.compiler_output = QTextEdit()
+        self.compiler_output.setText("System ready. Algebraic compiler fully loaded with isn, ics, arcisn, arcics, isn_inv, and ics_inv functions.")
+        grid.addWidget(self.compiler_output, 2, 0, 1, 2)
+
         group.setLayout(grid)
         layout.addWidget(group)
-        layout.addStretch()
-        return widget
-
-    def create_patchbay_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        patch_group = QGroupBox("Master Hardware Patchbay & Routing Matrix")
-        patch_layout = QGridLayout()
-        patch_layout.addWidget(QLabel("CV In 1 (Meum x-axis) --> VCF Cutoff"), 0, 0)
-        patch_layout.addWidget(QLabel("CV In 2 (y-axis) --> Wavefolder"), 1, 0)
-        patch_layout.addWidget(QLabel("Gate Out --> Envelope Triggers"), 2, 0)
-        patch_group.setLayout(patch_layout)
-        layout.addWidget(patch_group)
-        layout.addStretch()
         return widget
 
 
