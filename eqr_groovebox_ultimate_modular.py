@@ -5,11 +5,14 @@
 import random
 import sys
 from PyQt6.QtCore import Qt, QPoint, QRectF
-from PyQt6.QtGui import QPainter, QPen, QColor, QTransform
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout,
-    QHBoxLayout, QPushButton, QGridLayout, QLabel, QScrollArea
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QGroupBox, QGridLayout, QLabel, QPushButton, QScrollArea, QTabWidget
 )
+from PyQt6.QtCore import Qt, QPointF
+from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPalette, QPainterPath
+
+from math_engine import MathEngine
 
 class EQRCoordEngine:
     """Core mathematical engine using strict x, y, and z coordinate variables."""
@@ -2011,7 +2014,7 @@ class GrooveboxMainWindow(QMainWindow):
         container_layout = QVBoxLayout(container)
 
         # Add Canvas and Control Matrix
-        self.lane = IdealizedSequencerCanvas(clone_id=1)
+        self.lane = FreeformSequencerCanvas(self.step_sequence)
         container_layout.addWidget(self.lane)
 
         # Step Grid Control Bar & Shuffle Action
