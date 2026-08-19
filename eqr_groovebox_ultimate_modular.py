@@ -175,7 +175,6 @@ class IdealizedMathKnob(QWidget):
         step = span * (0.02 if delta > 0 else -0.02)
         self.value = max(self.min_val, min(self.max_val, self.value + step))
         self.update()
-
 class FreeformSequencerCanvas(QWidget):
     """Robust sequencer canvas with foolproof list/dict data handling."""
     def __init__(self, sequence_data=None, parent=None):
@@ -206,14 +205,12 @@ class FreeformSequencerCanvas(QWidget):
             w, h = self.width(), self.height()
             p.fillRect(0, 0, w, h, QColor("#0a0e14"))
 
-            # Grid lines
             p.setPen(QPen(QColor("#161b22"), 1))
             for x in range(0, w, 40):
                 p.drawLine(x, 0, x, h)
             for y in range(0, h, 40):
                 p.drawLine(0, y, w, y)
 
-            # Draw hanging patch wires
             for p1, p2 in self.wires:
                 ctrl = QPointF((p1.x() + p2.x()) / 2, max(p1.y(), p2.y()) + 60)
                 path = QPainterPath()
@@ -2188,19 +2185,17 @@ class MasterControlPatchbayPage(QWidget):
 # -------------------------------------------------------------------------
 
 class GrooveboxMainWindow(QMainWindow):
-    """Complete modular suite combining v0-v4 features, dynamic step counts, and Meum foundational ratio."""
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Equation of Reality (EQR) - Groovebox Ultimate Modular Suite [Meum Ratio Edition]")
         self.resize(1750, 1000)
         self.set_dark_palette()
 
-        # Core Math & Sequence State
         self.engine = MathEngine()
         self.step_sequence = [0.0] * 16
 
-        # Enable Dockable Panels Workspace
-        self.setDockOptions(QMainWindow.DockOption.AllowNestedDocks | QMainWindow.DockOption.AnimatedDocks)
+        # Restrict dock areas and behavior to prevent layout takeover
+        self.setDockOptions(QMainWindow.DockOption.AllowTabbedDocks | QMainWindow.DockOption.AnimatedDocks)
 
         # Central Workspace Tab Widget
         self.tabs = QTabWidget()
@@ -2216,9 +2211,9 @@ class GrooveboxMainWindow(QMainWindow):
         self.tabs.addTab(self.create_project_management_tab(), "6. Project Management & I/O")
         self.tabs.addTab(self.create_patchbay_tab(), "7. Master Patchbay")
 
-        # Top Dynamic Module Spawner Toolbar
+        # Top Dynamic Module Spawner Toolbar (Toggles instead of forced auto-spawn)
         self.setup_spawn_toolbar()
-        self.statusBar().showMessage("Meum Ratio Active | 432Hz Reference | Survival Mode Active")
+        self.statusBar().showMessage("Meum Ratio Active | Workspace Unobstructed")
 
     def set_dark_palette(self):
         palette = QPalette()
@@ -2235,29 +2230,45 @@ class GrooveboxMainWindow(QMainWindow):
         toolbar = self.addToolBar("Module Spawner Toolbar")
         toolbar.setStyleSheet("background-color: #161b22; color: #c9d1d9; border-bottom: 1px solid #30363d; spacing: 8px;")
 
-        spawn_synth = QPushButton("+ Spawn Synth Node")
-        spawn_synth.clicked.connect(lambda: self.spawn_dockable_pane("Synth Module Instance"))
+        spawn_synth = QPushButton("Toggle Synth Node")
+        spawn_synth.setCheckable(True)
+        spawn_synth.clicked.connect(lambda checked: self.toggle_dockable_pane("Synth Module Instance", checked))
         toolbar.addWidget(spawn_synth)
 
-        spawn_fx = QPushButton("+ Spawn FX Filter")
-        spawn_fx.clicked.connect(lambda: self.spawn_dockable_pane("Granular FX Node"))
+        spawn_fx = QPushButton("Toggle FX Filter")
+        spawn_fx.setCheckable(True)
+        spawn_fx.clicked.connect(lambda checked: self.toggle_dockable_pane("Granular FX Node", checked))
         toolbar.addWidget(spawn_fx)
 
-        spawn_automator = QPushButton("+ Spawn x,y,z Automator")
-        spawn_automator.clicked.connect(lambda: self.spawn_dockable_pane("Coordinate Automator"))
+        spawn_automator = QPushButton("Toggle x,y,z Automator")
+        spawn_automator.setCheckable(True)
+        spawn_automator.clicked.connect(lambda checked: self.toggle_dockable_pane("Coordinate Automator", checked))
         toolbar.addWidget(spawn_automator)
 
-    def spawn_dockable_pane(self, title):
-        dock = QDockWidget(title, self)
-        dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
-        content = QWidget()
-        layout = QVBoxLayout(content)
-        layout.addWidget(IdealizedMathKnob("Meum Scale Factor", 0.1, 16.0, 1.618, "Primary Meum Ratio"))
-        layout.addWidget(QPushButton(f"Execute {title} Process"))
-        layout.addStretch()
-        content.setLayout(layout)
-        dock.setWidget(content)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+        # Track active docks to safely toggle them on/and off
+        self.active_docks = {}
+
+    def toggle_dockable_pane(self, title, checked):
+        if checked:
+            dock = QDockWidget(title, self)
+            dock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
+            content = QWidget()
+            layout = QVBoxLayout(content)
+            layout.addWidget(IdealizedMathKnob("Meum Scale Factor", 0.1, 16.0, 1.618, "Primary Meum Ratio"))
+            layout.addWidget(QPushButton(f"Execute {title} Process"))
+            layout.addStretch()
+            content.setLayout(layout)
+            dock.setWidget(content)
+
+            # Clean up tracking when closed via native title bar X button
+            dock.destroyed.connect(lambda: self.active_docks.pop(title, None))
+
+            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+            self.active_docks[title] = dock
+        else:
+            if title in self.active_docks:
+                self.active_docks[title].close()
+                self.active_docks.pop(title, None)
 
     def create_sequencer_tab(self):
         widget = QWidget()
@@ -2398,6 +2409,8 @@ class GrooveboxMainWindow(QMainWindow):
         layout.addWidget(patch_group)
         layout.addStretch()
         return widget
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = GrooveboxMainWindow()
