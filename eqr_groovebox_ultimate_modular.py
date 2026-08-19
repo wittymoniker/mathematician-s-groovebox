@@ -1955,7 +1955,7 @@ class MasterControlPatchbayPage(QWidget):
 # -------------------------------------------------------------------------
 # MAIN WINDOW FRAMEWORK
 # -------------------------------------------------------------------------
-class GrooveboxMainWindow(QMainWindow): # (or whichever window class you are using)
+class GrooveboxMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
@@ -1999,7 +1999,11 @@ class GrooveboxMainWindow(QMainWindow): # (or whichever window class you are usi
         self.setCentralWidget(central_widget)
 
         # Engine state initialization
+        from math_engine import MathEngine
         self.engine = MathEngine()
+
+        # Then call your grid builder
+        self.build_step_grid()
 
     def build_step_grid(self):
         """Builds module/step components dynamically."""
