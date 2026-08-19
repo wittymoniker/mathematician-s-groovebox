@@ -1,21 +1,26 @@
-# math_engine.py
 import numpy as np
 
-class EQRMathEngine:
-    """Core mathematical engine utilizing strict x, y, and z variable equations."""
+
+class MathEngine:
+    """
+    Core mathematical engine for the Equation of Reality (EQR) project.
+    Evaluates coordinate systems strictly using x, y, and z variables without Meum factors.
+    """
+    def __init__(self):
+        pass
 
     @staticmethod
-    def evaluate_coordinates(x: float, y: float, z: float) -> float:
-        # Strict implementation using x, y, and z variables without artificial Meum factors
-        base_value = np.sin(x) * np.cos(y) * np.exp(-abs(z) / 10.0)
-        return float(base_value)
+    def evaluate_coordinates(x, y, z):
+        """
+        Evaluates field values based on direct spatial coordinates (x, y, z).
+        """
+        # Direct tensor calculation using spatial variables
+        return np.sin(x) * np.cos(y) * np.exp(-np.abs(z) / 10.0)
 
-    @staticmethod
-    def generate_matrix_tensor(rows: int, cols: int, x: float, y: float, z: float) -> np.ndarray:
-        tensor = np.zeros((rows, cols))
-        for r in range(rows):
-            for c in range(cols):
-                tensor[r, c] = EQRMathEngine.evaluate_coordinates(
-                    x + (r * 0.05), y + (c * 0.05), z
-                )
-        return tensor
+    def generate_matrix_tensor(self, x_vals, y_vals, z_val):
+        """
+        Maps coordinate evaluations across a grid matrix.
+        """
+        xx, yy = np.meshgrid(x_vals, y_vals)
+        zz = np.full_like(xx, z_val)
+        return self.evaluate_coordinates(xx, yy, zz)

@@ -2,23 +2,60 @@
 # Enhanced with Straightforward Envelope/Decay Control, Global & Concurrent Rhythm Flux Linking,
 # Fully Activated Drum Machines, Sequencers, Automation Lanes, Stochastic Micro-Timing Drift,
 # Quantum Probability Gating, and Advanced Multidimensional x, y, z Operator Scaling.
-
-import sys
-import os
-import json
-import math
 import random
-import wave
-import numpy as np
+import sys
+from PyQt6.QtCore import Qt, QPoint, QRectF
+from PyQt6.QtGui import QPainter, QPen, QColor, QTransform
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QGridLayout, QLabel, QPushButton, QSlider, QTabWidget, QGroupBox,
-    QComboBox, QScrollArea, QSplitter, QLineEdit,
-    QMessageBox, QFileDialog, QDoubleSpinBox, QSpinBox, QTextEdit, QCheckBox,
-    QInputDialog
+    QApplication, QMainWindow, QWidget, QVBoxLayout,
+    QHBoxLayout, QPushButton, QGridLayout, QLabel, QScrollArea
 )
-from PyQt6.QtCore import Qt, QPointF
-from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QBrush
+
+class EQRCoordEngine:
+    """Core mathematical engine using strict x, y, and z coordinate variables."""
+    def __init__(self, x=0.0, y=0.0, z=0.0):
+        self.x = x
+        self.y = y
+        self.z = z
+
+    def evaluate_state(self):
+        # Pure spatial coordinate evaluation without auxiliary factors
+        return (self.x ** 2 + self.y ** 2 + self.z ** 2) ** 0.5
+
+
+def shuffle_groovebox_sequence(sequence_array):
+    """In-place sequence and module layout randomization."""
+    random.shuffle(sequence_array)
+    return sequence_array
+
+class FitToFrameContainer(QWidget):
+    """A responsive container that scales its inner child widget to fit window bounds."""
+    def __init__(self, inner_widget, base_width=1200, base_height=800):
+        super().__init__()
+        self.inner_widget = inner_widget
+        self.base_width = base_width
+        self.base_height = base_height
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        # Wrap inner widget in a scroll or direct area
+        layout.addWidget(self.inner_widget)
+        self.scale_factor = 1.0
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        w = self.width()
+        h = self.height()
+
+        scale_x = w / self.base_width
+        scale_y = h / self.base_height
+        self.scale_factor = min(scale_x, scale_y)
+
+        # Apply dynamic geometric transform mapping to maintain aspect ratio fit
+        transform = QTransform()
+        transform.scale(self.scale_factor, self.scale_factor)
+        # Optional: Apply transform to inner workspace painters or viewports
 
 # Import Reality Synth and Music Fractallizer from synth_engine
 try:
@@ -862,7 +899,7 @@ class FreeformSequencerCanvas(QWidget):
 class SynthModulePage(QWidget):
     def __init__(self, engine):
         super().__init__()
-        self.engine = engine
+        self.engine = GrooveboxEngine()
         self.setStyleSheet("background-color: #070b10;")
         layout = QVBoxLayout(self)
 
@@ -1918,41 +1955,75 @@ class MasterControlPatchbayPage(QWidget):
 # -------------------------------------------------------------------------
 # MAIN WINDOW FRAMEWORK
 # -------------------------------------------------------------------------
-class EQRGrooveboxMainWindow(QMainWindow):
+class GrooveboxMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.engine = GrooveboxEngine()
-        self.setWindowTitle("EQR Groovebox Engine v3.6.8 - Multidimensional Algorithmic Composition Suite")
-        self.resize(1440, 920)
-        self.setStyleSheet("background-color: #070b10; color: #c9d1d9;")
+        # Initialize the engine first so it exists when the grid is built
+        self.engine = ()  # Replace with your actual engine initialization class/method
 
-        self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #30363d; background: #070b10; }
-            QTabBar::tab { background: #161b22; color: #8b949e; padding: 10px 18px; margin-right: 2px; font-weight: bold; border-top-left-radius: 4px; border-top-right-radius: 4px; }
-            QTabBar::tab:selected { background: #0d1117; color: #00ffcc; border-bottom: 2px solid #00ffcc; }
-        """)
+        # Now build the grid which references self.engine
+        self.build_step_grid()
+        self.setWindowTitle("EQR Groovebox Engine")
+        self.resize(1200, 800)
 
-        self.synth_page = SynthModulePage(self.engine)
-        self.drum_page = DrumMatrixPage(self.engine)
-        self.granular_page = GranularFXPage(self.engine)
-        self.automation_page = AutomationPatternPage(self.engine)
-        self.patchbay_page = MasterControlPatchbayPage(self.engine, self)
+        # Main Central Widget Layout
+        central_widget = QWidget()
+        main_layout = QVBoxLayout(central_widget)
 
-        self.tabs.addTab(self.synth_page, "🎹 Synths & Polynomials")
-        self.tabs.addTab(self.drum_page, "🥁 Drum Matrix")
-        self.tabs.addTab(self.granular_page, "🌌 Granular FX & Shifters")
-        self.tabs.addTab(self.automation_page, "⚙️ Sequencers & Automation")
-        self.tabs.addTab(self.patchbay_page, "🎛 Master Patchbay & Playlist")
+        # Control Panel for Shuffling and States
+        control_layout = QHBoxLayout()
+        self.shuffle_btn = QPushButton("Shuffle Sequence / Modules")
+        self.shuffle_btn.clicked.connect(self.trigger_shuffle)
+        control_layout.addWidget(self.shuffle_btn)
 
-        self.setCentralWidget(self.tabs)
+        main_layout.addLayout(control_layout)
 
+        # Workspace Grid for Modules
+        self.grid_widget = QWidget()
+        self.grid_layout = QGridLayout(self.grid_widget)
 
+        # Initialize steps / tracks array
+        self.step_sequence = list(range(16))
+        self.step_labels = []
+
+        self.build_step_grid()
+
+        # Wrap workspace in FitToFrame container framework
+        self.fit_container = FitToFrameContainer(self.grid_widget)
+        main_layout.addWidget(self.fit_container)
+
+        self.setCentralWidget(central_widget)
+
+        # Engine state initialization
+        self.engine = EQRCoordEngine(1.0, 2.0, 3.0)
+
+    def build_step_grid(self):
+        """Builds module/step components dynamically."""
+        for i, step in enumerate(self.step_sequence):
+            lbl = QLabel(f"Step {step}\nVal: {self.engine.evaluate_state():.2f}")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl.setStyleSheet("background-color: #2a2a2a; color: #ffffff; border: 1px solid #444; padding: 10px;")
+            row = i // 4
+            col = i % 4
+            self.grid_layout.addWidget(lbl, row, col)
+            self.step_labels.append(lbl)
+
+    def trigger_shuffle(self):
+        """Triggers the sequence/module shuffle and updates grid elements cleanly."""
+        shuffle_groovebox_sequence(self.step_sequence)
+
+        # Clear current layout widgets and rebuild with new shuffled order
+        for i, step in enumerate(self.step_sequence):
+            lbl = self.step_labels[i]
+            lbl.setText(f"Step {step}\nVal: {self.engine.evaluate_state():.2f}")
 def main():
     app = QApplication(sys.argv)
-    window = EQRGrooveboxMainWindow()
+    window = GrooveboxMainWindow()
     window.show()
     sys.exit(app.exec())
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = GrooveboxMainWindow()
+    window.show()
+    sys.exit(app.exec())
