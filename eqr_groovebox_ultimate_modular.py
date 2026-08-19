@@ -1999,7 +1999,7 @@ class GrooveboxMainWindow(QMainWindow): # (or whichever window class you are usi
         self.setCentralWidget(central_widget)
 
         # Engine state initialization
-        self.engine = MathEngine(1.0, 2.0, 3.0)
+        self.engine = MathEngine()
 
     def build_step_grid(self):
         """Builds module/step components dynamically."""
