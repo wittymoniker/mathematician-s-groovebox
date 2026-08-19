@@ -126,21 +126,21 @@ class ActiveEngineClock:
 
 
 # -------------------------------------------------------------------------
-# CORE GROOVEBOX & HARDWARE ENGINE (Enhanced v3.6.7)
+# CORE GROOVEBOX & HARDWARE ENGINE (Enhanced v3.6.7 - Normal Music Profile)
 # -------------------------------------------------------------------------
 class GrooveboxEngine:
     """Core groovebox engine supporting advanced x,y,z operator equations, stochastic micro-timing, and automated patching."""
     def __init__(self):
-        self.global_bpm = 120.0
+        self.global_bpm = 112.0
         self.scale_system = "Equation Tonal Scale (Dynamic)"
         self.scale_equation = "x**2 + y - z"
         self.scale_increment = 0.25
         self.divergence_steps_count = 16
 
-        # Operational modes & processors state flags
-        self.survival_mode = True
+        # Operational modes & processors state flags optimized for normal musical composition
+        self.survival_mode = False
         self.creative_mode = False
-        self.normal_mode = False
+        self.normal_mode = True
         self.fractallizer_enabled = True
         self.eqr_processor_enabled = True
 
@@ -276,7 +276,6 @@ class GrooveboxEngine:
         GLOBAL_BUS.clear_all()
         self.randomize_synth_routing()
 
-        # Randomize active FX, sequencers, drum kits, and synth panels
         possible_fx = [
             "Cloud Granulator 1", "Cloud Granulator 2", "Spectral Phase Shifter",
             "Nonlinear Wavefolder", "Feedback Delay", "Quantum Resonator",
@@ -313,7 +312,6 @@ class GrooveboxEngine:
         self.scale_increment = round(random.uniform(0.15, 0.35), 2)
         self.divergence_steps_count = 16
 
-        # Generate random wavetables & vector setups for all active synths and FX
         modules = self.active_synth_panels + self.active_fx_modules
         for mod in modules:
             rand_points = [QPointF(i * (500 / 16), random.randint(10, 90)) for i in range(17)]
@@ -409,13 +407,13 @@ class GrooveboxEngine:
     def deserialize_project(self, filepath):
         with open(filepath, 'r') as f:
             data = json.load(f)
-        self.global_bpm = data.get("global_bpm", 120.0)
+        self.global_bpm = data.get("global_bpm", 112.0)
         self.scale_equation = data.get("scale_equation", "x**2 + y - z")
         self.scale_increment = data.get("scale_increment", 0.25)
         self.divergence_steps_count = data.get("divergence_steps_count", 16)
-        self.survival_mode = data.get("survival_mode", True)
+        self.survival_mode = data.get("survival_mode", False)
         self.creative_mode = data.get("creative_mode", False)
-        self.normal_mode = data.get("normal_mode", False)
+        self.normal_mode = data.get("normal_mode", True)
         self.fractallizer_enabled = data.get("fractallizer_enabled", True)
         self.eqr_processor_enabled = data.get("eqr_processor_enabled", True)
         if "math_chord_library" in data:
@@ -449,7 +447,7 @@ class GrooveboxEngine:
                 bank_amp = bank.get("amp", 1.0)
 
                 for freq, pt_amp in resolved_pairs:
-                    tempo_mod_factor = 1.0 + 0.15 * np.sin(2.0 * np.pi * (self.global_bpm / 120.0) * t * 0.05)
+                    tempo_mod_factor = 1.0 + 0.15 * np.sin(2.0 * np.pi * (self.global_bpm / 112.0) * t * 0.05)
                     gate = 0.5 * (1 + np.sin(2 * np.pi * (self.global_bpm / 60.0) * t * tempo_mod_factor + np.sin(t * 0.1) * 0.05))
                     wave_data += bank_amp * pt_amp * 0.08 * gate * np.sin(2 * np.pi * (freq * tempo_mod_factor) * t)
 
@@ -576,7 +574,7 @@ class WavetableCanvas(QWidget):
 
 
 # -------------------------------------------------------------------------
-# INTERACTIVE PATCHABLE KNOB & PATCH JACK (Updated with Randomized Default Activation)
+# INTERACTIVE PATCHABLE KNOB & PATCH JACK
 # -------------------------------------------------------------------------
 class PatchableKnob(QWidget):
     def __init__(self, label_text, min_val=0.0, max_val=100.0, default_val=50.0, unit="", module_name="Synth 1", parent=None):
@@ -587,9 +585,7 @@ class PatchableKnob(QWidget):
         self.current_val = default_val
         self.unit = unit
         self.module_name = module_name
-
-        # Randomized initial activation state (at least sometimes active)
-        self.is_patched = random.choice([True, False])
+        self.is_patched = False
 
         self.polarity = "Neutral"
         self.gain_multiplier = 1.0
@@ -670,14 +666,6 @@ class PatchableKnob(QWidget):
         gain_row.addWidget(self.gain_lbl)
         gain_row.addWidget(self.gain_up_btn)
         layout.addLayout(gain_row)
-
-        # Register initial cable if randomly activated
-        if self.is_patched:
-            GLOBAL_BUS.add_cable(
-                src_module=self.module_name, src_node=self.label_text,
-                tgt_module=self.target_combo.currentText(), tgt_node="Primary Sum Node",
-                polarity=self.polarity, gain=self.gain_multiplier
-            )
 
     def _on_slider_changed(self, val):
         self.current_val = val / 10.0
@@ -864,7 +852,7 @@ class SynthModulePage(QWidget):
         self._update_mode_label()
         self.mode_status_lbl.setStyleSheet("color: #f5d97d; font-weight: bold; background: #161b22; padding: 4px; border: 1px solid #30363d;")
 
-        toggle_mode_btn = QPushButton("🔄 Cycle Operational Mode (Survival ➔ Normal ➔ Creative)")
+        toggle_mode_btn = QPushButton("🔄 Cycle Operational Mode (Normal ➔ Creative ➔ Survival)")
         toggle_mode_btn.setStyleSheet("background-color: #1f242c; color: #00ffcc; font-weight: bold; border: 1px solid #00ffcc; padding: 4px;")
         toggle_mode_btn.clicked.connect(self._toggle_modes)
 
@@ -918,24 +906,24 @@ class SynthModulePage(QWidget):
         self.mode_status_lbl.setText(f"Electron Sling State -> Survival: {s_mode} | Normal: {n_mode} | Creative: {c_mode}")
 
     def _toggle_modes(self):
-        if self.engine.survival_mode and not self.engine.normal_mode and not self.engine.creative_mode:
-            self.engine.survival_mode = False
-            self.engine.normal_mode = True
-            self.engine.creative_mode = False
-        elif self.engine.normal_mode:
-            self.engine.survival_mode = False
+        if self.engine.normal_mode:
             self.engine.normal_mode = False
             self.engine.creative_mode = True
-        else:
-            self.engine.survival_mode = True
+            self.engine.survival_mode = False
+        elif self.engine.creative_mode:
             self.engine.normal_mode = False
             self.engine.creative_mode = False
+            self.engine.survival_mode = True
+        else:
+            self.engine.normal_mode = True
+            self.engine.creative_mode = False
+            self.engine.survival_mode = False
 
         self.engine.reality_synth.survival_mode = self.engine.survival_mode
         self.engine.fractalizer.survival_mode = self.engine.survival_mode
         self._update_mode_label()
 
-        active_name = "Survival" if self.engine.survival_mode else ("Normal" if self.engine.normal_mode else "Creative")
+        active_name = "Normal" if self.engine.normal_mode else ("Creative" if self.engine.creative_mode else "Survival")
         QMessageBox.information(self, "Operational Mode Updated", f"Electron Sling mode switched to: {active_name} Mode.")
 
     def _trigger_fractalizer(self):
@@ -1100,7 +1088,7 @@ class SynthModulePage(QWidget):
 
 
 # -------------------------------------------------------------------------
-# TAB 2: FULLY ACTIVATED DRUM & PERCUSSION MATRIX (With Live Runtime Triggers)
+# TAB 2: FULLY ACTIVATED DRUM & PERCUSSION MATRIX
 # -------------------------------------------------------------------------
 class DrumMatrixPage(QWidget):
     def __init__(self, engine):
