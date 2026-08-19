@@ -8,7 +8,8 @@ import math
 from PyQt6.QtCore import Qt, QPoint, QRectF
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QGroupBox, QGridLayout, QLabel, QPushButton, QScrollArea, QTabWidget
+    QGroupBox, QGridLayout, QLabel, QPushButton, QScrollArea, QTabWidget,
+    QSizePolicy
 )
 from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPalette, QPainterPath
@@ -1063,15 +1064,16 @@ class FreeformSequencerCanvas(QWidget):
         self.setStyleSheet("background-color: #0b0f15; border: 1px solid #30363d; border-radius: 4px;")
 
     def paintEvent(self, event):
+        # Initialize the painter once for the widget
         p = QPainter(self)
-        p.begin(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
         try:
-            # Safely parse notes whether seq_data is a dict or a list
+            # Safely resolve sequence data or notes fallback
             notes = self.seq_data.get("notes", []) if isinstance(self.seq_data, dict) else [
                 {"time": float(i), "duration": 1.0, "active": True} for i, val in enumerate(self.seq_data)
             ]
 
-            # Fallback check if the list contains raw values instead of dicts
             formatted_notes = []
             for i, n in enumerate(notes):
                 if isinstance(n, dict):
@@ -1090,6 +1092,7 @@ class FreeformSequencerCanvas(QWidget):
             max_time = max([n["time"] + n["duration"] for n in formatted_notes] + [16.0])
             scale_x = self.width() / max(16.0, max_time)
 
+            # Draw background grid/fill manually here if needed, then render notes:
             for i, note in enumerate(formatted_notes):
                 nx = note["time"] * scale_x
                 nw = max(12, note["duration"] * scale_x)
@@ -1104,7 +1107,10 @@ class FreeformSequencerCanvas(QWidget):
                 p.drawText(int(nx) + 4, int(ny) + 13, f"N{i+1}")
 
         finally:
+            # Explicitly end painting so QBackingStore releases the canvas device
             p.end()
+
+
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             pos = event.position()
@@ -2223,6 +2229,7 @@ class GrooveboxMainWindow(QMainWindow):
     def create_sequencer_tab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
+        layout.setContentsMargins(10, 10, 10, 10)
 
         doc_label = QLabel(
             "<b>Sequencer & Vector Automation Guide:</b><br>"
@@ -2232,15 +2239,22 @@ class GrooveboxMainWindow(QMainWindow):
         doc_label.setStyleSheet("background-color: #161b22; padding: 10px; border-radius: 6px; color: #8b949e;")
         layout.addWidget(doc_label)
 
+        # Main Scroll Area for the tab content
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+
         container = QWidget()
         container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Instantiate FreeformSequencerCanvas with required sequence_data
+        # Instantiate FreeformSequencerCanvas and ensure it expands freely
         self.lane = FreeformSequencerCanvas(self.step_sequence)
+        self.lane.setFixedHeight(280) # Fixed height keeps it from stretching vertically
+        self.lane.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         container_layout.addWidget(self.lane)
 
+        # Architectural Parameter Matrix Group
         matrix_group = QGroupBox("Architectural Parameter Matrix ($x, y, z$)")
         matrix_grid = QGridLayout()
         params = [
