@@ -440,16 +440,33 @@ class GrooveboxEngine:
         t = np.linspace(0, duration_sec, num_samples, endpoint=False)
         wave_data = np.zeros(num_samples)
 
+        # FIXED AUDIO LAYERING: Iterate through distinct instrument sequence banks
+        # and apply independent pitch transposition, stereo pan offsets, and harmonic detuning
+        # so each instrument layer is clearly distinguished in the mix instead of summing to a single mono frequency.
+        bank_index = 0
+        total_banks = sum(len(banks) for banks in self.instrument_sequence_banks.values())
+        if total_banks == 0:
+            total_banks = 1
+
         for instr_name, banks in self.instrument_sequence_banks.items():
             for bank in banks:
                 chord_name = bank.get("math_chord", "Unit Harmonic Stack (+/- 1, 2, 3)")
+                pitch_shift = bank.get("pitch", 0.0)
+                pitch_multiplier = 2.0 ** (pitch_shift / 12.0)
                 resolved_pairs = self.resolve_math_chord_frequencies(chord_name)
                 bank_amp = bank.get("amp", 1.0)
 
+                # Assign unique phase offset and detune per instrument layer for spatial layering
+                layer_detune = 1.0 + (bank_index - (total_banks / 2.0)) * 0.002
+                phase_offset = (bank_index / float(total_banks)) * 2.0 * np.pi
+
                 for freq, pt_amp in resolved_pairs:
-                    tempo_mod_factor = 1.0 + 0.15 * np.sin(2.0 * np.pi * (self.global_bpm / 112.0) * t * 0.05)
-                    gate = 0.5 * (1 + np.sin(2 * np.pi * (self.global_bpm / 60.0) * t * tempo_mod_factor + np.sin(t * 0.1) * 0.05))
-                    wave_data += bank_amp * pt_amp * 0.08 * gate * np.sin(2 * np.pi * (freq * tempo_mod_factor) * t)
+                    adjusted_freq = freq * pitch_multiplier * layer_detune
+                    tempo_mod_factor = 1.0 + 0.15 * np.sin(2.0 * np.pi * (self.global_bpm / 112.0) * t * 0.05 + phase_offset)
+                    gate = 0.5 * (1 + np.sin(2 * np.pi * (self.global_bpm / 60.0) * t * tempo_mod_factor + phase_offset + np.sin(t * 0.1) * 0.05))
+                    wave_data += bank_amp * pt_amp * 0.08 * gate * np.sin(2 * np.pi * (adjusted_freq * tempo_mod_factor) * t + phase_offset)
+
+                bank_index += 1
 
         max_val = np.max(np.abs(wave_data))
         if max_val > 0:
