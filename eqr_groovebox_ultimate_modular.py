@@ -1,7 +1,7 @@
-# Updated EQR Groovebox Engine v3.6.7 (eqr_groovebox_engine_v367.py)
-# Enhanced with Fully Activated Drum Machines, Sequencers, and Automation Lanes,
-# Stochastic Micro-Timing Drift, Quantum Probability Gating,
-# and Advanced Multidimensional x, y, z Operator Scaling for Professional Composition.
+# Updated EQR Groovebox Engine v3.6.8 (eqr_groovebox_engine_v368.py)
+# Enhanced with Straightforward Envelope/Decay Control, Global & Concurrent Rhythm Flux Linking,
+# Fully Activated Drum Machines, Sequencers, Automation Lanes, Stochastic Micro-Timing Drift,
+# Quantum Probability Gating, and Advanced Multidimensional x, y, z Operator Scaling.
 
 import sys
 import os
@@ -14,7 +14,8 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGridLayout, QLabel, QPushButton, QSlider, QTabWidget, QGroupBox,
     QComboBox, QScrollArea, QSplitter, QLineEdit,
-    QMessageBox, QFileDialog, QDoubleSpinBox, QSpinBox, QTextEdit, QCheckBox
+    QMessageBox, QFileDialog, QDoubleSpinBox, QSpinBox, QTextEdit, QCheckBox,
+    QInputDialog
 )
 from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QBrush
@@ -151,35 +152,54 @@ GLOBAL_BUS = GlobalCrossTabBusManager()
 
 
 # -------------------------------------------------------------------------
-# ACTIVATED DRUM & SEQUENCER RUNTIME CONTROLLER
+# ACTIVATED DRUM & SEQUENCER RUNTIME CONTROLLER WITH RHYTHM FLUX LINKING
 # -------------------------------------------------------------------------
 class ActiveEngineClock:
-    """Drives real-time activation states, step triggers, and automation clock ticks for drums and sequencers."""
+    """Drives real-time activation states, step triggers, automation clock ticks, and Rhythm Flux Linking (Global/Concurrent)."""
     def __init__(self, engine):
         self.engine = engine
         self.current_step = 0
         self.transport_active = True
         self.clock_ticks_executed = 0
+        
+        # New Rhythm Flux Linking Modes & Parameters
+        self.rhythm_flux_mode = "Global" # Options: "Global", "Active Concurrent", "Unlinked"
+        self.rhythm_flux_rate = 1.0     # Multiplier governing synchronized rhythm flux across synths/drums
+        self.flux_sync_enabled = True
 
     def tick_clock(self):
         if not self.transport_active:
             return self.current_step
-        self.current_step = (self.current_step + 1) % 64
+        # Apply rhythm flux rate scaling to step progression
+        step_increment = max(1, int(round(self.rhythm_flux_rate)))
+        self.current_step = (self.current_step + step_increment) % 64
         self.clock_ticks_executed += 1
         return self.current_step
 
     def evaluate_drum_trigger(self, kit_name, step_index):
-        return (step_index % 4 == 0) or (step_index % 3 == 0 and self.engine.survival_mode)
+        flux_offset = int(self.rhythm_flux_rate * 2) % 5
+        if self.rhythm_flux_mode == "Global":
+            return ((step_index + flux_offset) % 4 == 0) or ((step_index + flux_offset) % 3 == 0 and self.engine.survival_mode)
+        elif self.rhythm_flux_mode == "Active Concurrent":
+            # Interleaved concurrent flux across synths and drums
+            return (step_index % max(2, int(3 * self.rhythm_flux_rate)) == 0)
+        else:
+            return (step_index % 4 == 0)
 
     def evaluate_sequencer_gate(self, seq_name, step_index):
-        return (step_index % 2 == 0)
+        if self.rhythm_flux_mode == "Global":
+            return (step_index % 2 == 0) or (step_index % int(max(2, 4 / self.rhythm_flux_rate)) == 0)
+        elif self.rhythm_flux_mode == "Active Concurrent":
+            return (step_index % 3 != 0)
+        else:
+            return (step_index % 2 == 0)
 
 
 # -------------------------------------------------------------------------
 # CORE GROOVEBOX & HARDWARE ENGINE
 # -------------------------------------------------------------------------
 class GrooveboxEngine:
-    """Core groovebox engine supporting advanced x,y,z operator equations, stochastic micro-timing, and automated patching."""
+    """Core groovebox engine supporting advanced x,y,z operator equations, stochastic micro-timing, and Rhythm Flux linking."""
     def __init__(self):
         self.global_bpm = 112.0
         self.scale_system = "Equation Tonal Scale (Dynamic)"
@@ -633,6 +653,7 @@ class WavetableCanvas(QWidget):
 # INTERACTIVE PATCHABLE KNOB & PATCH JACK
 # -------------------------------------------------------------------------
 class PatchableKnob(QWidget):
+    """Features direct straightforward envelope/decay responsiveness and patch jack capability."""
     def __init__(self, label_text, min_val=0.0, max_val=100.0, default_val=50.0, unit="", module_name="Synth 1", parent=None):
         super().__init__(parent)
         self.label_text = label_text
@@ -1116,8 +1137,8 @@ class SynthModulePage(QWidget):
         c_layout.addWidget(wt_canvas)
 
         knobs_layout = QHBoxLayout()
+        knobs_layout.addWidget(PatchableKnob("Envelope Decay", 10.0, 1000.0, 250.0, "ms", title, self))
         knobs_layout.addWidget(PatchableKnob("Audio Gain", 0.0, 100.0, 75.0, "%", title, self))
-        knobs_layout.addWidget(PatchableKnob("Feedback Send", 0.0, 100.0, 50.0, "%", title, self))
         knobs_layout.addWidget(PatchableKnob("Filter Q", 0.1, 20.0, 4.0, "Q", title, self))
         c_layout.addLayout(knobs_layout)
 
@@ -1641,8 +1662,8 @@ class MasterControlPatchbayPage(QWidget):
 
         layout = QVBoxLayout(self)
 
-        # Top Global Controls Group
-        controls_group = QGroupBox("Master Engine Controls & Equation Scale Settings")
+        # Top Global Controls Group (Enhanced with Rhythm Flux Linking Controls)
+        controls_group = QGroupBox("Master Engine Controls, Equation Scale & Rhythm Flux Linking")
         controls_group.setStyleSheet("QGroupBox { color: #00ffcc; font-weight: bold; border: 1px solid #30363d; margin-top: 6px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 3px; }")
         ctrl_layout = QGridLayout(controls_group)
 
@@ -1657,6 +1678,24 @@ class MasterControlPatchbayPage(QWidget):
         ctrl_layout.addWidget(QLabel("Global Tempo:"), 0, 0)
         ctrl_layout.addWidget(self.bpm_slider, 0, 1)
         ctrl_layout.addWidget(self.bpm_label, 0, 2)
+
+        # Rhythm Flux Link Mode Controls
+        ctrl_layout.addWidget(QLabel("Rhythm Flux Mode:"), 0, 3)
+        self.flux_mode_combo = QComboBox()
+        self.flux_mode_combo.addItems(["Global", "Active Concurrent", "Unlinked"])
+        self.flux_mode_combo.setCurrentText(self.engine.runtime_clock.rhythm_flux_mode)
+        self.flux_mode_combo.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
+        self.flux_mode_combo.currentTextChanged.connect(self._on_flux_mode_changed)
+        ctrl_layout.addWidget(self.flux_mode_combo, 0, 4)
+
+        ctrl_layout.addWidget(QLabel("Flux Rate:"), 0, 5)
+        self.flux_rate_spin = QDoubleSpinBox()
+        self.flux_rate_spin.setRange(0.25, 4.0)
+        self.flux_rate_spin.setValue(self.engine.runtime_clock.rhythm_flux_rate)
+        self.flux_rate_spin.setSingleStep(0.25)
+        self.flux_rate_spin.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
+        self.flux_rate_spin.valueChanged.connect(self._on_flux_rate_changed)
+        ctrl_layout.addWidget(self.flux_rate_spin, 0, 6)
 
         # Equation Controls
         self.eq_input = QLineEdit(self.engine.scale_equation)
@@ -1678,8 +1717,8 @@ class MasterControlPatchbayPage(QWidget):
         apply_eq_btn.clicked.connect(self._apply_equation_scale)
 
         ctrl_layout.addWidget(QLabel("Scale Equation:"), 1, 0)
-        ctrl_layout.addWidget(self.eq_input, 1, 1)
-        ctrl_layout.addWidget(apply_eq_btn, 1, 2)
+        ctrl_layout.addWidget(self.eq_input, 1, 1, 1, 3)
+        ctrl_layout.addWidget(apply_eq_btn, 1, 4, 1, 3)
 
         ctrl_layout.addWidget(QLabel("Increment:"), 2, 0)
         ctrl_layout.addWidget(self.inc_spin, 2, 1)
@@ -1746,6 +1785,11 @@ class MasterControlPatchbayPage(QWidget):
         self.playlist_auto_combo.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
         pl_options_layout.addWidget(self.playlist_auto_combo)
 
+        create_patch_btn = QPushButton("⚡ Create Patch")
+        create_patch_btn.setStyleSheet("background-color: #1f242c; color: #00ffcc; font-weight: bold; border: 1px solid #00ffcc; padding: 4px;")
+        create_patch_btn.clicked.connect(self._create_patch_prompt)
+        pl_options_layout.addWidget(create_patch_btn)
+
         layout.addLayout(pl_options_layout)
 
         # Splitter for Playlist and Patch Canvas
@@ -1766,7 +1810,6 @@ class MasterControlPatchbayPage(QWidget):
         self.patch_canvas = MasterPatchCanvas(self)
         patch_layout.addWidget(self.patch_canvas)
 
-        # Manual Target Override Route
         manual_patch_panel = QWidget()
         manual_patch_layout = QHBoxLayout(manual_patch_panel)
         manual_patch_layout.setContentsMargins(0, 0, 0, 0)
@@ -1792,6 +1835,72 @@ class MasterControlPatchbayPage(QWidget):
 
         layout.addWidget(splitter)
 
+    def _on_bpm_changed(self, val):
+        self.engine.global_bpm = val / 10.0
+        self.bpm_label.setText(f"{self.engine.global_bpm:.1f} BPM")
+
+    def _on_flux_mode_changed(self, mode):
+        self.engine.runtime_clock.rhythm_flux_mode = mode
+        print(f"Rhythm Flux Link Mode updated to: {mode}")
+
+    def _on_flux_rate_changed(self, val):
+        self.engine.runtime_clock.rhythm_flux_rate = val
+        print(f"Rhythm Flux Rate multiplier updated to: {val}x")
+
+    def _apply_equation_scale(self):
+        self.engine.scale_equation = self.eq_input.text()
+        self.engine.scale_increment = self.inc_spin.value()
+        self.engine.divergence_steps_count = self.steps_spin.value()
+        freqs = self.engine.generate_equation_scale_frequencies()
+        QMessageBox.information(self, "Equation Applied", f"Successfully recalculated equation scale! Generated {len(freqs)} frequencies.")
+
+    def _randomize_song_action(self):
+        self.engine.randomize_song()
+        self.patch_canvas.update()
+        self.infinite_playlist_canvas.canvas_inner.update()
+        QMessageBox.information(self, "Song & Patchbay Randomizer", "Successfully randomized song arrangement, synth wiring, effects modules, and global cross-tab patch cables!")
+
+    def _save_project(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Save Project File", "", "EQ爾 Groovebox Files (*.json)")
+        if path:
+            self.engine.serialize_project(path)
+            QMessageBox.information(self, "Project Saved", f"Project successfully saved to:\n{path}")
+
+    def _load_project(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Open Project File", "", "EQ爾 Groovebox Files (*.json)")
+        if path:
+            self.engine.deserialize_project(path)
+            self.bpm_slider.setValue(int(self.engine.global_bpm * 10))
+            self.eq_input.setText(self.engine.scale_equation)
+            self.patch_canvas.update()
+            self.infinite_playlist_canvas.canvas_inner.update()
+            QMessageBox.information(self, "Project Loaded", f"Project successfully loaded from:\n{path}")
+
+    def _export_audio(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Export Master WAV Audio", "", "WAV Audio Files (*.wav)")
+        if path:
+            self.engine.export_audio(path)
+            QMessageBox.information(self, "Audio Exported", f"Master audio successfully rendered and exported to:\n{path}")
+
+    def _create_patch_prompt(self):
+        source, ok1 = QInputDialog.getText(self, "Create Patch", "Enter Source Module/Node:")
+        if not ok1 or not source:
+            return
+        destination, ok2 = QInputDialog.getText(self, "Create Patch", "Enter Target Destination Module/Node:")
+        if not ok2 or not destination:
+            return
+        amount, ok3 = QInputDialog.getDouble(self, "Create Patch", "Enter Modulation Gain Amount:", 1.0, 0.1, 10.0, 2)
+        if not ok3:
+            return
+
+        GLOBAL_BUS.add_cable(
+            src_module=source, src_node="Custom Node",
+            tgt_module=destination, tgt_node="Primary Sum Node",
+            polarity="+", gain=amount
+        )
+        self.patch_canvas.update()
+        QMessageBox.information(self, "Patch Created", f"Successfully created custom patch connection from '{source}' to '{destination}' with amount {amount}x!")
+
     def _apply_manual_override_route(self):
         selected_route = self.manual_patch_combo.currentText()
         if GLOBAL_BUS.global_cables:
@@ -1801,115 +1910,49 @@ class MasterControlPatchbayPage(QWidget):
         else:
             QMessageBox.warning(self, "No Active Cables", "There are no active global cables in the patchbay to re-route. Create a patch or run the randomizer first.")
 
-    def _on_bpm_changed(self, val):
-        self.engine.global_bpm = val / 10.0
-        self.bpm_label.setText(f"{self.engine.global_bpm:.1f} BPM")
-
-    def _apply_equation_scale(self):
-        self.engine.scale_equation = self.eq_input.text()
-        self.engine.scale_increment = self.inc_spin.value()
-        self.engine.divergence_steps_count = self.steps_spin.value()
-        freqs = self.engine.generate_equation_scale_frequencies()
-        QMessageBox.information(self, "Equation Scale Generated", f"Successfully computed {len(freqs)} rhythmic frequencies using increment {self.engine.scale_increment}!")
-
-    def _randomize_song_action(self):
-        self.engine.randomize_song()
-        self.bpm_slider.setValue(int(self.engine.global_bpm * 10))
-        self.eq_input.setText(self.engine.scale_equation)
-        self.infinite_playlist_canvas.canvas_inner.update()
-        self.patch_canvas.update()
-
-        if hasattr(self.main_window, "tabs"):
-            for i in range(self.main_window.tabs.count()):
-                widget = self.main_window.tabs.widget(i)
-                if hasattr(widget, "refresh_fx_grid"):
-                    widget.refresh_fx_grid()
-                elif hasattr(widget, "refresh_synth_grid"):
-                    widget.refresh_synth_grid()
-                elif hasattr(widget, "refresh_drum_grid"):
-                    widget.refresh_drum_grid()
-                elif hasattr(widget, "_refresh_automation_panels"):
-                    widget._refresh_automation_panels()
-
-        QMessageBox.information(self, "Song Randomizer Complete", f"Randomized active FX modules ({len(self.engine.active_fx_modules)}), drum kits ({len(self.engine.active_drum_kits)}), synth panels ({len(self.engine.active_synth_panels)}), sequencers, patchbay cables, wavetables, equations, and step-gated beat patterns!")
-
-    def _save_project(self):
-        filepath, _ = QFileDialog.getSaveFileName(self, "Save EQR Project", "", "EQR Project Files (*.eqrproj)")
-        if filepath:
-            self.engine.serialize_project(filepath)
-            QMessageBox.information(self, "Project Saved", f"Project saved to:\n{filepath}")
-
-    def _load_project(self):
-        filepath, _ = QFileDialog.getOpenFileName(self, "Load EQR Project", "", "EQR Project Files (*.eqrproj)")
-        if filepath:
-            self.engine.deserialize_project(filepath)
-            self.bpm_slider.setValue(int(self.engine.global_bpm * 10))
-            self.eq_input.setText(self.engine.scale_equation)
-            self.infinite_playlist_canvas.canvas_inner.update()
-            self.patch_canvas.update()
-
-            if hasattr(self.main_window, "tabs"):
-                for i in range(self.main_window.tabs.count()):
-                    widget = self.main_window.tabs.widget(i)
-                    if hasattr(widget, "refresh_fx_grid"):
-                        widget.refresh_fx_grid()
-                    elif hasattr(widget, "refresh_synth_grid"):
-                        widget.refresh_synth_grid()
-                    elif hasattr(widget, "refresh_drum_grid"):
-                        widget.refresh_drum_grid()
-                    elif hasattr(widget, "_refresh_automation_panels"):
-                        widget._refresh_automation_panels()
-
-            QMessageBox.information(self, "Project Loaded", f"Project loaded from:\n{filepath}")
-
-    def _export_audio(self):
-        filepath, _ = QFileDialog.getSaveFileName(self, "Export Master Audio", "eqr_extended_master_render.wav", "WAV Audio (*.wav)")
-        if filepath:
-            random_export_duration = float(random.randint(60, 600))
-            self.engine.export_audio(filepath, duration_sec=random_export_duration)
-            QMessageBox.information(self, "Extended Audio Export Successful", f"Rhythmic arrangement ({random_export_duration:.1f} seconds / {random_export_duration/60:.1f} minutes) rendered to:\n{filepath}")
-
     def on_global_patch_updated(self, cables):
         self.patch_canvas.cables = cables
         self.patch_canvas.update()
 
 
 # -------------------------------------------------------------------------
-# MAIN WINDOW SUITE CONTAINER
+# MAIN WINDOW FRAMEWORK
 # -------------------------------------------------------------------------
-class EQRGrooveboxMain(QMainWindow):
-    def __init__(self, engine):
+class EQRGrooveboxMainWindow(QMainWindow):
+    def __init__(self):
         super().__init__()
-        self.engine = engine
-        self.setWindowTitle("EQR Groovebox Engine v3.6.7 - Professional Composition Suite")
-        self.resize(1500, 950)
-        self.setStyleSheet("background-color: #070b10; color: #ffffff;")
+        self.engine = GrooveboxEngine()
+        self.setWindowTitle("EQR Groovebox Engine v3.6.8 - Multidimensional Algorithmic Composition Suite")
+        self.resize(1440, 920)
+        self.setStyleSheet("background-color: #070b10; color: #c9d1d9;")
 
         self.tabs = QTabWidget()
         self.tabs.setStyleSheet("""
             QTabWidget::pane { border: 1px solid #30363d; background: #070b10; }
-            QTabBar::tab { background: #161b22; color: #8b949e; padding: 8px 16px; margin-right: 2px; border-top-left-radius: 4px; border-top-right-radius: 4px; font-weight: bold; }
+            QTabBar::tab { background: #161b22; color: #8b949e; padding: 10px 18px; margin-right: 2px; font-weight: bold; border-top-left-radius: 4px; border-top-right-radius: 4px; }
             QTabBar::tab:selected { background: #0d1117; color: #00ffcc; border-bottom: 2px solid #00ffcc; }
         """)
 
         self.synth_page = SynthModulePage(self.engine)
         self.drum_page = DrumMatrixPage(self.engine)
-        self.fx_page = GranularFXPage(self.engine)
-        self.auto_page = AutomationPatternPage(self.engine)
-        self.master_page = MasterControlPatchbayPage(self.engine, self)
+        self.granular_page = GranularFXPage(self.engine)
+        self.automation_page = AutomationPatternPage(self.engine)
+        self.patchbay_page = MasterControlPatchbayPage(self.engine, self)
 
-        self.tabs.addTab(self.synth_page, "🎛 Synths & Poly-Stack")
-        self.tabs.addTab(self.drum_page, "🥁 Drum Matrices")
-        self.tabs.addTab(self.fx_page, "🌌 Granular FX")
-        self.tabs.addTab(self.auto_page, "⚙️ Sequencers & Automation")
-        self.tabs.addTab(self.master_page, "Master Equation Scale & Patchbay")
+        self.tabs.addTab(self.synth_page, "🎹 Synths & Polynomials")
+        self.tabs.addTab(self.drum_page, "🥁 Drum Matrix")
+        self.tabs.addTab(self.granular_page, "🌌 Granular FX & Shifters")
+        self.tabs.addTab(self.automation_page, "⚙️ Sequencers & Automation")
+        self.tabs.addTab(self.patchbay_page, "🎛 Master Patchbay & Playlist")
 
         self.setCentralWidget(self.tabs)
 
 
-if __name__ == '__main__':
+def main():
     app = QApplication(sys.argv)
-    engine = GrooveboxEngine()
-    main_win = EQRGrooveboxMain(engine)
-    main_win.show()
+    window = EQRGrooveboxMainWindow()
+    window.show()
     sys.exit(app.exec())
+
+if __name__ == '__main__':
+    main()
