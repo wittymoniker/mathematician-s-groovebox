@@ -1962,9 +1962,10 @@ class GrooveboxMainWindow(QMainWindow):
         from math_engine import MathEngine
         # Initialize the step sequence attribute to prevent the AttributeError
         # Example: a standard 16-step sequence array (adjust size as needed)
-        self.step_sequence = [0] * 16
+        self.step_sequence = list(range(16))
         # Initialize the engine first so it exists when the grid is built
         self.step_labels = []
+        self.grid_layout = QGridLayout()
         self.engine = MathEngine()  # Replace with your actual engine initialization class/method
 
         # Now build the grid which references self.engine
@@ -2026,7 +2027,8 @@ class GrooveboxMainWindow(QMainWindow):
         # Clear current layout widgets and rebuild with new shuffled order
         for i, step in enumerate(self.step_sequence):
             lbl = self.step_labels[i]
-            lbl.setText(f"Step {step}\nVal: {self.engine.evaluate_state():.2f}")
+            # Change evaluate_state() to evaluate_coordinates()
+            lbl.setText(f"Step {step}\nVal: {self.engine.evaluate_coordinates(step, 0, 0):.2f}")
 def main():
     app = QApplication(sys.argv)
     window = GrooveboxMainWindow()
