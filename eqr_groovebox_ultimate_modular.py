@@ -77,7 +77,215 @@ except ImportError:
             self.fractallizer = MusicFractallizer(dimensions=('x', 'y', 'z'), survival_mode=survival_mode)
         def render_reality_patch(self, base_patch_data):
             return {coord: sig.tolist() for coord, sig in self.fractallizer.generate_fractal_stream(base_patch_data).items()}
+class MathEngine:
+    """Core mathematical engine supporting x, y, z coordinate evaluations."""
+    def __init__(self, x=1.0, y=1.0, z=1.0):
+        self.x = x
+        self.y = y
+        self.z = z
 
+    def evaluate(self, equation_str="x**2 + y - z"):
+        try:
+            return eval(equation_str, {"__builtins__": None}, {"x": self.x, "y": self.y, "z": self.z, "math": math})
+        except Exception:
+            return 0.0
+class IdealizedMathKnob(QWidget):
+    """Skeuomorphic rotary controller designed for mathematical mapping ($x, y, z$ space)."""
+    def __init__(self, label_text, min_val=0.0, max_val=100.0, default_val=50.0, math_note="", parent=None):
+        super().__init__(parent)
+        self.label_text = label_text
+        self.min_val = min_val
+        self.max_val = max_val
+        self.value = default_val
+        self.math_note = math_note
+        self.setFixedSize(110, 130)
+        self.dragging = False
+        self.last_y = 0
+        self.is_patched = True
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Label
+        painter.setPen(QPen(QColor("#58a6ff"), 1))
+        painter.drawText(0, 8, self.width(), 14, Qt.AlignmentFlag.AlignCenter, self.label_text)
+
+        # Numerical Readout
+        painter.setPen(QPen(QColor("#8b949e"), 1))
+        painter.drawText(0, 22, self.width(), 12, Qt.AlignmentFlag.AlignCenter, f"Val: {self.value:.3f}")
+
+        # Knob Body
+        center = QPointF(55, 62)
+        radius = 20.0
+
+        painter.setBrush(QBrush(QColor("#161b22")))
+        painter.setPen(QPen(QColor("#30363d"), 2))
+        painter.drawEllipse(center, radius, radius)
+
+        # Indicator Tick
+        span_val = self.max_val - self.min_val if self.max_val != self.min_val else 1.0
+        normalized = (self.value - self.min_val) / span_val
+        angle = math.radians(-130 + (normalized * 260))
+        tip_x = center.x() + (radius - 5) * math.sin(angle)
+        tip_y = center.y() - (radius - 5) * math.cos(angle)
+
+        painter.setPen(QPen(QColor("#00ffcc"), 2.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(center, QPointF(tip_x, tip_y))
+
+        # Patch Jack Port
+        jack_center = QPointF(55, 96)
+        painter.setBrush(QBrush(QColor("#0d1117")))
+        painter.setPen(QPen(QColor("#00ffcc") if self.is_patched else QColor("#484f58"), 1.5))
+        painter.drawEllipse(jack_center, 5.0, 5.0)
+
+        # Mathematical Footer Note
+        painter.setPen(QPen(QColor("#c9d1d9"), 1))
+        painter.drawText(2, 108, self.width() - 4, 20, Qt.AlignmentFlag.AlignCenter, self.math_note)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            jack_center = QPointF(55, 96)
+            if (event.position() - jack_center).manhattanLength() < 12:
+                self.is_patched = not self.is_patched
+                self.update()
+            else:
+                self.dragging = True
+                self.last_y = event.position().y()
+
+    def mouseMoveEvent(self, event):
+        if self.dragging:
+            dy = self.last_y - event.position().y()
+            self.last_y = event.position().y()
+            span = self.max_val - self.min_val
+            step = span * (dy / 150.0)
+            self.value = max(self.min_val, min(self.max_val, self.value + step))
+            self.update()
+
+    def mouseReleaseEvent(self, event):
+        self.dragging = False
+
+    def wheelEvent(self, event):
+        delta = event.angleDelta().y()
+        span = self.max_val - self.min_val
+        step = span * (0.02 if delta > 0 else -0.02)
+        self.value = max(self.min_val, min(self.max_val, self.value + step))
+        self.update()
+
+
+class FreeformSequencerCanvas(QWidget):
+    """
+    Modular step and curve routing canvas with realistic hanging patch wires
+    and interactive control jacks, accepting sequence data upon initialization.
+    """
+    def __init__(self, sequence_data=None, parent=None):
+        super().__init__(parent)
+        self.sequence_data = sequence_data if sequence_data is not None else [0.0] * 16
+        self.setMinimumHeight(280)
+        self.nodes = [QPointF(60, 200), QPointF(340, 80), QPointF(680, 160), QPointF(960, 70)]
+        self.wires = [(self.nodes[0], self.nodes[1]), (self.nodes[2], self.nodes[3])]
+        self.active_node = None
+        self.wiring_start = None
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+
+        # Panel Background
+        painter.fillRect(0, 0, w, h, QColor("#0a0e14"))
+
+        # Grid lines
+        painter.setPen(QPen(QColor("#161b22"), 1))
+        for x in range(0, w, 40):
+            painter.drawLine(x, 0, x, h)
+        for y in range(0, h, 40):
+            painter.drawLine(0, y, w, y)
+
+        # Hanging Patch Wires
+        for p1, p2 in self.wires:
+            ctrl = QPointF((p1.x() + p2.x()) / 2, max(p1.y(), p2.y()) + 60)
+            path = QPainterPath()
+            path.moveTo(p1)
+            path.cubicTo(ctrl, ctrl, p2)
+
+            # Shadow
+            shadow_path = QPainterPath()
+            shadow_path.moveTo(p1 + QPointF(0, 3))
+            shadow_path.cubicTo(ctrl + QPointF(0, 3), ctrl + QPointF(0, 3), p2 + QPointF(0, 3))
+            painter.setPen(QPen(QColor("#000000"), 3))
+            painter.drawPath(shadow_path)
+
+            # Neon Wire
+            painter.setPen(QPen(QColor("#00ffcc"), 2.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.drawPath(path)
+
+        # Spline curve connecting nodes
+        if len(self.nodes) >= 2:
+            spline = QPainterPath()
+            spline.moveTo(self.nodes[0])
+            for i in range(len(self.nodes) - 1):
+                pt1, pt2 = self.nodes[i], self.nodes[i+1]
+                c1 = QPointF((pt1.x() + pt2.x()) / 2, pt1.y())
+                c2 = QPointF((pt1.x() + pt2.x()) / 2, pt2.y())
+                spline.cubicTo(c1, c2, pt2)
+            painter.setPen(QPen(QColor("#f5d97d"), 2))
+            painter.drawPath(spline)
+
+        # Node Jacks
+        for node in self.nodes:
+            painter.setBrush(QBrush(QColor("#161b22")))
+            painter.setPen(QPen(QColor("#00ffcc"), 2))
+            painter.drawEllipse(node, 10, 10)
+            painter.setBrush(QBrush(QColor("#00ffcc")))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(node, 3.5, 3.5)
+
+        # Header note
+        painter.setPen(QPen(QColor("#8b949e"), 1))
+        painter.drawText(16, 22, "Vector Automaton Lane | [Right-Click] Add Node | [Drag Jack to Jack] Patch Circuit")
+
+    def mousePressEvent(self, event):
+        pos = event.position()
+        if event.button() == Qt.MouseButton.RightButton:
+            self.nodes.append(QPointF(pos.x(), pos.y()))
+            self.nodes.sort(key=lambda p: p.x())
+            self.update()
+        elif event.button() == Qt.MouseButton.LeftButton:
+            for node in self.nodes:
+                if (node - pos).manhattanLength() < 14:
+                    self.wiring_start = node
+                    return
+            for idx, node in enumerate(self.nodes):
+                if (node - pos).manhattanLength() < 22:
+                    self.active_node = idx
+                    break
+
+    def mouseMoveEvent(self, event):
+        if self.active_node is not None:
+            new_pos = event.position()
+            self.nodes[self.active_node] = QPointF(max(0, min(self.width(), new_pos.x())), max(0, min(self.height(), new_pos.y())))
+            self.update()
+
+    def mouseReleaseEvent(self, event):
+        if self.wiring_start:
+            pos = event.position()
+            for node in self.nodes:
+                if (node - pos).manhattanLength() < 18 and node != self.wiring_start:
+                    self.wires.append((self.wiring_start, node))
+                    break
+            self.wiring_start = None
+        self.active_node = None
+        self.update()
+class EQRCoordEngine:
+    """Spatial coordinate evaluation engine."""
+    def __init__(self, x=0.0, y=0.0, z=0.0):
+        self.x = x
+        self.y = y
+        self.z = z
+
+    def evaluate_state(self):
+        return (self.x ** 2 + self.y ** 2 + self.z ** 2) ** 0.5
 # -------------------------------------------------------------------------
 # CONSTANTS & CONFIGURATION DATABASE
 # -------------------------------------------------------------------------
@@ -1960,30 +2168,26 @@ class MasterControlPatchbayPage(QWidget):
 # -------------------------------------------------------------------------
 
 class GrooveboxMainWindow(QMainWindow):
-    """
-    Fully unified EQR Groovebox Suite combining sequencer automation lanes,
-    coordinate matrices ($x, y, z$), and transcendental constants into an ideal UI.
-    """
+    """Unified modular groovebox main window interface."""
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Equation of Reality (EQR) - Master Groovebox Suite")
+        self.setWindowTitle("Equation of Reality (EQR) - Groovebox Ultimate Modular Suite")
         self.resize(1550, 950)
         self.set_dark_palette()
 
-        # Initialize Math Engine and Sequencer State
+        # Initialize Core Math Engine
         self.engine = MathEngine()
-        self.step_sequence = list(range(16))
-        self.step_labels = []
+        self.step_sequence = [0.0] * 16
 
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
 
-        # Build System Tabs
+        # Build Tabs
         self.tabs.addTab(self.create_sequencer_tab(), "1. Sequencer & Automation Hub")
         self.tabs.addTab(self.create_constants_tab(), "2. 34-Constant Harmonic Matrix")
 
         self.setCentralWidget(self.tabs)
-        self.statusBar().showMessage("Suite Online | 432Hz Master Reference | Equations Locked ($x, y, z$) | All Systems Nominal")
+        self.statusBar().showMessage("Modular Suite Online | 432Hz Reference | Systems Nominal")
 
     def set_dark_palette(self):
         palette = QPalette()
@@ -2013,26 +2217,11 @@ class GrooveboxMainWindow(QMainWindow):
         container = QWidget()
         container_layout = QVBoxLayout(container)
 
-        # Add Canvas and Control Matrix
+        # Instantiate FreeformSequencerCanvas with required sequence_data
         self.lane = FreeformSequencerCanvas(self.step_sequence)
         container_layout.addWidget(self.lane)
 
-        # Step Grid Control Bar & Shuffle Action
-        control_layout = QHBoxLayout()
-        self.shuffle_btn = QPushButton("Shuffle Sequence / Modules")
-        self.shuffle_btn.setStyleSheet("background-color: #21262d; color: #00ffcc; border: 1px solid #30363d; padding: 6px 12px; font-weight: bold;")
-        self.shuffle_btn.clicked.connect(self.trigger_shuffle)
-        control_layout.addWidget(self.shuffle_btn)
-        control_layout.addStretch()
-        container_layout.addLayout(control_layout)
-
-        # 16-Step Grid Layout powered by Engine Coordinates
-        self.step_labels = []
-        self.grid_layout = QGridLayout()
-        self.build_step_grid()
-        container_layout.addLayout(self.grid_layout)
-
-        matrix_group = QGroupBox("Clone #1 Architectural Parameter Matrix ($x, y, z$)")
+        matrix_group = QGroupBox("Architectural Parameter Matrix ($x, y, z$)")
         matrix_grid = QGridLayout()
         params = [
             ("Harmonic Shift", 0.1, 16.0, 1.618, "x-domain scalar"),
@@ -2049,24 +2238,6 @@ class GrooveboxMainWindow(QMainWindow):
         scroll.setWidget(container)
         layout.addWidget(scroll)
         return widget
-
-    def build_step_grid(self):
-        """Builds module/step components dynamically using x, y, z engine evaluation."""
-        for i, step in enumerate(self.step_sequence):
-            lbl = QLabel(f"Step {step}\nVal: {self.engine.evaluate_coordinates(step, 0, 0):.2f}")
-            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl.setStyleSheet("background-color: #161b22; color: #ffffff; border: 1px solid #30363d; padding: 10px; border-radius: 4px;")
-            row = i // 4
-            col = i % 4
-            self.grid_layout.addWidget(lbl, row, col)
-            self.step_labels.append(lbl)
-
-    def trigger_shuffle(self):
-        """Triggers the sequence/module shuffle and updates grid elements cleanly in place."""
-        random.shuffle(self.step_sequence)
-        for i, step in enumerate(self.step_sequence):
-            lbl = self.step_labels[i]
-            lbl.setText(f"Step {step}\nVal: {self.engine.evaluate_coordinates(step, 0, 0):.2f}")
 
     def create_constants_tab(self):
         widget = QWidget()
@@ -2092,7 +2263,7 @@ class GrooveboxMainWindow(QMainWindow):
             ("Euler-Mascheroni", 0.0, 1.0, 0.577, "γ Constant"),
             ("Gauss Lemniscate", 1.0, 4.0, 2.622, "ϖ Constant"),
             ("Khinchin Constant", 1.0, 3.0, 2.685, "K_0 Vector"),
-            ("Core Lock", 0.0, 2.0, 1.618, "Primary Ratio")
+            ("Meum", 0.8024, 1.0, 1.19758, "Primary Ratio")
         ]
         for idx, (lbl, min_v, max_v, def_v, note) in enumerate(constants):
             grid.addWidget(IdealizedMathKnob(lbl, min_v, max_v, def_v, note), idx // 4, idx % 4)
@@ -2101,7 +2272,6 @@ class GrooveboxMainWindow(QMainWindow):
         scroll.setWidget(container)
         layout.addWidget(scroll)
         return widget
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
