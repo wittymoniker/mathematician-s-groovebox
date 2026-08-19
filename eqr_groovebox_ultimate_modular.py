@@ -1955,9 +1955,13 @@ class MasterControlPatchbayPage(QWidget):
 # -------------------------------------------------------------------------
 # MAIN WINDOW FRAMEWORK
 # -------------------------------------------------------------------------
-class GrooveboxMainWindow(QMainWindow):
+class GrooveboxMainWindow(QMainWindow): # (or whichever window class you are using)
     def __init__(self):
         super().__init__()
+
+        # Initialize the step sequence attribute to prevent the AttributeError
+        # Example: a standard 16-step sequence array (adjust size as needed)
+        self.step_sequence = [0] * 16
         # Initialize the engine first so it exists when the grid is built
         self.engine = ()  # Replace with your actual engine initialization class/method
 
