@@ -440,9 +440,6 @@ class GrooveboxEngine:
         t = np.linspace(0, duration_sec, num_samples, endpoint=False)
         wave_data = np.zeros(num_samples)
 
-        # FIXED AUDIO LAYERING: Iterate through distinct instrument sequence banks
-        # and apply independent pitch transposition, stereo pan offsets, and harmonic detuning
-        # so each instrument layer is clearly distinguished in the mix instead of summing to a single mono frequency.
         bank_index = 0
         total_banks = sum(len(banks) for banks in self.instrument_sequence_banks.values())
         if total_banks == 0:
@@ -456,7 +453,6 @@ class GrooveboxEngine:
                 resolved_pairs = self.resolve_math_chord_frequencies(chord_name)
                 bank_amp = bank.get("amp", 1.0)
 
-                # Assign unique phase offset and detune per instrument layer for spatial layering
                 layer_detune = 1.0 + (bank_index - (total_banks / 2.0)) * 0.002
                 phase_offset = (bank_index / float(total_banks)) * 2.0 * np.pi
 
@@ -1847,10 +1843,11 @@ class GrooveboxMasterSuite(QMainWindow):
         self.tabs.addTab(self.synth_page, "🎹 Synths & Multi-Seq Banks")
         self.tabs.addTab(self.drum_page, "🥁 Drum & Percussion Matrix")
         self.tabs.addTab(self.fx_page, "🌌 Granular FX & Shifter")
-        self.tabs.addTab(self.auto_page, "⚙️ Step Sequencers & Automations")
-        self.tabs.addTab(self.master_page, "🎛 Master Patchbay & Playlist")
+        self.tabs.addTab(self.auto_page, "⚙️ Sequencers & Automations")
+        self.tabs.addTab(self.master_page, "🎛 Master Control, Playlist & Patchbay")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     app = QApplication(sys.argv)
     suite = GrooveboxMasterSuite()
     suite.show()
