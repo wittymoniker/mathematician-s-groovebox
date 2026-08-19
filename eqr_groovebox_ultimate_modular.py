@@ -1999,12 +1999,12 @@ class GrooveboxMainWindow(QMainWindow): # (or whichever window class you are usi
         self.setCentralWidget(central_widget)
 
         # Engine state initialization
-        self.engine = EQRCoordEngine(1.0, 2.0, 3.0)
+        self.engine = MathEngine(1.0, 2.0, 3.0)
 
     def build_step_grid(self):
         """Builds module/step components dynamically."""
         for i, step in enumerate(self.step_sequence):
-            lbl = QLabel(f"Step {step}\nVal: {self.engine.evaluate_state():.2f}")
+            lbl = QLabel(f"Step {step}\nVal: {self.engine.evaluate_coordinates(step, 0, 0):.2f}")
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             lbl.setStyleSheet("background-color: #2a2a2a; color: #ffffff; border: 1px solid #444; padding: 10px;")
             row = i // 4
