@@ -5,13 +5,15 @@
 import random
 import sys
 import math
+import json
+import numpy as np
 from PyQt6.QtCore import Qt, QPoint, QRectF
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QGridLayout, QLabel, QPushButton, QScrollArea, QTabWidget,
-    QSizePolicy
+    QSizePolicy, QDockWidget, QSpinBox, QComboBox, QSlider
 )
-from PyQt6.QtCore import Qt, QPointF
+from PyQt6.QtCore import Qt, QPointF, QTimer, QPoint, QRectF
 from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPalette, QPainterPath
 
 from math_engine import MathEngine
@@ -174,78 +176,70 @@ class IdealizedMathKnob(QWidget):
         self.value = max(self.min_val, min(self.max_val, self.value + step))
         self.update()
 
-
 class FreeformSequencerCanvas(QWidget):
-    """
-    Modular step and curve routing canvas with realistic hanging patch wires
-    and interactive control jacks, accepting sequence data upon initialization.
-    """
+    """Robust sequencer canvas with foolproof list/dict data handling."""
     def __init__(self, sequence_data=None, parent=None):
         super().__init__(parent)
-        self.sequence_data = sequence_data if sequence_data is not None else [0.0] * 16
+        self.seq_data = sequence_data if sequence_data is not None else [0.0] * 16
         self.setMinimumHeight(280)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.nodes = [QPointF(60, 200), QPointF(340, 80), QPointF(680, 160), QPointF(960, 70)]
         self.wires = [(self.nodes[0], self.nodes[1]), (self.nodes[2], self.nodes[3])]
         self.active_node = None
         self.wiring_start = None
 
     def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        w, h = self.width(), self.height()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Panel Background
-        painter.fillRect(0, 0, w, h, QColor("#0a0e14"))
+        try:
+            if isinstance(self.seq_data, dict):
+                notes = self.seq_data.get("notes", [])
+            elif isinstance(self.seq_data, list):
+                notes = [
+                    {"time": float(i), "duration": 1.0, "active": bool(val != 0)}
+                    for i, val in enumerate(self.seq_data)
+                ]
+            else:
+                notes = []
 
-        # Grid lines
-        painter.setPen(QPen(QColor("#161b22"), 1))
-        for x in range(0, w, 40):
-            painter.drawLine(x, 0, x, h)
-        for y in range(0, h, 40):
-            painter.drawLine(0, y, w, y)
+            w, h = self.width(), self.height()
+            p.fillRect(0, 0, w, h, QColor("#0a0e14"))
 
-        # Hanging Patch Wires
-        for p1, p2 in self.wires:
-            ctrl = QPointF((p1.x() + p2.x()) / 2, max(p1.y(), p2.y()) + 60)
-            path = QPainterPath()
-            path.moveTo(p1)
-            path.cubicTo(ctrl, ctrl, p2)
+            # Grid lines
+            p.setPen(QPen(QColor("#161b22"), 1))
+            for x in range(0, w, 40):
+                p.drawLine(x, 0, x, h)
+            for y in range(0, h, 40):
+                p.drawLine(0, y, w, y)
 
-            # Shadow
-            shadow_path = QPainterPath()
-            shadow_path.moveTo(p1 + QPointF(0, 3))
-            shadow_path.cubicTo(ctrl + QPointF(0, 3), ctrl + QPointF(0, 3), p2 + QPointF(0, 3))
-            painter.setPen(QPen(QColor("#000000"), 3))
-            painter.drawPath(shadow_path)
+            # Draw hanging patch wires
+            for p1, p2 in self.wires:
+                ctrl = QPointF((p1.x() + p2.x()) / 2, max(p1.y(), p2.y()) + 60)
+                path = QPainterPath()
+                path.moveTo(p1)
+                path.cubicTo(ctrl, ctrl, p2)
+                p.setPen(QPen(QColor("#00ffcc"), 2.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                p.drawPath(path)
 
-            # Neon Wire
-            painter.setPen(QPen(QColor("#00ffcc"), 2.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-            painter.drawPath(path)
+            max_time = max([n.get("time", 0.0) + n.get("duration", 1.0) for n in notes] + [16.0])
+            scale_x = w / max(16.0, max_time)
 
-        # Spline curve connecting nodes
-        if len(self.nodes) >= 2:
-            spline = QPainterPath()
-            spline.moveTo(self.nodes[0])
-            for i in range(len(self.nodes) - 1):
-                pt1, pt2 = self.nodes[i], self.nodes[i+1]
-                c1 = QPointF((pt1.x() + pt2.x()) / 2, pt1.y())
-                c2 = QPointF((pt1.x() + pt2.x()) / 2, pt2.y())
-                spline.cubicTo(c1, c2, pt2)
-            painter.setPen(QPen(QColor("#f5d97d"), 2))
-            painter.drawPath(spline)
+            for i, note in enumerate(notes):
+                nx = note.get("time", float(i)) * scale_x
+                nw = max(12, note.get("duration", 1.0) * scale_x)
+                ny = 15 + (i % 4) * 24
 
-        # Node Jacks
-        for node in self.nodes:
-            painter.setBrush(QBrush(QColor("#161b22")))
-            painter.setPen(QPen(QColor("#00ffcc"), 2))
-            painter.drawEllipse(node, 10, 10)
-            painter.setBrush(QBrush(QColor("#00ffcc")))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(node, 3.5, 3.5)
+                is_active = note.get("active", True)
+                p.setBrush(QBrush(QColor("#00ffcc" if is_active else "#21262d")))
+                p.setPen(QPen(QColor("#ffffff") if is_active else QColor("#484f58"), 1))
+                p.drawRoundedRect(int(nx), int(ny), int(nw), 18, 4, 4)
 
-        # Header note
-        painter.setPen(QPen(QColor("#8b949e"), 1))
-        painter.drawText(16, 22, "Vector Automaton Lane | [Right-Click] Add Node | [Drag Jack to Jack] Patch Circuit")
+                p.setPen(QPen(QColor("#ffffff" if is_active else "#8b949e"), 1))
+                p.drawText(int(nx) + 4, int(ny) + 13, f"N{i+1}")
+
+        finally:
+            p.end()
 
     def mousePressEvent(self, event):
         pos = event.position()
@@ -2194,18 +2188,18 @@ class MasterControlPatchbayPage(QWidget):
 # -------------------------------------------------------------------------
 
 class GrooveboxMainWindow(QMainWindow):
-    """Unified modular groovebox main window interface with dockable modules and project management."""
+    """Complete modular suite combining v0-v4 features, dynamic step counts, and Meum foundational ratio."""
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Equation of Reality (EQR) - Groovebox Ultimate Modular Suite")
-        self.resize(1700, 1000)
+        self.setWindowTitle("Equation of Reality (EQR) - Groovebox Ultimate Modular Suite [Meum Ratio Edition]")
+        self.resize(1750, 1000)
         self.set_dark_palette()
 
-        # Initialize Core Math Engine ($x, y, z$ space)
+        # Core Math & Sequence State
         self.engine = MathEngine()
         self.step_sequence = [0.0] * 16
 
-        # Enable Dock Options for floating/dockable module instances
+        # Enable Dockable Panels Workspace
         self.setDockOptions(QMainWindow.DockOption.AllowNestedDocks | QMainWindow.DockOption.AnimatedDocks)
 
         # Central Workspace Tab Widget
@@ -2213,7 +2207,7 @@ class GrooveboxMainWindow(QMainWindow):
         self.tabs.setDocumentMode(True)
         self.setCentralWidget(self.tabs)
 
-        # Build Full Feature Set (v1 & v2 Architecture)
+        # Build All Functional Tabs
         self.tabs.addTab(self.create_sequencer_tab(), "1. Sequencer & Automation Hub")
         self.tabs.addTab(self.create_constants_tab(), "2. 34-Constant Harmonic Matrix")
         self.tabs.addTab(self.create_drum_matrix_tab(), "3. Multidimensional Drum Matrix")
@@ -2222,40 +2216,9 @@ class GrooveboxMainWindow(QMainWindow):
         self.tabs.addTab(self.create_project_management_tab(), "6. Project Management & I/O")
         self.tabs.addTab(self.create_patchbay_tab(), "7. Master Patchbay")
 
-        # Setup Spawn & Dock Toolbar
+        # Top Dynamic Module Spawner Toolbar
         self.setup_spawn_toolbar()
-        self.statusBar().showMessage("Modular Suite v2 Online | 432Hz Reference | Survival Mode Active")
-
-    def setup_spawn_toolbar(self):
-        toolbar = self.addToolBar("Module Spawner")
-        toolbar.setStyleSheet("background-color: #161b22; color: #c9d1d9; border-bottom: 1px solid #30363d;")
-
-        spawn_synth_btn = QPushButton("+ Spawn Synth Module")
-        spawn_synth_btn.clicked.connect(lambda: self.spawn_module_pane("Synth Instance"))
-        toolbar.addWidget(spawn_synth_btn)
-
-        spawn_fx_btn = QPushButton("+ Spawn FX Filter")
-        spawn_fx_btn.clicked.connect(lambda: self.spawn_module_pane("Granular FX Instance"))
-        toolbar.addWidget(spawn_fx_btn)
-
-        spawn_automator_btn = QPushButton("+ Spawn Automator Node")
-        spawn_automator_btn.clicked.connect(lambda: self.spawn_module_pane("x,y,z Automator"))
-        toolbar.addWidget(spawn_automator_btn)
-
-    def spawn_module_pane(self, title):
-        from PyQt6.QtWidgets import QDockWidget
-        dock = QDockWidget(title, self)
-        dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
-
-        content = QWidget()
-        layout = QVBoxLayout(content)
-        layout.addWidget(IdealizedMathKnob("Modulator Scale", 0.1, 10.0, 1.0, "x,y,z mapping"))
-        layout.addWidget(QPushButton(f"Execute {title} Process"))
-        layout.addStretch()
-        content.setLayout(layout)
-
-        dock.setWidget(content)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+        self.statusBar().showMessage("Meum Ratio Active | 432Hz Reference | Survival Mode Active")
 
     def set_dark_palette(self):
         palette = QPalette()
@@ -2267,12 +2230,135 @@ class GrooveboxMainWindow(QMainWindow):
         palette.setColor(QPalette.ColorRole.ButtonText, QColor("#c9d1d9"))
         palette.setColor(QPalette.ColorRole.Highlight, QColor("#1f6feb"))
         QApplication.setPalette(palette)
+
+    def setup_spawn_toolbar(self):
+        toolbar = self.addToolBar("Module Spawner Toolbar")
+        toolbar.setStyleSheet("background-color: #161b22; color: #c9d1d9; border-bottom: 1px solid #30363d; spacing: 8px;")
+
+        spawn_synth = QPushButton("+ Spawn Synth Node")
+        spawn_synth.clicked.connect(lambda: self.spawn_dockable_pane("Synth Module Instance"))
+        toolbar.addWidget(spawn_synth)
+
+        spawn_fx = QPushButton("+ Spawn FX Filter")
+        spawn_fx.clicked.connect(lambda: self.spawn_dockable_pane("Granular FX Node"))
+        toolbar.addWidget(spawn_fx)
+
+        spawn_automator = QPushButton("+ Spawn x,y,z Automator")
+        spawn_automator.clicked.connect(lambda: self.spawn_dockable_pane("Coordinate Automator"))
+        toolbar.addWidget(spawn_automator)
+
+    def spawn_dockable_pane(self, title):
+        dock = QDockWidget(title, self)
+        dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.addWidget(IdealizedMathKnob("Meum Scale Factor", 0.1, 16.0, 1.618, "Primary Meum Ratio"))
+        layout.addWidget(QPushButton(f"Execute {title} Process"))
+        layout.addStretch()
+        content.setLayout(layout)
+        dock.setWidget(content)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+
+    def create_sequencer_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        doc_label = QLabel(
+            "<b>Sequencer & Vector Automation Guide (Meum Core):</b><br>"
+            "• <b>Canvas Nodes:</b> Drag nodes to shape automation curves; right-click to add nodes.<br>"
+            "• <b>Patch Wires:</b> Click and drag from one node jack to another to create hardware modulation paths."
+        )
+        doc_label.setStyleSheet("background-color: #161b22; padding: 10px; border-radius: 6px; color: #8b949e;")
+        layout.addWidget(doc_label)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+
+        self.lane = FreeformSequencerCanvas(self.step_sequence)
+        container_layout.addWidget(self.lane)
+
+        matrix_group = QGroupBox("Architectural Parameter Matrix ($x, y, z$) - Meum Scaled")
+        matrix_grid = QGridLayout()
+        params = [
+            ("Meum Primary Constant", 0.1, 16.0, 1.618, "Meum Base Ratio"),
+            ("Sub-Bass Gain", 0.0, 2.0, 0.8, "y-domain gain"),
+            ("Resonance Decay", 0.01, 5.0, 0.5, "z-domain decay"),
+            ("Wave Folding", 0.0, 100.0, 25.0, "Non-linear fold")
+        ]
+        for idx, (lbl, min_v, max_v, def_v, note) in enumerate(params):
+            matrix_grid.addWidget(IdealizedMathKnob(lbl, min_v, max_v, def_v, note), 0, idx)
+        matrix_group.setLayout(matrix_grid)
+        container_layout.addWidget(matrix_group)
+
+        container_layout.addStretch()
+        scroll.setWidget(container)
+        layout.addWidget(scroll)
+        return widget
+
+    def create_constants_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        grid = QGridLayout(container)
+
+        constants = [
+            ("Meum Ratio", 0.1, 5.0, 1.618, "Primary Constant"),
+            ("Plastic Number", 1.0, 2.0, 1.324, "ρ Constant"),
+            ("Silver Ratio", 1.0, 3.0, 2.414, "δ_s Constant"),
+            ("Supergolden", 1.0, 2.5, 1.465, "ψ Constant"),
+            ("Apéry Constant", 1.0, 2.0, 1.202, "ζ(3) Vector"),
+            ("Euler-Mascheroni", 0.0, 1.0, 0.577, "γ Constant"),
+            ("Gauss Lemniscate", 1.0, 4.0, 2.622, "ϖ Constant"),
+            ("Khinchin Constant", 1.0, 3.0, 2.685, "K_0 Vector")
+        ]
+        for idx, (lbl, min_v, max_v, def_v, note) in enumerate(constants):
+            grid.addWidget(IdealizedMathKnob(lbl, min_v, max_v, def_v, note), idx // 4, idx % 4)
+
+        container.setLayout(grid)
+        scroll.setWidget(container)
+        layout.addWidget(scroll)
+        return widget
+
+    def create_drum_matrix_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        grid_group = QGroupBox("Multidimensional Drum Step Matrix (Variable Steps)")
+        grid_layout = QGridLayout()
+        for r in range(4):
+            for c in range(16):
+                btn = QPushButton(f"{r+1}:{c+1}")
+                btn.setCheckable(True)
+                btn.setMaximumSize(55, 40)
+                grid_layout.addWidget(btn, r, c)
+        grid_group.setLayout(grid_layout)
+        layout.addWidget(grid_group)
+        layout.addStretch()
+        return widget
+
+    def create_granular_fx_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        fx_group = QGroupBox("Granular Synthesis & FX Processing Engine")
+        fx_layout = QHBoxLayout()
+        fx_layout.addWidget(IdealizedMathKnob("Meum Grain Size", 1.0, 500.0, 50.0, "Meum ms vector"))
+        fx_layout.addWidget(IdealizedMathKnob("Scatter Density", 0.0, 10.0, 2.5, "Density curve"))
+        fx_layout.addWidget(IdealizedMathKnob("Feedback Warp", 0.0, 1.0, 0.4, "Non-linear feedback"))
+        fx_group.setLayout(fx_layout)
+        layout.addWidget(fx_group)
+        layout.addStretch()
+        return widget
+
     def create_playlister_tab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         group = QGroupBox("Arrangement Playlister & Pattern Queue")
         grid = QGridLayout()
-        grid.addWidget(QLabel("Pattern Slot 1: Core_Sequence_Alpha [Active]"), 0, 0)
+        grid.addWidget(QLabel("Pattern Slot 1: Meum_Core_Alpha [Active]"), 0, 0)
         grid.addWidget(QLabel("Pattern Slot 2: Z-Axis Modulation Sweep"), 1, 0)
         grid.addWidget(QLabel("Pattern Slot 3: Harmonic Decay Loop"), 2, 0)
 
@@ -2291,127 +2377,12 @@ class GrooveboxMainWindow(QMainWindow):
         layout = QVBoxLayout(widget)
         group = QGroupBox("Project State Serialization & JSON I/O")
         grid = QGridLayout()
-
-        grid.addWidget(QLabel("Current Workspace State: Saved (v3.6.8 schema)"), 0, 0)
-
-        btn_save = QPushButton("Save Project State (.eqr)")
-        btn_load = QPushButton("Load Project State (.eqr)")
-        btn_export = QPushButton("Export Audio Stems (WAV)")
-
-        grid.addWidget(btn_save, 1, 0)
-        grid.addWidget(btn_load, 2, 0)
-        grid.addWidget(btn_export, 3, 0)
-
+        grid.addWidget(QLabel("Current Workspace State: Saved (Meum Schema v3.6.8)"), 0, 0)
+        grid.addWidget(QPushButton("Save Project State (.eqr)"), 1, 0)
+        grid.addWidget(QPushButton("Load Project State (.eqr)"), 2, 0)
+        grid.addWidget(QPushButton("Export Audio Stems (WAV)"), 3, 0)
         group.setLayout(grid)
         layout.addWidget(group)
-        layout.addStretch()
-        return widget
-    def create_sequencer_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(10, 10, 10, 10)
-
-        doc_label = QLabel(
-            "<b>Sequencer & Vector Automation Guide:</b><br>"
-            "• <b>Canvas Nodes:</b> Drag nodes to shape automation curves; right-click to add nodes.<br>"
-            "• <b>Patch Wires:</b> Click and drag from one node jack to another to create hardware-style modulation paths."
-        )
-        doc_label.setStyleSheet("background-color: #161b22; padding: 10px; border-radius: 6px; color: #8b949e;")
-        layout.addWidget(doc_label)
-
-        # Main Scroll Area for the tab content
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-
-        container = QWidget()
-        container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Instantiate FreeformSequencerCanvas and ensure it expands freely
-        self.lane = FreeformSequencerCanvas(self.step_sequence)
-        self.lane.setFixedHeight(280) # Fixed height keeps it from stretching vertically
-        self.lane.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        container_layout.addWidget(self.lane)
-
-        # Architectural Parameter Matrix Group
-        matrix_group = QGroupBox("Architectural Parameter Matrix ($x, y, z$)")
-        matrix_grid = QGridLayout()
-        params = [
-            ("Harmonic Shift", 0.1, 16.0, 1.618, "x-domain scalar"),
-            ("Sub-Bass Gain", 0.0, 2.0, 0.8, "y-domain gain"),
-            ("Resonance Decay", 0.01, 5.0, 0.5, "z-domain decay"),
-            ("Wave Folding", 0.0, 100.0, 25.0, "Non-linear fold")
-        ]
-        for idx, (lbl, min_v, max_v, def_v, note) in enumerate(params):
-            matrix_grid.addWidget(IdealizedMathKnob(lbl, min_v, max_v, def_v, note), 0, idx)
-        matrix_group.setLayout(matrix_grid)
-        container_layout.addWidget(matrix_group)
-
-        container_layout.addStretch()
-        scroll.setWidget(container)
-        layout.addWidget(scroll)
-        return widget
-
-    def create_constants_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        doc_label = QLabel(
-            "<b>Harmonic Constant Matrix:</b><br>"
-            "Exact mathematical constants driving the groovebox synthesis engine."
-        )
-        doc_label.setStyleSheet("background-color: #161b22; padding: 10px; border-radius: 6px; color: #8b949e;")
-        layout.addWidget(doc_label)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        container = QWidget()
-        grid = QGridLayout(container)
-
-        constants = [
-            ("Plastic Number", 1.0, 2.0, 1.324, "ρ Constant"),
-            ("Silver Ratio", 1.0, 3.0, 2.414, "δ_s Constant"),
-            ("Supergolden", 1.0, 2.5, 1.465, "ψ Constant"),
-            ("Apéry Constant", 1.0, 2.0, 1.202, "ζ(3) Vector"),
-            ("Euler-Mascheroni", 0.0, 1.0, 0.577, "γ Constant"),
-            ("Gauss Lemniscate", 1.0, 4.0, 2.622, "ϖ Constant"),
-            ("Khinchin Constant", 1.0, 3.0, 2.685, "K_0 Vector"),
-            ("Meum", 0.8024, 1.0, 1.19758, "Primary Ratio")
-        ]
-        for idx, (lbl, min_v, max_v, def_v, note) in enumerate(constants):
-            grid.addWidget(IdealizedMathKnob(lbl, min_v, max_v, def_v, note), idx // 4, idx % 4)
-
-        container.setLayout(grid)
-        scroll.setWidget(container)
-        layout.addWidget(scroll)
-        return widget
-    def create_drum_matrix_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        grid_group = QGroupBox("Multidimensional Drum Step Matrix")
-        grid_layout = QGridLayout()
-        for r in range(4):
-            for c in range(16):
-                btn = QPushButton(f"{r+1}:{c+1}")
-                btn.setCheckable(True)
-                btn.setMaximumSize(50, 40)
-                grid_layout.addWidget(btn, r, c)
-        grid_group.setLayout(grid_layout)
-        layout.addWidget(grid_group)
-        layout.addStretch()
-        return widget
-
-    def create_granular_fx_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        fx_group = QGroupBox("Granular Synthesis & FX Processing Engine")
-        fx_layout = QHBoxLayout()
-        fx_layout.addWidget(IdealizedMathKnob("Grain Size", 1.0, 500.0, 50.0, "ms vector"))
-        fx_layout.addWidget(IdealizedMathKnob("Scatter Density", 0.0, 10.0, 2.5, "Density curve"))
-        fx_layout.addWidget(IdealizedMathKnob("Feedback Warp", 0.0, 1.0, 0.4, "Non-linear feedback"))
-        fx_group.setLayout(fx_layout)
-        layout.addWidget(fx_group)
         layout.addStretch()
         return widget
 
@@ -2420,7 +2391,7 @@ class GrooveboxMainWindow(QMainWindow):
         layout = QVBoxLayout(widget)
         patch_group = QGroupBox("Master Hardware Patchbay & Routing Matrix")
         patch_layout = QGridLayout()
-        patch_layout.addWidget(QLabel("CV In 1 (x-axis) --> VCF Cutoff"), 0, 0)
+        patch_layout.addWidget(QLabel("CV In 1 (Meum x-axis) --> VCF Cutoff"), 0, 0)
         patch_layout.addWidget(QLabel("CV In 2 (y-axis) --> Wavefolder"), 1, 0)
         patch_layout.addWidget(QLabel("Gate Out --> Envelope Triggers"), 2, 0)
         patch_group.setLayout(patch_layout)
