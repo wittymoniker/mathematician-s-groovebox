@@ -5607,10 +5607,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
         }
 
     def init_ui_components(self):
-        # Example container layout structure for your panels
-        self.top_layout = QHBoxLayout()
+        # Create a main vertical container layout for the entire window
+        content_layout = QVBoxLayout()
 
-        # External Control Sliders Initialization
+        # 1. Top Control Bar (The 5 external knobs + preset dropdown)
+        self.top_layout = QHBoxLayout()
         self.spin_tuning = QSpinBox()
         self.spin_tuning.setRange(100, 1200)
 
@@ -5635,7 +5636,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
             "Preset E: Custom Matrix Operator"
         ])
 
-        # Add widgets to your layout...
         self.top_layout.addWidget(QLabel("Tuning:"))
         self.top_layout.addWidget(self.spin_tuning)
         self.top_layout.addWidget(QLabel("Amplitude:"))
@@ -5648,7 +5648,24 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.top_layout.addWidget(self.slider_eqr)
         self.top_layout.addWidget(self.preset_combo)
 
-        self.main_layout.addLayout(self.top_layout)
+        content_layout.addLayout(self.top_layout)
+
+        # 2. Central Splitter for Sequencer Grid & Workspace
+        workspace_splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # Pull in your actual project modules if they exist, or initialize them here
+        if hasattr(self, 'playlist_window') and self.playlist_window:
+            workspace_splitter.addWidget(self.playlist_window)
+
+        if hasattr(self, 'patch_bay_dialog') and self.patch_bay_dialog:
+            workspace_splitter.addWidget(self.patch_bay_dialog)
+
+        # If your main sequencer or visualizer is stored in another attribute (like top_sequencer), add it:
+        if hasattr(self, 'top_sequencer') and self.top_sequencer:
+            workspace_splitter.addWidget(self.top_sequencer)
+
+        content_layout.addWidget(workspace_splitter)
+        self.main_layout.addLayout(content_layout)
 
     def sync_ui_to_current_channel(self, index):
         if 0 <= index < len(self.channel_states):
