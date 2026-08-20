@@ -10,13 +10,12 @@ import wave
 import json
 import numpy as np
 from PyQt6.QtCore import Qt, QPoint,QPointF, QRectF, QTimer
-from PyQt6.QtGui import (QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont,QAction, QPalette, QAction, QKeyEvent,QBrush
+from PyQt6.QtGui import (QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont,QAction, QPalette, QAction, QKeyEvent,QBrush,QColor, QKeySequence
 )
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
     QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit, QDialog, QInputDialog,QListWidget,QTableWidgetItem, QHeaderView,QProgressBar,QSpinBox, QCheckBox,QComboBox
-)
 import random
 try:
     import scipy.io.wavfile as wavfile
@@ -4963,7 +4962,7 @@ class PaintbrushTable(QTableWidget):
         active_synth = self.parent_app.instrument_selector_dropdown.currentText()
         item = self.item(row, col)
         if item:
-            if col == 1:  
+            if col == 1:
                 item.setText(active_synth)
                 item.setBackground(QColor(0, 180, 180))
             elif col == 2:
@@ -5763,13 +5762,13 @@ class MathematiciansGrooveboxApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("Groovebox Nitrous O - Advanced Phase-Core Ecosystem")
         self.resize(1300, 900)
-        
+
         self.playlist_window = None
         self.patch_bay_dialog = None
         self.synth_editor_window = None
         self.script_editor_window = None
         self.visual_oscilloscope = None
-        
+
         # 48 Unique Instrument Types
         self.instrument_names_48 = [
             "Z-Pinch Resonator", "Topological Fold", "Quantum Soliton", "Harmonic Phase-Shift",
@@ -5791,7 +5790,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             name: {"steps": [False] * 16, "gates": [True] * 16, "amplitudes": [1.0] * 16}
             for name in self.instrument_names_48
         }
-        
+
         # Instrument-specific script workspaces & parameter dictionaries
         self.instrument_scripts = {
             name: f"# Script workspace for {name}\ndef evaluate_wave(x, y, z):\n    return np.sin(x * {(i%12)+1}.0) * np.cos(y) - z"
@@ -5914,7 +5913,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.slider_pkp_decay = QSlider(Qt.Orientation.Horizontal)
         self.slider_pkp_decay.setRange(1, 1000)
         self.slider_pkp_decay.setValue(250)
-        
+
         self.chk_pkp_automod = QCheckBox("PKP Self-Modulate")
         self.chk_pkp_automod.setChecked(True)
 
@@ -5972,7 +5971,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.spin_playlist_length.setRange(8, 256)
         self.spin_playlist_length.setValue(32)
         sizing_layout.addWidget(self.spin_playlist_length)
-        
+
         self.chk_multi_seq_load = QCheckBox("Allow Multiple Sequence Load Engage & Paint")
         self.chk_multi_seq_load.setChecked(True)
         sizing_layout.addWidget(self.chk_multi_seq_load)
@@ -5988,29 +5987,29 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.top_sequencer = QWidget()
         seq_inner = QVBoxLayout(self.top_sequencer)
         seq_inner.setContentsMargins(0, 0, 0, 0)
-        
+
         seq_header_layout = QHBoxLayout()
         seq_header_layout.addWidget(QLabel("⚡ Instrument Sequencer Memory & PKP Pad Trigger Grid"))
-        
+
         self.top_sequencer.instance_combo = QComboBox()
         self.top_sequencer.instance_combo.addItems(self.instrument_names_48)
         self.top_sequencer.instance_combo.currentIndexChanged.connect(self.reload_active_instrument_sequencer_ui)
         seq_header_layout.addWidget(QLabel("Bound Memory Instrument:"))
         seq_header_layout.addWidget(self.top_sequencer.instance_combo)
-        
+
         btn_trigger_seq = QPushButton("▶ Trigger PKP Pad Bank")
         btn_trigger_seq.clicked.connect(lambda: print(f"[PKP Engine] Triggered bound sequence for {self.top_sequencer.instance_combo.currentText()}"))
         seq_header_layout.addWidget(btn_trigger_seq)
         seq_inner.addLayout(seq_header_layout)
-        
+
         self.steps_layout_widget = QWidget()
         self.steps_inner_layout = QHBoxLayout(self.steps_layout_widget)
         self.steps_inner_layout.setContentsMargins(0, 0, 0, 0)
         self.seq_step_buttons = []
-        
+
         self.rebuild_sequencer_steps(self.spin_seq_length.value())
         self.spin_seq_length.valueChanged.connect(lambda val: self.rebuild_sequencer_steps(val))
-        
+
         seq_inner.addWidget(self.steps_layout_widget)
         master_container.addWidget(self.top_sequencer)
 
@@ -6033,10 +6032,10 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 }
             """)
             self.visual_oscilloscope.toggled.connect(lambda checked: self.visual_oscilloscope.setText(
-                "📊 Phase-Space Vector Oscilloscope [Status: FROZEN / Wavetable Captured]" if checked 
+                "📊 Phase-Space Vector Oscilloscope [Status: FROZEN / Wavetable Captured]" if checked
                 else "📊 Phase-Space Vector Oscilloscope & Wavetable Canvas [Status: Live Active]"
             ))
-            
+
         master_container.addWidget(self.visual_oscilloscope)
 
     def on_instrument_switched(self, idx):
@@ -6060,10 +6059,10 @@ class MathematiciansGrooveboxApp(QMainWindow):
             if item.widget():
                 item.widget().deleteLater()
         self.seq_step_buttons.clear()
-        
+
         curr_inst = self.top_sequencer.instance_combo.currentText() if hasattr(self, 'top_sequencer') else self.instrument_names_48[0]
         mem = self.instrument_sequencer_memory[curr_inst]
-        
+
         if len(mem["steps"]) < count:
             mem["steps"].extend([False] * (count - len(mem["steps"])))
             mem["amplitudes"].extend([1.0] * (count - len(mem["amplitudes"])))
@@ -6097,12 +6096,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
     def intensive_randomize_ecosystem(self):
         rand_idx = np.random.randint(0, len(self.instrument_names_48))
         self.instrument_selector_dropdown.setCurrentIndex(rand_idx)
-        
+
         # Intensive module patch bay and script randomization
         for name in self.instrument_names_48:
             rnd_factor = np.random.randint(1, 48)
             self.instrument_scripts[name] = f"# Intensively Randomized Script for {name}\ndef evaluate_wave(x, y, z):\n    return np.sin(x * {rnd_factor}.0) * np.cos(y * {np.random.randint(2,8)}.0) + np.tan(z / {rnd_factor})"
-            
+
         print(f"[System] Intensive module patch bay and 48-operator script randomizations successfully generated.")
 
     def export_mixdown_dialog(self):
@@ -6111,10 +6110,10 @@ class MathematiciansGrooveboxApp(QMainWindow):
             if wavfile is None:
                 print("[System Error] Scipy is not available. Run `pip install scipy`.")
                 return
-            
+
             default_filename = f"groovebox_mixdown_{self.export_counter:03d}.wav"
             file_path, _ = QFileDialog.getSaveFileName(self, "Save Mixdown Audio", default_filename, "WAV Audio Files (*.wav)")
-            
+
             if not file_path:
                 return
 
@@ -6122,86 +6121,86 @@ class MathematiciansGrooveboxApp(QMainWindow):
             rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 32
             row_duration = 4.0
             total_duration = rows * row_duration
-            
+
             t = np.linspace(0, total_duration, int(sample_rate * total_duration))
             master_mixdown = np.zeros_like(t)
-            
+
             eqr_val = self.slider_eqr.value() / 100.0 if hasattr(self, 'slider_eqr') else 0.5
             pkp_decay = self.slider_pkp_decay.value() / 1000.0 if hasattr(self, 'slider_pkp_decay') else 0.25
             fractalizer_val = self.slider_fractalizer.value() / 100.0 if hasattr(self, 'slider_fractalizer') else 0.85
             pkp_auto = self.chk_pkp_automod.isChecked()
-            
+
             print(f"[Engine] Rendering high-bitrate polyphonic mixdown to '{file_path}' ({total_duration:.1f}s)...")
-            
+
             np.random.seed(42 + self.export_counter)
-            
+
             for row_idx in range(rows):
                 start_time = row_idx * row_duration
                 end_time = start_time + row_duration
                 mask = (t >= start_time) & (t < end_time)
-                
+
                 if not np.any(mask):
                     continue
-                
+
                 local_t = t[mask] - start_time
                 row_mix = np.zeros_like(local_t)
-                
+
                 active_cluster = np.random.choice(len(self.instrument_names_48), size=6, replace=False)
-                
+
                 for op_idx in active_cluster:
                     op_name = self.instrument_names_48[op_idx]
                     seq_mem = self.instrument_sequencer_memory[op_name]
-                    
+
                     base_freq = 44.0 * (1.05946) ** (op_idx % 36)
                     mod_freq = base_freq * (1.0 + (op_idx % 4) * 0.5)
-                    
+
                     # Apply fractalizer core modulation
                     carrier = np.sin(2 * np.pi * mod_freq * local_t)
                     oscillator = np.sin(2 * np.pi * base_freq * local_t + carrier * (eqr_val * 5.0 * fractalizer_val))
-                    
+
                     # PKP Self-modulation & amplitude/pitch gating from sequencer memory
                     mod_decay = pkp_decay * (1.5 if pkp_auto else 1.0)
                     pkp_trigger = np.exp(-local_t / max(mod_decay, 0.015)) * np.sin(2 * np.pi * (base_freq * 2.0) * local_t)
-                    
+
                     env = np.exp(-local_t / (row_duration * 0.6))
                     row_mix += (oscillator * 0.4 + pkp_trigger * 0.6) * env
-                
+
                 master_mixdown[mask] += row_mix / len(active_cluster)
 
             max_val = np.max(np.abs(master_mixdown))
             if max_val > 0:
                 master_mixdown = (master_mixdown / max_val) * 0.98
-                
+
             # Export 16-bit PCM high-bitrate audio file
             wavfile.write(file_path, sample_rate, (master_mixdown * 32767).astype(np.int16))
             print(f"[System] Success: High-bitrate audio exported to {file_path}")
             self.export_counter += 1
-            
+
         except Exception as e:
             print(f"[System] Error during audio export: {e}")
 
     def spawn_floating_window(self, attr_name, window_title):
         window = getattr(self, attr_name, None)
-        
+
         if window is None or not window.isVisible():
             window = QWidget(None, Qt.WindowType.Window)
             window.setWindowTitle(window_title)
-            
+
             if attr_name == 'playlist_window':
                 window.resize(1100, 750)
             elif attr_name == 'patch_bay_dialog':
                 window.resize(950, 700)
             else:
                 window.resize(750, 550)
-            
+
             main_layout = QVBoxLayout(window)
-            
+
             current_instrument = self.instrument_selector_dropdown.currentText() if hasattr(self, 'instrument_selector_dropdown') else "Z-Pinch Resonator"
             inst_index = self.instrument_names_48.index(current_instrument) + 1 if current_instrument in self.instrument_names_48 else 1
 
             if attr_name == 'playlist_window':
                 main_layout.addWidget(QLabel("📜 Unquantized Global Playlist Paintbrush Grid (Copy/Paste & Text Shuffling)"))
-                
+
                 time_scale_layout = QHBoxLayout()
                 time_scale_layout.addWidget(QLabel("Duration per Row:"))
                 time_scale_combo = QComboBox()
@@ -6214,7 +6213,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 32
                 track_table = PaintbrushTable(self, rows, 6)
                 track_table.setHorizontalHeaderLabels(["Time Marker", "Cross-Loaded Operator", "Script Tag Shuffler", "Velocity", "Modulation Curve", "Multiple Seq Engage"])
-                
+
                 palette_colors = [
                     QColor(20, 90, 100), QColor(70, 30, 90), QColor(20, 90, 40),
                     QColor(90, 50, 20), QColor(90, 20, 30), QColor(30, 40, 90)
@@ -6238,7 +6237,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     op_name = self.instrument_names_48[row_idx % len(self.instrument_names_48)]
                     item_inst = QTableWidgetItem(op_name)
                     item_inst.setBackground(palette_colors[row_idx % len(palette_colors)])
-                    
+
                     track_table.setItem(row_idx, 1, item_inst)
                     track_table.setItem(row_idx, 2, QTableWidgetItem(f"Script::{op_name[:4].upper()}-X{row_idx}"))
                     track_table.setItem(row_idx, 3, QTableWidgetItem("95%"))
@@ -6247,38 +6246,38 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
                 update_time_markers()
                 main_layout.addWidget(track_table)
-                
+
             elif attr_name == 'patch_bay_dialog':
                 main_layout.addWidget(QLabel("🔌 Advanced Modular Patch Bay & Intensive Visualizer"))
                 patch_container = QWidget()
                 patch_layout = QHBoxLayout(patch_container)
-                
+
                 source_list = QComboBox()
                 source_list.addItems([f"{name} Out" for name in self.instrument_names_48])
                 patch_layout.addWidget(source_list)
-                
+
                 btn_patch = QPushButton("Connect Operator Cable ⟷")
                 patch_layout.addWidget(btn_patch)
-                
+
                 target_list = QComboBox()
                 target_list.addItems([f"{name} In" for name in self.instrument_names_48] + ["PKP Self-Modulation Bus", "Fractalizer Core Bus"])
                 patch_layout.addWidget(target_list)
                 main_layout.addWidget(patch_container)
-                
+
                 patch_log = QTextEdit()
                 patch_log.setReadOnly(True)
                 patch_log.setPlainText("# Advanced Modular Patch Matrix Visualizer:\n- Z-Pinch Resonator Out ---> Topological Fold In (Active Routing)\n- Stochastic Noise Matrix Out ---> PKP Self-Modulation Bus (Engaged)")
                 main_layout.addWidget(patch_log)
-                
+
                 btn_patch.clicked.connect(lambda: patch_log.append(f"- {source_list.currentText()} ====> {target_list.currentText()} (Intensive Link Established)"))
-                
+
             elif attr_name == 'synth_editor_window':
                 main_layout.addWidget(QLabel(f"Interactive Wavetable & Vector Synthesis Interface: {current_instrument} (Node ID: {inst_index})"))
                 scroll_area = QScrollArea()
                 scroll_area.setWidgetResizable(True)
                 scroll_content = QWidget()
                 scroll_layout = QVBoxLayout(scroll_content)
-                
+
                 for param in [f"[{current_instrument}] Wavetable Morph Position", f"[{current_instrument}] Vector 3D Phase Spread (x,y,z)", f"[{current_instrument}] Fractalizer Core Gain", f"[{current_instrument}] PKP Pad Transient Dynamics"]:
                     row = QHBoxLayout()
                     row.addWidget(QLabel(f"{param}:"))
@@ -6287,33 +6286,33 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     slider.setValue((inst_index * 17) % 100)
                     row.addWidget(slider)
                     scroll_layout.addLayout(row)
-                    
+
                 scroll_content.setLayout(scroll_layout)
                 scroll_area.setWidget(scroll_content)
                 main_layout.addWidget(scroll_area)
-                
+
             elif attr_name == 'script_editor_window':
                 main_layout.addWidget(QLabel(f"Instrument Script Workspace: {current_instrument}"))
                 script_text_area = QTextEdit()
                 script_text_area.setPlainText(self.instrument_scripts[current_instrument])
                 main_layout.addWidget(script_text_area)
-                
+
                 btn_layout = QHBoxLayout()
                 btn_save_script = QPushButton("💾 Save Script to Instrument Memory")
-                
+
                 def save_current_script():
                     self.instrument_scripts[current_instrument] = script_text_area.toPlainText()
                     print(f"[Script] Saved custom code script for operator '{current_instrument}'")
-                    
+
                 btn_save_script.clicked.connect(save_current_script)
                 btn_layout.addWidget(QPushButton("▶ Execute Script Patch"))
                 btn_layout.addWidget(btn_save_script)
                 main_layout.addLayout(btn_layout)
             else:
                 main_layout.addWidget(QLabel(f"Active Panel: {window_title}"))
-                
+
             setattr(self, attr_name, window)
-            
+
         window.show()
         window.raise_()
         window.activateWindow()
