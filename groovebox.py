@@ -5575,22 +5575,22 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.channel_states = []
         for i in range(len(self.instrument_names)):
    # Inside initialization loops (__init__ and add_new_instrument):
-self.channel_states.append({
-    "tuning": round(random.uniform(100.0, 1200.0), 2),
-    "amplitude": round(random.uniform(0.1, 1.0), 2),        # Knob 2: Amplitude
-    "duration": round(random.uniform(0.1, 2.0), 2),         # Knob 3: Duration (percussive-keylike-padded)
-    "fractalizer": round(random.random(), 3),               # Knob 4: Fractalizer effect parameter
-    "eqr_effect": round(random.random(), 3),                # Knob 5: EQR effect parameter
+            self.channel_states.append({
+                "tuning": round(random.uniform(100.0, 1200.0), 2),
+                "amplitude": round(random.uniform(0.1, 1.0), 2),        # Knob 2: Amplitude
+                "duration": round(random.uniform(0.1, 2.0), 2),         # Knob 3: Duration (percussive-keylike-padded)
+                "fractalizer": round(random.random(), 3),               # Knob 4: Fractalizer effect parameter
+                "eqr_effect": round(random.random(), 3),                # Knob 5: EQR effect parameter
 
-    # Internal synth knobs (6 kept clean per synth as requested previously)
-    "synth_knob1": round(random.random(), 3),
-    "synth_knob2": round(random.random(), 3),
-    "synth_knob3": round(random.random(), 3),
-    "synth_knob4": round(random.random(), 3),
-    "synth_knob5": round(random.random(), 3),
-    "synth_knob6": round(random.random(), 3),
-    "curvature_eq": f"x * {random.uniform(0.5, 2.5):.3f} + y - z",
-})
+                # Internal synth knobs (6 kept clean per synth as requested previously)
+                "synth_knob1": round(random.random(), 3),
+                "synth_knob2": round(random.random(), 3),
+                "synth_knob3": round(random.random(), 3),
+                "synth_knob4": round(random.random(), 3),
+                "synth_knob5": round(random.random(), 3),
+                "synth_knob6": round(random.random(), 3),
+                "curvature_eq": f"x * {random.uniform(0.5, 2.5):.3f} + y - z",
+            })
         self.init_menu_bar()
 
         central_widget = QWidget()
