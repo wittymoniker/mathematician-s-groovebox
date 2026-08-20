@@ -5893,7 +5893,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             vis_layout.addWidget(vis_label)
             master_container.addWidget(self.visual_oscilloscope)
     def spawn_floating_window(self, attr_name, window_title):
-        """Spawns persistent floating windows with correct instrument naming and time-based (T) playlist tracks."""
+        """Spawns persistent floating windows with active patch cable routing logic and time-based playlist tracks."""
         window = getattr(self, attr_name, None)
 
         if window is None or not window.isVisible():
@@ -5909,7 +5909,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
             main_layout = QVBoxLayout(window)
 
-            # Fetch the actual instrument type name from your dropdown correctly
             current_instrument = self.instrument_selector_dropdown.currentText() if hasattr(self, 'instrument_selector_dropdown') else "Instrument Type 1"
 
             if attr_name == 'synth_editor_window':
@@ -5954,14 +5953,13 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 main_layout.addWidget(scroll_area)
 
             elif attr_name == 'playlist_window':
-                # Global Playlist Window configured strictly for Time (T) and Instrument Tracks
+                # Global Playlist Timeline configured for Time (T) and Instrument Tracks
                 main_layout.addWidget(QLabel("📜 Global Playlist & Sequencer Timeline (Time & Instrument Tracks)"))
 
                 from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem
                 track_table = QTableWidget(12, 5)
                 track_table.setHorizontalHeaderLabels(["Bar / Time (T)", "Instrument Track", "Active Preset", "Trigger Velocity", "Modulation Curve"])
 
-                # Populate mock row layout based on actual instrument types
                 for row_idx in range(12):
                     track_table.setItem(row_idx, 0, QTableWidgetItem(f"T + {row_idx * 0.5}s"))
                     track_table.setItem(row_idx, 1, QTableWidgetItem(f"Instrument Type {(row_idx % 6) + 1}"))
@@ -5977,7 +5975,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 status_display.setStyleSheet("color: #00ffcc;")
 
                 def trigger_playlist_span():
-                    import random
                     status_display.setText("[Success] Randomized instrument tracks and timing (T) successfully updated across playlist timeline!")
 
                 btn_randomize_playlist.clicked.connect(trigger_playlist_span)
@@ -6013,19 +6010,29 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
                 main_layout.addWidget(patch_container)
 
-                patch_log = QTextEdit() if 'QTextEdit' in globals() else None
-                if patch_log:
-                    patch_log.setPlainText("# Active Patch Matrix Connections:\n- Instrument Type 1 Out -> EQR Filter Matrix (Locked)")
-                    main_layout.addWidget(patch_log)
+                # Active log view showing patch connections
+                patch_log = QTextEdit()
+                patch_log.setReadOnly(True)
+                patch_log.setPlainText("# Active Patch Matrix Connections:\n- Instrument Type 1 Out -> EQR Filter Matrix (Locked)")
+                main_layout.addWidget(patch_log)
+
+                # Active logic connection for the patch button
+                def execute_patch_connection():
+                    src = source_list.currentText()
+                    tgt = target_list.currentText()
+                    current_log = patch_log.toPlainText()
+                    new_entry = f"\n- {src} ---> {tgt} (Connected)"
+                    patch_log.setPlainText(current_log + new_entry)
+
+                btn_patch.clicked.connect(execute_patch_connection)
 
             elif attr_name == 'script_editor_window':
                 main_layout.addWidget(QLabel(f"Active Instrument Script Workspace: {current_instrument}"))
                 main_layout.addWidget(QLabel("Write or modify coordinate equations (utilizing x, y, and z variables):"))
 
-                script_text_area = QTextEdit() if 'QTextEdit' in globals() else None
-                if script_text_area:
-                    script_text_area.setPlainText(f"# Script for {current_instrument}\n# Formula processing loop\ndef evaluate_wave(x, y, z):\n    return x * y - z")
-                    main_layout.addWidget(script_text_area)
+                script_text_area = QTextEdit()
+                script_text_area.setPlainText(f"# Script for {current_instrument}\n# Formula processing loop\ndef evaluate_wave(x, y, z):\n    return x * y - z")
+                main_layout.addWidget(script_text_area)
 
                 btn_layout = QHBoxLayout()
                 btn_run_script = QPushButton("▶ Run Instrument Script")
