@@ -2849,6 +2849,6 @@ class GrooveboxMainWindow(QMainWindow):
 if __name__ == '__main__':
     import sys
     app = QApplication(sys.argv)
-    window = EQRGrooveboxMain()
+    window = GrooveboxMainWindow()
     window.show()
     sys.exit(app.exec())
