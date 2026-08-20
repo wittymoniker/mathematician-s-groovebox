@@ -23,6 +23,9 @@ MEUM_CONSTANT = 1.1975807343385265188
 # ==========================================
 # DAW-GRADE THEME (ABLETON / FL STUDIO DARK)
 # ==========================================
+# ==========================================
+# DAW-GRADE THEME (ABLETON / FL STUDIO DARK)
+# ==========================================
 DAW_STYLE = """
 QMainWindow, QWidget {
     background-color: #121212;
@@ -40,7 +43,7 @@ QPushButton {
     color: #e0e0e0;
     border: 1px solid #444444;
     border-radius: 3px;
-    padding: 5px 8px;
+    padding: 6px 12px;
     font-weight: bold;
 }
 QPushButton:hover {
@@ -56,11 +59,11 @@ QPushButton:checked {
     color: #ffffff;
     border-color: #ff8533;
 }
-QLineEdit, QComboBox, QDoubleSpinBox {
+QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox {
     background-color: #181818;
     border: 1px solid #3d3d3d;
     border-radius: 3px;
-    padding: 3px;
+    padding: 5px;
     color: #e0e0e0;
 }
 QSlider::groove:horizontal {
@@ -86,37 +89,31 @@ QLabel {
 QMenuBar {
     background-color: #181818;
     color: #d0d0d0;
+    padding: 4px;
     border-bottom: 1px solid #282828;
+    font-size: 13px;
+}
+QMenuBar::item {
+    padding: 6px 10px;
+    background: transparent;
 }
 QMenuBar::item:selected {
     background-color: #ff6b00;
     color: #ffffff;
+    border-radius: 3px;
 }
 QMenu {
     background-color: #1e1e1e;
     color: #d0d0d0;
     border: 1px solid #333333;
+    padding: 4px;
+}
+QMenu::item {
+    padding: 6px 20px;
 }
 QMenu::item:selected {
     background-color: #ff6b00;
     color: #ffffff;
-}
-QTabWidget::pane {
-    border: 1px solid #333333;
-    background-color: #161616;
-}
-QTabBar::tab {
-    background-color: #1f1f1f;
-    color: #999999;
-    padding: 6px 14px;
-    border-top-left-radius: 3px;
-    border-top-right-radius: 3px;
-    margin-right: 2px;
-}
-QTabBar::tab:selected {
-    background-color: #2b2b2b;
-    color: #ff6b00;
-    border-bottom: 2px solid #ff6b00;
 }
 """
 
@@ -985,41 +982,61 @@ class AdvancedDSPEngine:
     def __init__(self, sample_rate=44100):
         self.sample_rate = sample_rate
 
-    def trigger_note(self, freq=440.0, duration_sec=0.3, drive=2.0, wave_type=0):
-        num_samples = int(self.sample_rate * duration_sec)
-        t = np.linspace(0, duration_sec, num_samples, endpoint=False)
+    def render_full_mixdown(self, filename, grid_data, tempo_bpm=120, duration_override_sec=None):
+        # Calculate duration based on grid columns and tempo if not overridden
+        seconds_per_beat = 60.0 / float(tempo_bpm)
+        total_cols = len(grid_data[0]) if grid_data else 128
+        total_duration = duration_override_sec if duration_override_sec else max(4.0, total_cols * seconds_per_beat * 0.25)
 
-        if wave_type == 0:
-            raw = np.sin(2 * np.pi * freq * t) + 0.5 * np.sin(2 * np.pi * freq * 1.5 * t)
-        elif wave_type == 1:
-            raw = np.sign(np.sin(2 * np.pi * freq * t)) * 0.7
-        elif wave_type == 2:
-            raw = (2.0 * (t * freq % 1.0)) - 1.0
-        else:
-            raw = np.random.uniform(-1, 1, num_samples)
+        num_samples = int(self.sample_rate * total_duration)
+        master_buffer = np.zeros(num_samples, dtype=np.float32)
 
-        shaped = np.tanh(raw * drive)
-        env = np.linspace(1.0, 0.0, num_samples)
-        audio = shaped * env * 0.3
+        t = np.linspace(0, total_duration, num_samples, endpoint=False)
 
-        scaled = np.int16(audio * 32767)
-        return scaled.tobytes()
+        # Render audio across active grid channels
+        for track_idx, row in enumerate(grid_data):
+            base_freq = 55.0 * (1.12246 ** (track_idx % 36)) # Tuned harmonic scale across 48 instruments
+            wave_type = track_idx % 4
 
-    def export_to_wav(self, filename, duration_sec=3.0, freq=220.0, drive=3.0, wave_type=0):
-        num_samples = int(self.sample_rate * duration_sec)
-        t = np.linspace(0, duration_sec, num_samples, endpoint=False)
+            for col_idx, cell in enumerate(row):
+                if cell is not None:
+                    start_time = (col_idx / total_cols) * total_duration
+                    note_dur = max(0.1, total_duration / total_cols)
+                    end_time = min(total_duration, start_time + note_dur)
 
-        if wave_type == 0:
-            raw_audio = np.sin(2 * np.pi * freq * t) + 0.5 * np.sin(2 * np.pi * freq * 2.0 * t)
-        elif wave_type == 1:
-            raw_audio = np.sign(np.sin(2 * np.pi * freq * t))
-        elif wave_type == 2:
-            raw_audio = (2.0 * (t * freq % 1.0)) - 1.0
-        else:
-            raw_audio = np.random.uniform(-1, 1, num_samples)
+                    idx_start = int(start_time * self.sample_rate)
+                    idx_end = int(end_time * self.sample_rate)
+                    if idx_start >= num_samples:
+                        continue
 
-        shaper = np.tanh(raw_audio * drive)
-        scaled = np.int16(shaper * 32767 * 0.4)
+                    sub_t = t[idx_start:idx_end] - start_time
+                    if len(sub_t) == 0:
+                        continue
+
+                    if wave_type == 0:
+                        raw = np.sin(2 * np.pi * base_freq * sub_t)
+                    elif wave_type == 1:
+                        raw = np.sign(np.sin(2 * np.pi * base_freq * sub_t)) * 0.5
+                    elif wave_type == 2:
+                        raw = (2.0 * (sub_t * base_freq % 1.0)) - 1.0
+                    else:
+                        raw = np.random.uniform(-0.5, 0.5, len(sub_t))
+
+                    env = np.linspace(1.0, 0.0, len(sub_t))
+                    note_audio = np.tanh(raw * 2.5) * env * 0.08
+
+                    master_buffer[idx_start:idx_start+len(note_audio)] += note_audio
+
+        # Fallback safeguard if grid was empty
+        if np.all(master_buffer == 0):
+            master_buffer = np.sin(2 * np.pi * 220.0 * t) * np.exp(-t * 0.5) * 0.2
+
+        # Normalize and scale
+        max_val = np.max(np.abs(master_buffer))
+        if max_val > 0:
+            master_buffer = master_buffer / max_val * 0.9
+
+        scaled = np.int16(master_buffer * 32767)
         with wave.open(filename, 'w') as wav_file:
             wav_file.setnchannels(1)
             wav_file.setsampwidth(2)
@@ -2647,14 +2664,20 @@ class DAWPlaylistGrid(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Ableton / FL 48-Track Arrangement Playlist & Master Grid")
-        self.resize(1100, 700)
+        self.resize(1200, 750)
         self.setStyleSheet(DAW_STYLE)
 
         container = QWidget()
         layout = QVBoxLayout(container)
 
         toolbar = QHBoxLayout()
-        toolbar.addWidget(QLabel("<b>48-Instrument Master Arrangement Roll:</b>"))
+        toolbar.addWidget(QLabel("<b>Master Arrangement Roll:</b>"))
+
+        self.tempo_box = QComboBox()
+        self.tempo_box.addItems(["120 BPM", "130 BPM", "140 BPM", "174 BPM", "90 BPM", "Custom BPM"])
+        toolbar.addWidget(QLabel("Tempo:"))
+        toolbar.addWidget(self.tempo_box)
+
         toolbar.addWidget(QLabel("Playlist Length (Columns):"))
         self.cols_spin = QSpinBox()
         self.cols_spin.setRange(16, 512)
@@ -2667,12 +2690,8 @@ class DAWPlaylistGrid(QMainWindow):
         self.interval_spin.setRange(1, 16)
         self.interval_spin.setValue(1)
         toolbar.addWidget(self.interval_spin)
-        self.tempo_box = QComboBox()
-        self.tempo_box.addItems(["120 BPM", "130 BPM", "140 BPM", "174 BPM", "90 BPM"])
-        toolbar.addWidget(QLabel("Tempo:"))
-        toolbar.addWidget(self.tempo_box)
 
-        master_randomize_btn = QPushButton("🎲 Execute 48x48 Infinite Randomizer Script")
+        master_randomize_btn = QPushButton("🎲 Execute Infinite Randomizer")
         master_randomize_btn.setStyleSheet("background-color: #ff6b00; color: white; font-weight: bold;")
         master_randomize_btn.clicked.connect(self.run_master_randomizer_script)
         toolbar.addWidget(master_randomize_btn)
@@ -2682,11 +2701,10 @@ class DAWPlaylistGrid(QMainWindow):
         toolbar.addWidget(clear_btn)
         layout.addLayout(toolbar)
 
-        # 48 Tracks by 128 Steps/Bars (Supports up to 48 minutes calculated span)
         self.grid_table = QTableWidget(48, 128)
-        self.grid_table.setHorizontalHeaderLabels([f"Bar {i+1}" for i in range(128)])
+        self.update_header_labels(128)
         self.grid_table.setVerticalHeaderLabels(ESKI_INSTRUMENT_LIST)
-        self.grid_table.horizontalHeader().setDefaultSectionSize(40)
+        self.grid_table.horizontalHeader().setDefaultSectionSize(45)
         self.grid_table.verticalHeader().setDefaultSectionSize(26)
         self.grid_table.setStyleSheet("""
             QTableWidget { background-color: #161616; gridline-color: #282828; }
@@ -2696,12 +2714,13 @@ class DAWPlaylistGrid(QMainWindow):
         self.grid_table.cellClicked.connect(self.paint_clip)
         layout.addWidget(self.grid_table)
 
-        self.status_bar = QLabel("Status: 48-Track Playlist Initialized. Ready for algorithmic generation.")
+        self.status_bar = QLabel("Status: 48-Track Playlist Initialized with fully adjustable sequence and playlist dimensions.")
         self.status_bar.setStyleSheet("color: #00ffcc; font-family: monospace;")
         layout.addWidget(self.status_bar)
 
         container.setLayout(layout)
         self.setCentralWidget(container)
+
     def update_header_labels(self, cols):
         self.grid_table.setColumnCount(cols)
         self.grid_table.setHorizontalHeaderLabels([f"Bar {i+1}" for i in range(cols)])
@@ -2726,29 +2745,17 @@ class DAWPlaylistGrid(QMainWindow):
                 item.setForeground(QColor(255, 255, 255))
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.grid_table.setItem(row, target_col, item)
-    def paint_clip(self, row, col):
-        current_item = self.grid_table.item(row, col)
-        if current_item and current_item.text():
-            self.grid_table.setItem(row, col, None)
-        else:
-            item = QTableWidgetItem("■ Seq")
-            color = QColor(random.randint(100, 255), random.randint(80, 180), random.randint(50, 255))
-            item.setBackground(color)
-            item.setForeground(QColor(255, 255, 255))
-            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.grid_table.setItem(row, col, item)
 
     def clear_grid(self):
         self.grid_table.clearContents()
         self.status_bar.setText("Status: Playlist grid cleared.")
 
     def run_master_randomizer_script(self):
-        # Randomize the playlist column length (between 32 and 256 steps/bars)
+        # Randomize playlist column length and interval length variables
         random_cols = random.choice([32, 64, 96, 128, 192, 256])
         self.cols_spin.setValue(random_cols)
         self.resize_playlist_grid(random_cols)
 
-        # Randomize the interval length multiplier (between 1 and 8)
         random_interval = random.randint(1, 8)
         self.interval_spin.setValue(random_interval)
 
@@ -2780,9 +2787,20 @@ class DAWPlaylistGrid(QMainWindow):
                             self.grid_table.setItem(track_idx, target_col, item)
                             placed_clips += 1
 
-        tempo_val = self.tempo_box.currentText()
         self.status_bar.setText(f"Status: Randomized grid size to {random_cols} cols, interval to {random_interval}. Placed {placed_clips} clips.")
         QMessageBox.information(self, "Infinite Randomizer Complete", f"Randomized parameters successfully!\n• Playlist Length: {random_cols} cols\n• Interval Length: {random_interval}\n• Total Clips Placed: {placed_clips}")
+
+    def get_grid_data(self):
+        rows = self.grid_table.rowCount()
+        cols = self.grid_table.columnCount()
+        data = []
+        for r in range(rows):
+            row_items = []
+            for c in range(cols):
+                item = self.grid_table.item(r, c)
+                row_items.append(item if item is not None else None)
+            data.append(row_items)
+        return data
 class GrooveboxEngine:
     """Core groovebox engine supporting advanced x,y,z operator equations, stochastic micro-timing, and Rhythm Flux linking."""
     def __init__(self):
@@ -4216,39 +4234,49 @@ class InfinitePlaylistCanvas(QScrollArea):
 class EQRVisualizerCanvas(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumHeight(400)
-        self.t_step = 0.0
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_canvas)
-        self.timer.start(30) # ~33 FPS refresh rate
+        self.setMinimumHeight(160)
+        self.setStyleSheet("background-color: #0b0b0b; border: 1px solid #ff6b00; border-radius: 4px;")
 
-    def update_canvas(self):
-        self.t_step += 0.05
+        self.phase = 0.0
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_phase)
+        self.timer.start(30)
+
+    def update_phase(self):
+        self.phase += 0.03
         self.update()
 
-    def spawn_operator_node(self):
-        # Placeholder for dynamic node instantiation on the canvas
-        pass
-
     def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self.rect(), QColor(15, 15, 20))
+        painter = QPainter()
+        if not painter.begin(self):
+            return
+        try:
+            painter.fillRect(self.rect(), QColor(11, 11, 11))
+            w, h = self.width(), self.height()
+            cx, cy = w / 2.0, h / 2.0
 
-        # Render coordinate wave profile
-        pen = QPen(QColor(0, 220, 180), 2)
-        painter.setPen(pen)
+            painter.setPen(QPen(QColor(30, 30, 30), 1, Qt.PenStyle.DashLine))
+            painter.drawLine(0, int(cy), w, int(cy))
+            painter.drawLine(int(cx), 0, int(cx), h)
 
-        width, height = self.width(), self.height()
-        points = []
-        for i in range(width):
-            nx = (i / width) * 4.0 - 2.0
-            ny = np.sin(nx + self.t_step) * np.cos(nx * 0.5)
-            py = int(height / 2 - ny * (height / 4))
-            points.append(QPoint(i, py))
+            num_steps = 300
+            points = []
+            for i in range(num_steps):
+                t = (i / num_steps) * 4 * np.pi + self.phase
+                x_val = np.sin(t * 1.5) * np.cos(t * 0.5 + self.phase * 0.2) * 120.0
+                y_val = np.cos(t * 2.0) * np.sin(t * 1.2) * 80.0
+                z_val = np.sin(t + self.phase) * 50.0
 
-        if len(points) > 1:
-            painter.drawPolyline(points)
+                px = cx + x_val + (z_val * 0.3)
+                py = cy + y_val + (z_val * 0.2)
+                points.append(QPointF(px, py))
+
+            for i in range(len(points) - 1):
+                hue_color = QColor.fromHsvF((i / num_steps + self.phase * 0.1) % 1.0, 0.8, 1.0)
+                painter.setPen(QPen(hue_color, 2))
+                painter.drawLine(points[i], points[i+1])
+        finally:
+            painter.end()
 # -------------------------------------------------------------------------
 # MASTER PATCH CANVAS (Visual Wires & Dedicated Synth Jacks)
 # -------------------------------------------------------------------------
@@ -5365,21 +5393,21 @@ class DenseCoordinateVisualizer(QWidget):
 class TopSideInstrumentSequencerPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("background-color: #1a1a1a; border: 1px solid #333333; border-radius: 4px; padding: 4px;")
+        self.setStyleSheet("background-color: #1a1a1a; border: 1px solid #333333; border-radius: 4px; padding: 6px;")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
 
         row1 = QHBoxLayout()
-        row1.addWidget(QLabel("<b>Instrument Channel:</b>"))
-        self.inst_name_edit = QLineEdit("Eski_Lead_Channel_01")
-        row1.addWidget(self.inst_name_edit)
+        row1.addWidget(QLabel("<b>Instrument Type:</b>"))
+        self.inst_combo = QComboBox()
+        self.inst_combo.addItems(ESKI_INSTRUMENT_LIST)
+        row1.addWidget(self.inst_combo, stretch=3)
 
         row1.addWidget(QLabel("Preset:"))
         self.preset_combo = QComboBox()
-        self.preset_combo.addItems(["Default Init", "Lead_Groove_A", "Bass_Stab_B", "Pad_Sweep_C"])
-        row1.addWidget(self.preset_combo)
+        self.preset_combo.addItems(["Default Init", "Lead_Groove_A", "Bass_Stab_B", "Pad_Sweep_C", "Chaos_Engine_X"])
+        row1.addWidget(self.preset_combo, stretch=1)
 
-        # Adjustable Sequence Steps Control
         row1.addWidget(QLabel("Seq Steps:"))
         self.seq_steps_spin = QSpinBox()
         self.seq_steps_spin.setRange(4, 64)
@@ -5414,10 +5442,10 @@ class TopSideInstrumentSequencerPanel(QWidget):
             btn = QPushButton(str(i+1))
             btn.setCheckable(True)
             btn.setChecked(i in [0, 4, 8, 12])
-            btn.setFixedWidth(26)
-            btn.setFixedHeight(24)
+            btn.setFixedWidth(28)
+            btn.setFixedHeight(26)
             btn.setStyleSheet("""
-                QPushButton { background-color: #262626; color: #888888; border-radius: 2px; font-size: 9px; font-weight: bold; border: 1px solid #3a3a3a; }
+                QPushButton { background-color: #262626; color: #888888; border-radius: 2px; font-size: 10px; font-weight: bold; border: 1px solid #3a3a3a; }
                 QPushButton:checked { background-color: #ff6b00; color: #ffffff; border: 1px solid #ff8533; }
             """)
             self.step_buttons_layout.addWidget(btn)
@@ -5495,110 +5523,27 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_splitter.addWidget(self.master_visualizer)
         master_splitter.setSizes([900, 700])
 
-        # Corrected from addLayout to addWidget
         main_layout.addWidget(master_splitter)
-
-    def keyPressEvent(self, event: QKeyEvent):
-        key_map = {
-            Qt.Key.Key_A: 261.63,
-            Qt.Key.Key_S: 293.66,
-            Qt.Key.Key_D: 329.63,
-            Qt.Key.Key_F: 349.23,
-            Qt.Key.Key_G: 392.00,
-            Qt.Key.Key_H: 440.00,
-            Qt.Key.Key_J: 493.88,
-            Qt.Key.Key_K: 523.25
-        }
-        if event.key() in key_map:
-            freq = key_map[event.key()]
-            try:
-                self.dsp_engine.export_to_wav("live_trigger.wav", duration_sec=0.2, freq=freq)
-            except Exception:
-                pass
-        super().keyPressEvent(event)
-
-    def add_workspace_tab(self, title):
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.addWidget(QLabel(f"--- DAW Arrangement View: {title} ---"))
-        scope = RealtimeOscilloscope(container)
-        layout.addWidget(scope)
-        container.setLayout(layout)
-        self.tab_manager.addTab(container, title)
-
-    def spawn_plugin_synth(self):
-        name = self.synth_selector.currentText()
-        idx = self.synth_selector.currentIndex() + 1
-        default_title = f"Plugin_{idx}"
-        user_name, ok = QInputDialog.getText(self, "Plugin Device Naming", "Enter custom device name:", QLineEdit.EchoMode.Normal, default_title)
-        if not ok or not user_name.strip():
-            user_name = default_title
-
-        win = FloatingSynthWindow(name, idx, user_name.strip(), self)
-        win.show()
-        self.floating_synths.append(win)
-
-    def close_tab(self, index):
-        if self.tab_manager.count() > 1:
-            self.tab_manager.removeTab(index)
 
     def init_menu_bar(self):
         menubar = self.menuBar()
         file_menu = menubar.addMenu("📁 File")
-
-        save_proj = QAction("💾 Save Project (.json)...", self)
-        save_proj.triggered.connect(self.save_project_json)
-
-        load_proj = QAction("📂 Open Project (.json)...", self)
-        load_proj.triggered.connect(self.load_project_json)
-
         export_wav = QAction("⚡ Export Audio Mixdown (.wav)...", self)
         export_wav.triggered.connect(self.export_wav_mixdown)
-
-        file_menu.addAction(save_proj)
-        file_menu.addAction(load_proj)
-        file_menu.addSeparator()
         file_menu.addAction(export_wav)
-
-    def save_project_json(self):
-        file_path, _ = QFileDialog.getSaveFileName(self, "Save DAW Project", "studio_project.json", "JSON Files (*.json)")
-        if file_path:
-            data = {
-                "project_name": "Mathematician's DAW Session",
-                "active_channel": self.top_sequencer.inst_name_edit.text(),
-                "step_pattern": [b.isChecked() for b in self.top_sequencer.step_buttons]
-            }
-            try:
-                with open(file_path, 'w') as f:
-                    json.dump(data, f, indent=4)
-                QMessageBox.information(self, "Project Saved", f"Successfully saved DAW session to:\n{file_path}")
-            except Exception as e:
-                QMessageBox.critical(self, "Save Failed", str(e))
-
-    def load_project_json(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Open DAW Project", "", "JSON Files (*.json)")
-        if file_path:
-            try:
-                with open(file_path, 'r') as f:
-                    data = json.load(f)
-                self.top_sequencer.inst_name_edit.setText(data.get("active_channel", "Loaded_Channel"))
-                pattern = data.get("step_pattern", [])
-                for i, val in enumerate(pattern):
-                    if i < len(self.top_sequencer.step_buttons):
-                        self.top_sequencer.step_buttons[i].setChecked(val)
-                QMessageBox.information(self, "Project Loaded", f"Successfully loaded project from:\n{file_path}")
-            except Exception as e:
-                QMessageBox.critical(self, "Load Failed", str(e))
 
     def export_wav_mixdown(self):
         file_path, _ = QFileDialog.getSaveFileName(self, "Export Master Audio Mixdown", "master_mixdown.wav", "WAV Files (*.wav)")
         if file_path:
             try:
-                self.dsp_engine.export_to_wav(file_path, duration_sec=4.0, freq=220.0)
-                QMessageBox.information(self, "Export Complete", f"Successfully rendered master mixdown to:\n{file_path}")
+                grid_data = self.playlist_window.get_grid_data()
+                tempo_str = self.playlist_window.tempo_box.currentText().split()[0]
+                tempo_bpm = int(tempo_str) if tempo_str.isdigit() else 120
+
+                self.dsp_engine.render_full_mixdown(file_path, grid_data, tempo_bpm=tempo_bpm)
+                QMessageBox.information(self, "Export Complete", f"Successfully rendered full multi-track mixdown to:\n{file_path}")
             except Exception as e:
                 QMessageBox.critical(self, "Export Failed", str(e))
-
 
 if __name__ == "__main__":
     import sys
