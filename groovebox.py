@@ -899,33 +899,33 @@ class AdvancedDSPEngine:
         self.sample_rate = sample_rate
 
     def compute_synth_waveform(self, track_idx, sub_t, freq, state):
-    # Retrieve 6 internal sliding scale parameters
-    k1 = state.get("internal_p1", 0.5)
-    k2 = state.get("internal_p2", 0.5)
-    k3 = state.get("internal_p3", 0.5)
-    k4 = state.get("internal_p4", 0.5)
-    k5 = state.get("internal_p5", 0.5)
-    k6 = state.get("internal_p6", 0.5)
+        # Retrieve 6 internal sliding scale parameters
+        k1 = state.get("internal_p1", 0.5)
+        k2 = state.get("internal_p2", 0.5)
+        k3 = state.get("internal_p3", 0.5)
+        k4 = state.get("internal_p4", 0.5)
+        k5 = state.get("internal_p5", 0.5)
+        k6 = state.get("internal_p6", 0.5)
 
-    # External controls & preset selector
-    fractal = state.get("fractalizer", 0.5)
-    eqr = state.get("eqr_effect", 0.5)
-    preset = state.get("preset_idx", 0)
+        # External controls & preset selector
+        fractal = state.get("fractalizer", 0.5)
+        eqr = state.get("eqr_effect", 0.5)
+        preset = state.get("preset_idx", 0)
 
-    phase = 2 * np.pi * freq * sub_t
+        phase = 2 * np.pi * freq * sub_t
 
-    # Route math based on the Preset Dropdown selection (0 to 4)
-    if preset == 0:
-        # Preset 0: Non-Linear Wave-Folder Topology
-        raw = np.sin(phase * (1.0 + k1)) + k2 * np.sin(phase * 2.0 * k3)
-        folded = np.tanh(raw * (1.0 + fractal * 5.0))
-        return folded * (1.0 + k4 * np.cos(phase * k5)) * (1.0 - k6 * 0.5)
+        # Route math based on the Preset Dropdown selection (0 to 4)
+        if preset == 0:
+            # Preset 0: Non-Linear Wave-Folder Topology
+            raw = np.sin(phase * (1.0 + k1)) + k2 * np.sin(phase * 2.0 * k3)
+            folded = np.tanh(raw * (1.0 + fractal * 5.0))
+            return folded * (1.0 + k4 * np.cos(phase * k5)) * (1.0 - k6 * 0.5)
 
-    elif preset == 1:
-        # Preset 1: Z-Pinch / Quantum Field Resonance
-        pinched = np.sin(phase * (1.0 + track_idx * 0.05)) * (1.0 + k1 * np.tan(np.clip(sub_t * k2, -1.5, 1.5)))
-        resonance = np.arcsin(np.clip(pinched * (0.5 + eqr), -0.99, 0.99))
-        return resonance * k3 * (1.0 + k4 * np.sin(sub_t * k5 * 10.0)) * (1.0 - k6)
+        elif preset == 1:
+            # Preset 1: Z-Pinch / Quantum Field Resonance
+            pinched = np.sin(phase * (1.0 + track_idx * 0.05)) * (1.0 + k1 * np.tan(np.clip(sub_t * k2, -1.5, 1.5)))
+            resonance = np.arcsin(np.clip(pinched * (0.5 + eqr), -0.99, 0.99))
+            return resonance * k3 * (1.0 + k4 * np.sin(sub_t * k5 * 10.0)) * (1.0 - k6)
 
     elif preset == 2:
         # Preset 2: Hyperbolic & Torus Phase-Space
