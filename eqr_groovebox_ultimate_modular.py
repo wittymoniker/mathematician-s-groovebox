@@ -14,7 +14,7 @@ from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QLinearGradient, Q
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
-    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem
+    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial
 )
 
 import random
@@ -22,6 +22,41 @@ from math_engine import MathEngine
 
 MEUM_CONSTANT = 1.1975807343385265188
 from math_engine import MathEngine
+class VisualOscilloscope(QFrame):
+    """Interactive waveform and vector scope canvas for real-time visual feedback."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumSize(300, 160)
+        self.setStyleSheet("background-color: #0a0c0e; border: 1px solid #2a2e39; border-radius: 6px;")
+        self.wave_data = np.zeros(100)
+
+    def update_waveform(self, new_data):
+        if isinstance(new_data, np.ndarray):
+            self.wave_data = np.resize(new_data, 100)
+            self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        pen = QPen(QColor("#00ffcc"))
+        pen.setWidth(2)
+        painter.setPen(pen)
+
+        width = self.width()
+        height = self.height()
+        mid_y = height / 2.0
+
+        points = []
+        for i, val in enumerate(self.wave_data):
+            x = (i / 99.0) * width
+            y = mid_y - (float(val) * (height * 0.4))
+            points.append((x, y))
+
+        for j in range(len(points) - 1):
+            painter.drawLine(int(points[j][0]), int(points[j][1]), int(points[j+1][0]), int(points[j+1][1]))
+
 
 class PatchbayCanvas(QFrame):
     """Interactive visual patchbay canvas for signal routing and node mapping."""
@@ -29,6 +64,7 @@ class PatchbayCanvas(QFrame):
         super().__init__(parent)
         self.setMinimumSize(300, 200)
         self.setStyleSheet("background-color: #121418; border: 1px solid #2a2e39; border-radius: 6px;")
+
 
 class MemoryBankSelector(QWidget):
     """Memory Bank Selector pane for project workflow and preset management."""
@@ -38,7 +74,11 @@ class MemoryBankSelector(QWidget):
         layout.setContentsMargins(4, 4, 4, 4)
 
         self.bank_combo = QComboBox()
-        self.bank_combo.addItems(["Bank Alpha [90uF/900V Resonant]", "Bank Beta [2000uF/1350V]", "Bank Gamma [3500uF/300V]"])
+        self.bank_combo.addItems([
+            "Bank Alpha [90uF/900V Resonant]",
+            "Bank Beta [2000uF/1350V]",
+            "Bank Gamma [3500uF/300V]"
+        ])
         self.bank_combo.setStyleSheet("background-color: #1a1e24; color: #00ffcc; border: 1px solid #3a3f4b; padding: 4px;")
 
         load_btn = QPushButton("Load Preset State")
@@ -3821,34 +3861,237 @@ class ScientificDAWWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.math_engine = EQRMathEngine(use_meum=True)
-        self.setWindowTitle("Mathematician's Groovebox - EQR Ultimate Modular Suite")
-        self.resize(1400, 850)
+        self.setWindowTitle("Mathematician's Groovebox - DSP Laboratory Suite")
+        self.resize(1750, 980)
 
-        # Apply High-Contrast Dark Modern Color Scheme (Fixes & Overhauls UI Aesthetics)
         self.apply_stylesheet()
 
-        # Central Layout Setup
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QHBoxLayout(central_widget)
 
-        # Splitters for modular resizability
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(main_splitter)
 
-        # Left Panel: Memory Banks, Controls, and Synthesis Engines
+        # --- LEFT PANEL: 12-Tab DSP Laboratory Rack ---
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
 
-        self.bank_selector = MemoryBankSelector()
-        left_layout.addWidget(self.bank_selector)
+        self.dsp_tabs = QTabWidget()
+        self.dsp_tabs.addTab(self.create_instruments_rack_tab(), "1. Instruments Rack")
+        self.dsp_tabs.addTab(self.create_eskivector_tab(), "2. Eskivector Vector")
+        self.dsp_tabs.addTab(self.create_eskibrutus_tab(), "3. Eskibrutus Heavy")
+        self.dsp_tabs.addTab(self.create_polynomial_tab(), "4. Algebraic Poly")
+        self.dsp_tabs.addTab(self.create_hybrid_tab(), "5. Hybrid V-W-Eq")
+        self.dsp_tabs.addTab(self.create_wavetable_tab(), "6. Wavetable Engine")
+        self.dsp_tabs.addTab(self.create_oscillator_tab(), "7. Oscillator Banks")
+        self.dsp_tabs.addTab(self.create_isosceles_tab(), "8. Isosceles Lab")
+        self.dsp_tabs.addTab(self.create_filter_dynamics_tab(), "9. Filter Dynamics")
+        self.dsp_tabs.addTab(self.create_modulation_matrix_tab(), "10. Mod Matrix")
+        self.dsp_tabs.addTab(self.create_patchbay_tab(), "11. Patchbay Canvas")
+        self.dsp_tabs.addTab(self.create_memory_banks_tab(), "12. Memory Banks")
 
-        synth_tabs = QTabWidget()
-        synth_tabs.addTab(self.create_eskivector_panel(), "Eskivector Synth")
-        synth_tabs.addTab(self.create_eskitable_panel(), "Eskitable Modulator")
-        left_layout.addWidget(synth_tabs)
-
+        left_layout.addWidget(self.dsp_tabs)
         main_splitter.addWidget(left_container)
+
+        # --- CENTER/RIGHT PANEL: Coordinate Expression Engine, Sequencers & Scope ---
+        right_container = QWidget()
+        right_layout = QVBoxLayout(right_container)
+
+        right_layout.addWidget(QLabel("<h3>Coordinate Expression & Operator Engine (x, y, z)</h3>"))
+
+        expr_layout = QHBoxLayout()
+        self.expr_input = QTextEdit("x * isn(y) + ics(z) * Meum")
+        self.expr_input.setMaximumHeight(65)
+        self.expr_input.setStyleSheet("background-color: #0d0f12; color: #00ffcc; font-family: monospace; font-size: 12pt;")
+        expr_layout.addWidget(self.expr_input)
+
+        eval_btn = QPushButton("Compile DSP Node")
+        eval_btn.setStyleSheet("background-color: #00aa88; color: #ffffff; font-weight: bold; padding: 10px;")
+        eval_btn.clicked.connect(self.run_evaluation)
+        expr_layout.addWidget(eval_btn)
+        right_layout.addLayout(expr_layout)
+
+        # Multi-lane Sequencers
+        right_layout.addWidget(QLabel("<b>Multi-Lane Sequencers (Frequency, Duration, Amplitude)</b>"))
+        seq_grid = QGridLayout()
+        for i in range(4):
+            seq_grid.addWidget(QLabel(f"Lane {i+1} [Step Matrix]"), i, 0)
+            slider = QSlider(Qt.Orientation.Horizontal)
+            slider.setValue(40 + i * 15)
+            slider.valueChanged.connect(self.on_sequencer_adjusted)
+            seq_grid.addWidget(slider, i, 1)
+        right_layout.addLayout(seq_grid)
+
+        # Live Oscilloscope Scope
+        right_layout.addWidget(QLabel("<b>Real-time Signal Scope</b>"))
+        self.scope = VisualOscilloscope()
+        right_layout.addWidget(self.scope)
+
+        # Output Terminal
+        self.output_log = QTextEdit()
+        self.output_log.setReadOnly(True)
+        self.output_log.setMaximumHeight(110)
+        self.output_log.setStyleSheet("background-color: #0a0c0e; color: #00ffcc; font-family: monospace;")
+        right_layout.addWidget(QLabel("<b>DSP Execution & Diagnostic Log</b>"))
+        right_layout.addWidget(self.output_log)
+
+        main_splitter.addWidget(right_container)
+        main_splitter.setSizes([650, 1100])
+
+    # --- 12 Specialized DSP Laboratory Tabs ---
+    def create_instruments_rack_tab(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Instruments Rack & Synth Spawner</b>"))
+        layout.addWidget(QPushButton("Spawn Eskivector Node"))
+        layout.addWidget(QPushButton("Spawn Eskibrutus Heavy Node"))
+        layout.addWidget(QPushButton("Spawn Polynomial Expression Synth"))
+        layout.addWidget(QPushButton("Spawn Hybrid V-W-Eq Unit"))
+        layout.addWidget(QPushButton("Spawn Wavetable Morph Module"))
+        layout.addStretch()
+        return panel
+
+    def create_eskivector_tab(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Eskivector Vector Synthesis</b>"))
+        layout.addWidget(QPushButton("Trigger Vector Render"))
+        layout.addWidget(QLabel("Beam Width Spread"))
+        layout.addWidget(QSlider(Qt.Orientation.Horizontal))
+        layout.addStretch()
+        return panel
+
+    def create_eskibrutus_tab(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Eskibrutus Distortion & Drive</b>"))
+        layout.addWidget(QPushButton("Engage Brutus Overdrive"))
+        layout.addWidget(QLabel("Resonant Drive Gain"))
+        layout.addWidget(QSlider(Qt.Orientation.Horizontal))
+        layout.addStretch()
+        return panel
+
+    def create_polynomial_tab(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Algebraic Polynomial Expression Synth</b>"))
+        layout.addWidget(QLabel("Active: x^3 + y^2 + z"))
+        layout.addWidget(QPushButton("Recalculate Polynomial Curve"))
+        layout.addStretch()
+        return panel
+
+    def create_hybrid_tab(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Hybrid Vector-Wavetable-Equation</b>"))
+        layout.addWidget(QPushButton("Morph Tri-State Matrix"))
+        layout.addWidget(QSlider(Qt.Orientation.Horizontal))
+        layout.addStretch()
+        return panel
+
+    def create_wavetable_tab(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Wavetable Morphing Matrix</b>"))
+        layout.addWidget(QPushButton("Randomize Harmonic Table"))
+        layout.addWidget(QDial())
+        layout.addStretch()
+        return panel
+
+    def create_oscillator_tab(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Standard Oscillator Banks</b>"))
+        layout.addWidget(QPushButton("Sine / Isosceles Toggle"))
+        layout.addWidget(QSlider(Qt.Orientation.Horizontal))
+        layout.addStretch()
+        return panel
+
+    def create_isosceles_tab(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Isosceles Operators Lab (isn, ics)</b>"))
+        layout.addWidget(QPushButton("Test isn() & ics() Phase Sweep"))
+        layout.addWidget(QDoubleSpinBox())
+        layout.addStretch()
+        return panel
+
+    def create_filter_dynamics_tab(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Filter Dynamics & Resonance</b>"))
+        layout.addWidget(QLabel("Cutoff Frequency"))
+        layout.addWidget(QSlider(Qt.Orientation.Horizontal))
+        layout.addWidget(QLabel("Resonance Peak"))
+        layout.addWidget(QSlider(Qt.Orientation.Horizontal))
+        layout.addStretch()
+        return panel
+
+    def create_modulation_matrix_tab(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Modulation Matrix Router</b>"))
+        layout.addWidget(QComboBox())
+        layout.addWidget(QPushButton("Connect LFO to Cutoff"))
+        layout.addStretch()
+        return panel
+
+    def create_patchbay_tab(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Visual Patchbay Canvas</b>"))
+        canvas = QFrame()
+        canvas.setMinimumHeight(200)
+        canvas.setStyleSheet("background-color: #121418; border: 1px solid #2a2e39;")
+        layout.addWidget(canvas)
+        layout.addStretch()
+        return panel
+
+    def create_memory_banks_tab(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Memory Banks & Preset Control</b>"))
+        layout.addWidget(QComboBox())
+        layout.addWidget(QPushButton("Load State Snapshot"))
+        layout.addWidget(QPushButton("Save State Snapshot"))
+        layout.addStretch()
+        return panel
+
+    def on_sequencer_adjusted(self, value):
+        dummy_wave = np.sin(np.linspace(0, np.pi * 4, 100) * (value / 50.0))
+        self.scope.update_waveform(dummy_wave)
+
+    def run_evaluation(self):
+        expr = self.expr_input.toPlainText()
+        x = np.linspace(-np.pi, np.pi, 100)
+        y = np.linspace(-np.pi, np.pi, 100)
+        X, Y = np.meshgrid(x, y)
+        Z = np.sin(X * Y)
+
+        result = self.math_engine.evaluate(expr, X, Y, Z)
+        if isinstance(result, np.ndarray):
+            mean_val = np.mean(result)
+            self.scope.update_waveform(result[0, :])
+        else:
+            mean_val = result
+
+        self.output_log.append(f"Compiled DSP Node with Meum ({MEUM_CONSTANT:.4f}). Result mean: {mean_val:.4f}")
+
+    def apply_stylesheet(self):
+        palette = QPalette()
+        palette.setColor(QPalette.ColorRole.Window, QColor("#16181d"))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#e0e0e0"))
+        palette.setColor(QPalette.ColorRole.Base, QColor("#0d0f12"))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#1a1e24"))
+        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.Text, QColor("#e0e0e0"))
+        palette.setColor(QPalette.ColorRole.Button, QColor("#222733"))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor("#00aa88"))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+        QApplication.setPalette(palette)
 
         # Center Panel: Coordinate Expression Engine & Sequencer Lanes
         center_container = QWidget()
