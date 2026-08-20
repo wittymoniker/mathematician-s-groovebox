@@ -5966,7 +5966,9 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.slider_eqr = QSlider(Qt.Orientation.Horizontal)
         self.slider_eqr.setRange(0, 100)
         self.slider_eqr.setValue(50)
-
+        self.slider_fractalizer = QSlider(Qt.Orientation.Horizontal)
+        self.slider_fractalizer.setRange(0, 100)
+        self.slider_fractalizer.setValue(85)
         self.slider_pkp_decay = QSlider(Qt.Orientation.Horizontal)
         self.slider_pkp_decay.setRange(1, 1000)
         self.slider_pkp_decay.setValue(250)
@@ -5980,6 +5982,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.top_layout.addWidget(self.spin_tuning)
         self.top_layout.addWidget(QLabel("EQR Mod:"))
         self.top_layout.addWidget(self.slider_eqr)
+
+        # --- ADD TO LAYOUT HERE ---
+        self.top_layout.addWidget(QLabel("Fractalizer:"))
+        self.top_layout.addWidget(self.slider_fractalizer)
+
         self.top_layout.addWidget(QLabel("PKP Decay:"))
         self.top_layout.addWidget(self.slider_pkp_decay)
         self.top_layout.addWidget(self.chk_pkp_automod)
