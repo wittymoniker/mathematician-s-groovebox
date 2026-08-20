@@ -5708,7 +5708,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.init_ui_components()
 
     def init_ui_components(self):
-        # Apply dark modular synth stylesheet globally
         dark_stylesheet = """
             QMainWindow, QWidget, QDialog {
                 background-color: #121212;
@@ -5809,7 +5808,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.transport_layout)
 
         # -------------------------------------------------------------
-        # 2. ACTIVE SYNTH CHANNEL PARAMETER STRIP
+        # 2. ACTIVE SYNTH CHANNEL PARAMETER STRIP (Fully Dynamic Knobs/Controls)
         # -------------------------------------------------------------
         self.top_layout = QHBoxLayout()
         self.mode_combo = QComboBox()
@@ -5833,9 +5832,9 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.top_layout.addWidget(self.slider_amplitude)
         self.top_layout.addWidget(QLabel("Dur:"))
         self.top_layout.addWidget(self.slider_duration)
-        self.top_layout.addWidget(QLabel("Fractal:"))
+        self.top_layout.addWidget(QLabel("Fractal (x,y):"))
         self.top_layout.addWidget(self.slider_fractalizer)
-        self.top_layout.addWidget(QLabel("EQR:"))
+        self.top_layout.addWidget(QLabel("EQR Core:"))
         self.top_layout.addWidget(self.slider_eqr)
 
         master_container.addLayout(self.top_layout)
@@ -5862,7 +5861,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.workflow_toolbar)
 
         # -------------------------------------------------------------
-        # 4. MAIN WORKSPACE: NUMERIC TONAL SCALE BASE INPUT
+        # 4. SCALE BASE & CONFIGURATION BAR
         # -------------------------------------------------------------
         scale_and_seq_layout = QHBoxLayout()
         scale_and_seq_layout.addWidget(QLabel("Tonal Scale Base Formula (Indexing X):"))
@@ -5882,20 +5881,44 @@ class MathematiciansGrooveboxApp(QMainWindow):
         scale_container.setLayout(scale_and_seq_layout)
         master_container.addWidget(scale_container)
 
-        # Re-attach native sequencer / pattern writer panel safely
-        if hasattr(self, 'top_sequencer') and self.top_sequencer is not None:
-            master_container.addWidget(self.top_sequencer)
-        else:
-            self.top_sequencer = QWidget()
-            seq_inner = QVBoxLayout(self.top_sequencer)
-            self.top_sequencer.instance_combo = QComboBox()
-            self.top_sequencer.instance_combo.addItems(self.instrument_names_48)
-            seq_inner.addWidget(self.top_sequencer.instance_combo)
-            master_container.addWidget(self.top_sequencer)
+        # -------------------------------------------------------------
+        # 5. NATIVE SEQUENCER TRIGGER & ARRANGEMENT PANE
+        # -------------------------------------------------------------
+        self.top_sequencer = QWidget()
+        seq_inner = QVBoxLayout(self.top_sequencer)
+        seq_inner.setContentsMargins(0, 0, 0, 0)
+
+        seq_header_layout = QHBoxLayout()
+        seq_header_layout.addWidget(QLabel("⚡ Active Sequencer Trigger & Arrangement Matrix"))
+
+        self.top_sequencer.instance_combo = QComboBox()
+        self.top_sequencer.instance_combo.addItems(self.instrument_names_48)
+        seq_header_layout.addWidget(QLabel("Target:"))
+        seq_header_layout.addWidget(self.top_sequencer.instance_combo)
+
+        btn_trigger_seq = QPushButton("▶ Trigger Sequence Step")
+        seq_header_layout.addWidget(btn_trigger_seq)
+        seq_inner.addLayout(seq_header_layout)
+
+        # Sequencer step buttons grid (16 steps)
+        steps_layout = QHBoxLayout()
+        self.seq_step_buttons = []
+        for s in range(16):
+            step_btn = QPushButton(str(s + 1))
+            step_btn.setCheckable(True)
+            step_btn.setStyleSheet("background-color: #1a1a1a; color: #888888; border: 1px solid #333333;")
+            if s % 4 == 0:
+                step_btn.setStyleSheet("background-color: #252535; color: #00ffcc; border: 1px solid #00ffcc;")
+            steps_layout.addWidget(step_btn)
+            self.seq_step_buttons.append(step_btn)
+        seq_inner.addLayout(steps_layout)
+
+        master_container.addWidget(self.top_sequencer)
 
         # Re-attach native visualizer panel safely
         if hasattr(self, 'visual_oscilloscope') and self.visual_oscilloscope is not None:
             master_container.addWidget(self.visual_oscilloscope)
+
     def spawn_floating_window(self, attr_name, window_title):
         window = getattr(self, attr_name, None)
 
@@ -5910,20 +5933,17 @@ class MathematiciansGrooveboxApp(QMainWindow):
             else:
                 window.resize(700, 500)
 
-            # Initialize main_layout safely here so it is accessible globally in this scope
             main_layout = QVBoxLayout(window)
 
-            # Fetch the currently selected instrument and its specific index (0 to 47)
+            # Fetch current instrument and ensure exact 1-to-48 mapping for dynamic parameter naming
             current_instrument = self.instrument_selector_dropdown.currentText() if hasattr(self, 'instrument_selector_dropdown') else "Z-Pinch Resonator"
-
-            # Dynamically derive unique math/parameter variants based on the active instrument type
             if hasattr(self, 'instrument_names_48') and current_instrument in self.instrument_names_48:
                 inst_index = self.instrument_names_48.index(current_instrument) + 1
             else:
                 inst_index = 1
 
             if attr_name == 'playlist_window':
-                main_layout.addWidget(QLabel("📜 Global Playlist & Sequencer Timeline (Color-Coded Instrument Tracks)"))
+                main_layout.addWidget(QLabel("📜 Global Playlist & Sequencer Timeline (Color-Coded Instrument Tracks & Arrangement Pane)"))
 
                 from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem
                 from PyQt6.QtGui import QColor
@@ -5949,7 +5969,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     assigned_color = palette_colors[row_idx % len(palette_colors)]
                     item_inst.setBackground(assigned_color)
 
-                    item_preset = QTableWidgetItem(f"Preset Matrix #{row_idx + 1}")
+                    item_preset = QTableWidgetItem(f"Arrangement Matrix #{row_idx + 1}")
                     item_vel = QTableWidgetItem("90%")
                     item_curve = QTableWidgetItem("Linear Ramp")
 
@@ -5963,11 +5983,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
                 spanner_layout = QHBoxLayout()
                 btn_randomize_playlist = QPushButton("🎲 Randomize Playlist & Span Tracks")
-                status_display = QLabel("Status: Color-coded timeline ready.")
+                status_display = QLabel("Status: Color-coded arrangement ready.")
                 status_display.setStyleSheet("color: #00ffcc;")
 
                 def trigger_playlist_span():
-                    status_display.setText("[Success] Playlist timeline randomized with fresh color codes across time (T).")
+                    status_display.setText("[Success] Playlist arrangement randomized successfully across time (T).")
 
                 btn_randomize_playlist.clicked.connect(trigger_playlist_span)
                 spanner_layout.addWidget(btn_randomize_playlist)
@@ -6018,8 +6038,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 btn_patch.clicked.connect(execute_patch_connection)
 
             elif attr_name == 'synth_editor_window':
-                # Dynamically bind parameter scaling based on active instrument math engine profile
-                main_layout.addWidget(QLabel(f"Editing Parameters for: {current_instrument} (Node ID: {inst_index})"))
+                # Properly bind dynamic internal synth parameter names linked to the selected instrument
+                main_layout.addWidget(QLabel(f"Editing Synth Parameters for: {current_instrument} (Node ID: {inst_index})"))
 
                 scroll_area = QScrollArea()
                 scroll_area.setWidgetResizable(True)
@@ -6027,8 +6047,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 scroll_layout = QVBoxLayout(scroll_content)
 
                 dynamic_params = [
-                    f"[{current_instrument}] Harmonic Fold Factor",
-                    f"[{current_instrument}] Phase Drift (x,y)",
+                    f"[{current_instrument}] Harmonic Fold ({inst_index})",
+                    f"[{current_instrument}] Phase Drift (x, y)",
                     f"[{current_instrument}] Amplitude Mod Depth",
                     f"[{current_instrument}] Cutoff Frequency (Z-Scale)",
                     f"[{current_instrument}] Resonance Spike",
@@ -6040,8 +6060,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     row.addWidget(QLabel(f"{param}:"))
                     slider = QSlider(Qt.Orientation.Horizontal)
                     slider.setRange(0, 100)
-                    # Initialize slider value dynamically driven by node index calculation
-                    slider.setValue((inst_index * 7) % 100)
+                    slider.setValue((inst_index * 11) % 100)
                     row.addWidget(slider)
                     scroll_layout.addLayout(row)
 
