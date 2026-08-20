@@ -5693,6 +5693,9 @@ from PyQt6.QtCore import Qt
 class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        # Initialize missing channel states and sequencer grids safely
+        if not hasattr(self, 'channel_states'):
+            self.channel_states = [{} for _ in range(48)]
         self.setWindowTitle("Mathematician's Groovebox")
         self.resize(1200, 800)
 
@@ -5705,7 +5708,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.init_ui_components()
 
     def init_ui_components(self):
-        # Apply the dark modular synth color scheme globally
+        # Apply dark modular synth stylesheet globally
         dark_stylesheet = """
             QMainWindow, QWidget, QDialog {
                 background-color: #121212;
@@ -5724,36 +5727,23 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 background-color: #2a2a2a;
                 border: 1px solid #00ffcc;
             }
-            QSpinBox, QComboBox {
+            QSpinBox, QComboBox, QLineEdit, QDoubleSpinBox {
                 background-color: #1e1e1e;
                 color: #ffffff;
                 border: 1px solid #333333;
                 border-radius: 3px;
                 padding: 3px;
             }
-            QSlider::groove:horizontal {
-                height: 4px;
-                background: #333333;
-                border-radius: 2px;
-            }
-            QSlider::handle:horizontal {
-                background: #00ffcc;
-                width: 12px;
-                margin: -4px 0;
-                border-radius: 6px;
-            }
         """
         if QApplication.instance():
             QApplication.instance().setStyleSheet(dark_stylesheet)
         self.setStyleSheet(dark_stylesheet)
 
-        # Standard Central Widget Setup
         central_widget = self.centralWidget()
         if central_widget is None:
             central_widget = QWidget(self)
             self.setCentralWidget(central_widget)
 
-        # Clean base layout initialization
         master_container = central_widget.layout()
         if master_container is None:
             master_container = QVBoxLayout(central_widget)
@@ -5767,21 +5757,19 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.setContentsMargins(8, 8, 8, 8)
 
         # -------------------------------------------------------------
-        # 1. TOP TRANSPORT BAR & INSTRUMENT SELECTOR
+        # 1. TRANSPORT & INSTRUMENT SELECTOR BAR
         # -------------------------------------------------------------
         self.transport_layout = QHBoxLayout()
-
         self.btn_play = QPushButton("▶ Play")
         self.btn_stop = QPushButton("⏹ Stop")
         self.btn_record = QPushButton("⏺ Record")
-
         self.lbl_bpm = QLabel("BPM:")
         self.spin_bpm = QSpinBox()
         self.spin_bpm.setRange(40, 240)
         self.spin_bpm.setValue(120)
 
         self.instrument_selector_dropdown = QComboBox()
-        self.instrument_selector_dropdown.addItems([f"Instrument Node {i+1}" for i in range(48)])
+        self.instrument_selector_dropdown.addItems([f"Instrument Type {i+1}" for i in range(6)])
 
         self.btn_randomize_all = QPushButton("🎲 Randomize Instrument")
         self.btn_export = QPushButton("💾 Export Mixdown")
@@ -5791,11 +5779,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.btn_randomize_all.clicked.connect(getattr(self, 'randomize_single_instrument', lambda: None))
         self.btn_export.clicked.connect(getattr(self, 'export_mixdown', lambda: None))
 
-        self.transport_layout.addWidget(self.btn_play)
-        self.transport_layout.addWidget(self.btn_stop)
-        self.transport_layout.addWidget(self.transport_layout.addWidget(self.btn_record) if hasattr(self.transport_layout, 'addWidget') else self.btn_record) # safe fallback
-        # Clean assembly for transport bar
-        self.transport_layout = QHBoxLayout()
         self.transport_layout.addWidget(self.btn_play)
         self.transport_layout.addWidget(self.btn_stop)
         self.transport_layout.addWidget(self.btn_record)
@@ -5813,7 +5796,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # 2. ACTIVE SYNTH CHANNEL PARAMETER STRIP
         # -------------------------------------------------------------
         self.top_layout = QHBoxLayout()
-
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(["Mode: Single Instrument", "Mode: Global Ecosystem"])
 
@@ -5843,17 +5825,16 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.top_layout)
 
         # -------------------------------------------------------------
-        # 3. OPERATIONS & WORKFLOW TOOLBAR
+        # 3. WORKFLOW TOOLBAR (Synth, Playlist, Patch Bay, Script)
         # -------------------------------------------------------------
         self.workflow_toolbar = QHBoxLayout()
-
         self.btn_edit_synth = QPushButton("🛠 Edit Synth Settings")
         self.btn_view_playlist = QPushButton("📜 Global Playlist Window")
         self.btn_view_patchbay = QPushButton("🔌 Global Modular Patch Bay")
         self.btn_script_inst = QPushButton("📝 Instrument Script Editor")
 
         self.btn_edit_synth.clicked.connect(lambda: self.spawn_floating_window('synth_editor_window', "Synth Settings Editor"))
-        self.btn_view_playlist.clicked.connect(lambda: self.spawn_floating_window('playlist_window', "Global Playlist & Sequencer"))
+        self.btn_view_playlist.clicked.connect(lambda: self.spawn_floating_window('playlist_window', "Global Playlist Timeline"))
         self.btn_view_patchbay.clicked.connect(lambda: self.spawn_floating_window('patch_bay_dialog', "Global Modular Patch Bay"))
         self.btn_script_inst.clicked.connect(lambda: self.spawn_floating_window('script_editor_window', "Instrument Script Editor"))
 
@@ -5865,21 +5846,17 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.workflow_toolbar)
 
         # -------------------------------------------------------------
-        # 4. MAIN WORKSPACE PANEL (Sequencer, Scales, & Visualizers)
+        # 4. MAIN WORKSPACE: NUMERIC TONAL SCALE BASE INPUT & SEQUENCER
         # -------------------------------------------------------------
         scale_and_seq_layout = QHBoxLayout()
+        scale_and_seq_layout.addWidget(QLabel("Tonal Scale Base Formula (Indexing X):"))
 
-        scale_and_seq_layout.addWidget(QLabel("Tonal Scale Base Expression / Formula:"))
-
-        # Text input for custom mathematical base expression indexing x
         self.scale_expression_input = QLineEdit()
         self.scale_expression_input.setText("x / 2.0")
         self.scale_expression_input.setPlaceholderText("e.g. x / 4.0 or x * 1.618")
         scale_and_seq_layout.addWidget(self.scale_expression_input)
 
         scale_and_seq_layout.addWidget(QLabel("Division Constant:"))
-
-        # User-provided constant divisor spinner
         self.scale_divisor_spin = QDoubleSpinBox()
         self.scale_divisor_spin.setRange(0.001, 1000.0)
         self.scale_divisor_spin.setValue(1.0)
@@ -5887,36 +5864,25 @@ class MathematiciansGrooveboxApp(QMainWindow):
         scale_and_seq_layout.addWidget(self.scale_divisor_spin)
 
         scale_and_seq_layout.addStretch(1)
-
         scale_container = QWidget()
         scale_container.setLayout(scale_and_seq_layout)
         master_container.addWidget(scale_container)
 
-        # Re-attach your native sequencer pane if it exists in your class, or fallback cleanly
-        if hasattr(self, 'instrument_sequencer_pane') and self.instrument_sequencer_pane:
-            master_container.addWidget(self.instrument_sequencer_pane)
-        else:
-            self.instrument_sequencer_pane = QWidget()
-            seq_layout = QVBoxLayout(self.instrument_sequencer_pane)
-            seq_placeholder = QLabel("Active Instrument Sequencer & Step Matrix")
-            seq_placeholder.setStyleSheet("color: #00ffcc; background: #181818; padding: 15px; border: 1px solid #333;")
-            seq_layout.addWidget(seq_placeholder)
-            master_container.addWidget(self.instrument_sequencer_pane)
+        # Restore Sequencer / Pattern Writer component safely
         if not hasattr(self, 'top_sequencer') or self.top_sequencer is None:
             self.top_sequencer = QWidget()
-            seq_inner_layout = QVBoxLayout(self.top_sequencer)
-
-            # Sub-component often expected by methods like randomize_single_instrument
+            seq_inner = QVBoxLayout(self.top_sequencer)
             self.top_sequencer.instance_combo = QComboBox()
             self.top_sequencer.instance_combo.addItems([f"Node Instance {i}" for i in range(1, 49)])
-            seq_inner_layout.addWidget(self.top_sequencer.instance_combo)
+            seq_inner.addWidget(self.top_sequencer.instance_combo)
 
-            seq_placeholder = QLabel("Top Sequencer Step Matrix & Controls")
-            seq_placeholder.setStyleSheet("color: #00ffcc; background: #181818; padding: 15px; border: 1px solid #333;")
-            seq_inner_layout.addWidget(seq_placeholder)
+            seq_grid_label = QLabel("Active Instrument Sequencer & Pattern Step Matrix")
+            seq_grid_label.setStyleSheet("color: #00ffcc; background: #181818; padding: 15px; border: 1px solid #333;")
+            seq_inner.addWidget(seq_grid_label)
 
         master_container.addWidget(self.top_sequencer)
-        # Re-attach or create the oscilloscope visualizer on the main window
+
+        # Restore Oscilloscope Visualizer
         if hasattr(self, 'visual_oscilloscope') and self.visual_oscilloscope:
             master_container.addWidget(self.visual_oscilloscope)
         else:
