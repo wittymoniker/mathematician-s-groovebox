@@ -5610,7 +5610,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         }
 
     def init_ui_components(self):
-        # Apply the dark modular synth color scheme globally to the application window
+        # Apply the dark modular synth color scheme globally
         dark_stylesheet = """
             QMainWindow, QWidget {
                 background-color: #121212;
@@ -5675,7 +5675,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.btn_randomize_all = QPushButton("🎲 Randomize Instrument")
         self.btn_export = QPushButton("💾 Export Mixdown")
 
-        # Wire up transport buttons securely
+        # Wire transport buttons safely
         self.btn_play.clicked.connect(getattr(self, 'toggle_playback', lambda: None))
         self.btn_stop.clicked.connect(getattr(self, 'stop_playback', lambda: None))
         self.btn_randomize_all.clicked.connect(getattr(self, 'randomize_single_instrument', lambda: None))
@@ -5697,7 +5697,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.transport_layout)
 
         # -------------------------------------------------------------
-        # 2. ACTIVE SYNTH CHANNEL PARAMETER STRIP (5 Knobs)
+        # 2. ACTIVE SYNTH CHANNEL PARAMETER STRIP
         # -------------------------------------------------------------
         self.top_layout = QHBoxLayout()
 
@@ -5736,10 +5736,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.top_layout)
 
         # -------------------------------------------------------------
-        # 3. OPERATIONS & WORKFLOW TOOLBAR (With Window Triggers)
+        # 3. OPERATIONS & WORKFLOW TOOLBAR
         # -------------------------------------------------------------
         self.workflow_toolbar = QHBoxLayout()
 
+        # Instantiate buttons first
         self.btn_edit_synth = QPushButton("🛠 Edit Synthesizer")
         self.btn_view_playlist = QPushButton("📜 Sequencer & Playlist")
         self.btn_view_patchbay = QPushButton("🔌 Modular Patch Bay")
@@ -5748,10 +5749,10 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(["Mode: Single Instrument", "Mode: Global Ecosystem"])
 
-        # Wire up window toggle buttons
-        self.btn_view_playlist.clicked.connect(lambda: self.playlist_window.show() if hasattr(self, 'playlist_window') and self.playlist_window else None)
-        self.btn_view_patchbay.clicked.connect(lambda: self.patch_bay_dialog.show() if hasattr(self, 'patch_bay_dialog') and self.patch_bay_dialog else None)
-        self.btn_script_editor.clicked.connect(lambda: self.script_editor_window.show() if hasattr(self, 'script_editor_window') and self.script_editor_window else None)
+        # Now connect them safely once attributes exist
+        self.btn_view_playlist.clicked.connect(lambda: self.switch_workspace_view(getattr(self, 'playlist_window', None)))
+        self.btn_view_patchbay.clicked.connect(lambda: self.switch_workspace_view(getattr(self, 'patch_bay_dialog', None)))
+        self.btn_script_editor.clicked.connect(lambda: self.switch_workspace_view(getattr(self, 'script_editor_window', None)))
 
         self.workflow_toolbar.addWidget(self.btn_edit_synth)
         self.workflow_toolbar.addWidget(self.btn_view_playlist)
@@ -5762,36 +5763,45 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.workflow_toolbar)
 
         # -------------------------------------------------------------
-        # 4. CENTRAL WORKSPACE SPLITTER (Sequencer + Patchbay + Visualizer)
+        # 4. CENTRAL WORKSPACE SPLITTER (Embedded Sequencer + Visualizer)
         # -------------------------------------------------------------
-        workspace_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.workspace_splitter = QSplitter(Qt.Orientation.Vertical)
 
-        sub_splitter = QSplitter(Qt.Orientation.Vertical)
+        # Embed the sequencer/playlist directly into the main panel view by default
         if hasattr(self, 'playlist_window') and self.playlist_window:
-            sub_splitter.addWidget(self.playlist_window)
-        if hasattr(self, 'patch_bay_dialog') and self.patch_bay_dialog:
-            sub_splitter.addWidget(self.patch_bay_dialog)
-
-        workspace_splitter.addWidget(sub_splitter)
+            self.workspace_splitter.addWidget(self.playlist_window)
+        else:
+            # Fallback container if playlist window isn't pre-built yet
+            fallback_widget = QWidget()
+            fb_layout = QVBoxLayout(fallback_widget)
+            fb_layout.addWidget(QLabel("Sequencer & Playlist Grid Panel"))
+            self.workspace_splitter.addWidget(fallback_widget)
 
         # Visualizer Oscilloscope Canvas at the bottom
         if hasattr(self, 'visual_oscilloscope') and self.visual_oscilloscope:
-            workspace_splitter.addWidget(self.visual_oscilloscope)
+            self.workspace_splitter.addWidget(self.visual_oscilloscope)
         elif hasattr(self, 'visualizer_canvas') and self.visualizer_canvas:
-            workspace_splitter.addWidget(self.visualizer_canvas)
+            self.workspace_splitter.addWidget(self.visualizer_canvas)
         else:
             self.visual_oscilloscope = QWidget()
             vis_layout = QVBoxLayout(self.visual_oscilloscope)
             vis_canvas_label = QLabel("Active Phase-Space Oscilloscope Rendering Canvas")
             vis_canvas_label.setStyleSheet("color: #00ffcc; font-weight: bold; background: #0a0a0a; padding: 10px;")
             vis_layout.addWidget(vis_canvas_label)
-            workspace_splitter.addWidget(self.visual_oscilloscope)
+            self.workspace_splitter.addWidget(self.visual_oscilloscope)
 
-        workspace_splitter.setSizes([450, 150])
-        master_container.addWidget(workspace_splitter)
+        self.workspace_splitter.setSizes([450, 150])
+        master_container.addWidget(self.workspace_splitter)
 
         self.main_layout.addLayout(master_container)
-
+    def switch_workspace_view(self, widget):
+            """Embeds and raises the target workflow widget directly inside the main workspace splitter."""
+            if widget and hasattr(self, 'workspace_splitter'):
+                # Ensure the widget is added to the splitter if not already present
+                if widget.parent() != self.workspace_splitter:
+                    self.workspace_splitter.addWidget(widget)
+                widget.show()
+                widget.raise_()
     def sync_ui_to_current_channel(self, index):
         if 0 <= index < len(self.channel_states):
             state = self.channel_states[index]
