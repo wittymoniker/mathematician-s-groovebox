@@ -982,28 +982,28 @@ class EQRVisualizerCanvas(QWidget):
         finally:
             painter.end()
     class AdvancedDSPEngine:
-        def __init__(self, sample_rate=44100):
-            self.sample_rate = sample_rate
+    def __init__(self, sample_rate=44100):
+        self.sample_rate = sample_rate
 
-        def trigger_note(self, freq=440.0, duration_sec=0.3, drive=2.0, wave_type=0):
-            num_samples = int(self.sample_rate * duration_sec)
-            t = np.linspace(0, duration_sec, num_samples, endpoint=False)
+    def trigger_note(self, freq=440.0, duration_sec=0.3, drive=2.0, wave_type=0):
+        num_samples = int(self.sample_rate * duration_sec)
+        t = np.linspace(0, duration_sec, num_samples, endpoint=False)
 
-            if wave_type == 0:
-                raw = np.sin(2 * np.pi * freq * t) + 0.5 * np.sin(2 * np.pi * freq * 1.5 * t)
-            elif wave_type == 1:
-                raw = np.sign(np.sin(2 * np.pi * freq * t)) * 0.7
-            elif wave_type == 2:
-                raw = (2.0 * (t * freq % 1.0)) - 1.0
-            else:
-                raw = np.random.uniform(-1, 1, num_samples)
+        if wave_type == 0:
+            raw = np.sin(2 * np.pi * freq * t) + 0.5 * np.sin(2 * np.pi * freq * 1.5 * t)
+        elif wave_type == 1:
+            raw = np.sign(np.sin(2 * np.pi * freq * t)) * 0.7
+        elif wave_type == 2:
+            raw = (2.0 * (t * freq % 1.0)) - 1.0
+        else:
+            raw = np.random.uniform(-1, 1, num_samples)
 
-                shaped = np.tanh(raw * drive)
-                env = np.linspace(1.0, 0.0, num_samples)
-                audio = shaped * env * 0.3
+        shaped = np.tanh(raw * drive)
+        env = np.linspace(1.0, 0.0, num_samples)
+        audio = shaped * env * 0.3
 
-                scaled = np.int16(audio * 32767)
-            return scaled.tobytes()
+        scaled = np.int16(audio * 32767)
+        return scaled.tobytes()
 
     def export_to_wav(self, filename, duration_sec=3.0, freq=220.0, drive=3.0, wave_type=0):
         num_samples = int(self.sample_rate * duration_sec)
