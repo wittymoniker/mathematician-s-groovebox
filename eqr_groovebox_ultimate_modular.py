@@ -4329,295 +4329,167 @@ class DoubleNumericSliderRow(QWidget):
         layout.addWidget(self.slider, 3)
         layout.addWidget(self.spinbox, 1)
 
+class BottomToolboxesPane(QScrollArea):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWidgetResizable(True)
 
-class ScientificDAWWindow(QMainWindow):
+        container = QWidget()
+        layout = QGridLayout(container)
+
+        # Define the 12 musical/compositional toolboxes
+        toolboxes = [
+            ("1. Step Sequencer Grid", "16-step trigger matrix for rhythmic coordinate pulsing."),
+            ("2. Additive Harmonic Bank", "Draw and morph partial frequencies via x, y, z vectors."),
+            ("3. Formant Vocal Filter", "Vowel transition generator modeled on acoustic formants."),
+            ("4. Stochastic Probability Node", "Randomized weight gates for generative melody generation."),
+            ("5. Vector Synthesizer Pad", "2D joystick space for real-time timbre morphing."),
+            ("6. State-Variable Filter Rack", "Resonant lowpass/highpass sweep filters."),
+            ("7. Non-Linear Waveshaper", "Harmonic saturation and distortion drive controls."),
+            ("8. Stereo Feedback Delay Line", "Echo matrix with adjustable feedback attenuation."),
+            ("9. LFO Modulation Generator", "Waveform shape, rate, and depth assignment units."),
+            ("10. Granular Texture Scraper", "Audio grain cloud pulverizer and pitch scatterer."),
+            ("11. Envelope Generator (ADSR)", "Amplitude shape shaping for dynamic note articulation."),
+            ("12. Coordinate Formula Router", "Direct injection parser for custom runtime math nodes.")
+        ]
+
+        # Populate a clean 3x4 grid of interactive toolboxes
+        for idx, (title, desc) in enumerate(toolboxes):
+            box = QFrame()
+            box.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Raised)
+            box.setStyleSheet("background-color: #1b1b1b; border: 1px solid #333; border-radius: 4px;")
+            box_layout = QVBoxLayout(box)
+
+            title_lbl = QLabel(f"<b>{title}</b>")
+            title_lbl.setStyleSheet("color: #00ffaa;")
+            desc_lbl = QLabel(desc)
+            desc_lbl.setWordWrap(True)
+            desc_lbl.setStyleSheet("color: #aaa; font-size: 11px;")
+
+            box_layout.addWidget(title_lbl)
+            box_layout.addWidget(desc_lbl)
+
+            # Add an active micro-control button or slider depending on toolbox index
+            if idx in [0, 3, 4]:
+                action_btn = QPushButton("Trigger / Randomize")
+                box_layout.addWidget(action_btn)
+            else:
+                slider = QSlider(Qt.Orientation.Horizontal)
+                slider.setValue(50)
+                box_layout.addWidget(slider)
+
+            row, col = divmod(idx, 3)
+            layout.addWidget(box, row, col)
+
+        container.setLayout(layout)
+        self.setWidget(container)
+
+# ==========================================
+# 4. MODULAR TAB MANAGER (TOP PANE)
+# ==========================================
+class ModularTabManager(QTabWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setTabsClosable(True)
+        self.tabCloseRequested.connect(self.close_tab)
+        self.add_new_module_tab("Workspace Node")
+
+    def add_new_module_tab(self, title_prefix="Node"):
+        tab_count = self.count()
+        tab_title = f"{title_prefix} {tab_count + 1}"
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+
+        visualizer = CoordinateVisualizer()
+        formula_edit = QLineEdit("np.sin(t * 2.0) * x")
+        formula_edit.setStyleSheet("background-color: #111; color: #0f0; font-family: monospace;")
+
+        layout.addWidget(QLabel(f"--- Active {tab_title} Parameters ---"))
+        layout.addWidget(visualizer)
+        layout.addWidget(QLabel("Runtime Expression (x, y, z, t):"))
+        layout.addWidget(formula_edit)
+
+        container.setLayout(layout)
+        self.addTab(container, tab_title)
+        self.setCurrentWidget(container)
+
+        # Simulation loop for live visual feedback
+        self.timer = QTimer(self)
+        t_val = [0.0]
+        def sim_tick():
+            t_val[0] += 0.1
+            try:
+                x = float(eval(formula_edit.text(), {"np": np, "t": t_val[0], "x": 1.0, "y": 1.0, "z": 0.0}))
+                y = float(eval("np.cos(t * 1.5) * y", {"np": np, "t": t_val[0], "x": 1.0, "y": 1.0, "z": 0.0}))
+                visualizer.update_coordinates(x, y)
+            except Exception:
+                pass
+        self.timer.timeout.connect(sim_tick)
+        self.timer.start(50)
+
+    def close_tab(self, index):
+        if self.count() > 1:
+            widget = self.widget(index)
+            self.removeTab(index)
+            widget.deleteLater()
+class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.setWindowTitle("Mathematician's Groovebox - Ultimate Modular Workstation")
+        self.resize(1200, 900)
 
-        self.setWindowTitle("Equation of Reality (EQR) - Single-Stream Workspace")
+        # Build Upper Menu Bar (Replacing the 13th file/save tile)
+        self.init_menu_bar()
 
-        # 1. Set a default window size so it doesn't open as a tiny gray box
-        self.resize(1100, 750)
-
-        # 2. Create the central container widget and main layout
-        central_container = QWidget(self)
-
-
-        central_container.setStyleSheet("background-color: #2b2b2b; color: #ffffff;") # Dark gray test background
-
-        main_layout = QVBoxLayout(central_container)
-        main_layout = QVBoxLayout(central_container)
-
-        # 3. Add your coordinate evaluator elements directly to the layout
-        title_label = QLabel("Coordinate Equation Evaluator:")
-        main_layout.addWidget(title_label)
-
-        # Example input field for your x, y, z formulas
-        self.formula_input = QLineEdit()
-        self.formula_input.setPlaceholderText("Enter formula using x, y, z variables (e.g., isn(x) * y + ics(z))...")
-        main_layout.addWidget(self.formula_input)
-
-        # Add a placeholder button or additional control
-        eval_button = QPushButton("Evaluate Stream")
-        main_layout.addWidget(eval_button)
-
-        # Add a stretch to push everything to the top nicely
-
-
-        # 4. Apply the layout to the container and set it as the central widget
-        central_container.setLayout(main_layout)
-        self.setCentralWidget(central_container)
-        self.math_engine = EQRMathEngine(use_meum=True)
-        self.setWindowTitle("Mathematician's Groovebox - Scientific DAW Laboratory Suite")
-
-
-        self.apply_stylesheet()
-
-        central_widget = QWidget(self)
+        # Central Layout Split: Top Tabs vs Bottom Toolboxes
+        central_widget = QWidget()
         self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
 
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
-        main_layout.addWidget(main_splitter)
+        # Top Pane: Custom Tab Pane & Spawner
+        top_control_layout = QHBoxLayout()
+        spawn_btn = QPushButton("+ Spawn Workspace Tab")
+        spawn_btn.setStyleSheet("background-color: #0055aa; color: white; font-weight: bold; padding: 5px;")
+        top_control_layout.addWidget(spawn_btn)
 
-        # --- LEFT PANEL: The 13 Workflow-Centric Tabs ---
-        left_container = QWidget(self)
-        left_layout = QVBoxLayout(left_container)
-        central_container = QWidget(self)
-        main_layout = QVBoxLayout(central_container)
-        # Force the widget and window to calculate layout and display
+        self.tab_manager = ModularTabManager()
 
+        top_container = QWidget()
+        top_layout = QVBoxLayout(top_container)
+        top_layout.addLayout(top_control_layout)
+        top_layout.addWidget(self.tab_manager)
 
-        title_label = QLabel("Coordinate Equation Evaluator:")
-        main_layout.addWidget(title_label)
+        # Bottom Pane: 12 Instrumental Toolboxes
+        self.bottom_toolboxes = BottomToolboxesPane()
 
-        self.formula_input = QLineEdit()
-        self.formula_input.setPlaceholderText("Enter formula using x, y, z variables (e.g., isn(x) * y + ics(z))...")
-        main_layout.addWidget(self.formula_input)
+        # Assemble split sections into main layout
+        main_layout.addWidget(top_container, stretch=3)
+        main_layout.addWidget(QLabel("<b>12 Instrumental Composition Toolboxes</b>"))
+        main_layout.addWidget(self.bottom_toolboxes, stretch=4)
 
-        main_layout.addStretch()
+        spawn_btn.clicked.connect(lambda: self.tab_manager.add_new_module_tab("Workspace Node"))
 
-        # Apply the layout and set as central widget
-        central_container.setLayout(main_layout)
-        self.setCentralWidget(central_container)
+    def init_menu_bar(self):
+        menubar = self.menuBar()
+        file_menu = menubar.addMenu("File")
 
+        save_action = QAction("Save Project...", self)
+        save_action.triggered.connect(lambda: QMessageBox.information(self, "Save", "Project configuration saved successfully."))
 
+        export_action = QAction("Export Audio / Stems...", self)
+        export_action.triggered.connect(lambda: QMessageBox.information(self, "Export", "Audio export sequence initiated."))
 
-        self.resize(1100, 750)
-        self.show()
+        load_action = QAction("Load Project...", self)
+        load_action.triggered.connect(lambda: QMessageBox.information(self, "Load", "Project state loaded."))
 
-
-        self.daw_tabs = QTabWidget()
-        self.daw_tabs.addTab(self.create_instruments_rack_tab(), "1. Instruments & Sound Rack")
-        self.daw_tabs.addTab(self.create_virtualization_scripting_tab(), "2. Virtualization & Scripting")
-        self.daw_tabs.addTab(self.create_sequencer_playlist_tab(), "3. Sequencer & Playlist")
-        self.daw_tabs.addTab(self.create_effects_automation_tab(), "4. Effects & Automation")
-        self.daw_tabs.addTab(self.create_modular_patchbay_tab(), "5. Modular Patch Bay")
-        self.daw_tabs.addTab(self.create_waveshell_editor_tab(), "6. Master Waveshell Editor")
-        self.daw_tabs.addTab(self.create_mixer_channel_strip_tab(), "7. Mixer & Channel Strip")
-        self.daw_tabs.addTab(self.create_modulation_matrix_tab(), "8. Modulation Matrix")
-        self.daw_tabs.addTab(self.create_analysis_scope_tab(), "9. Analysis & Scope")
-        self.daw_tabs.addTab(self.create_acoustic_lab_tab(), "10. Acoustic & Resonance Lab")
-        self.daw_tabs.addTab(self.create_preset_browser_tab(), "11. Preset Browser")
-        self.daw_tabs.addTab(self.create_midi_hardware_tab(), "12. MIDI & Hardware")
-        self.daw_tabs.addTab(self.create_project_manager_tab(), "13. Project Manager")
-
-        main_layout.addWidget(self.daw_tabs)
-        main_splitter.addWidget(left_container)
-
-        # --- RIGHT PANEL: Global Master Scope, Terminal & Controls ---
-        right_container = QWidget(self)
-        right_layout = QVBoxLayout(right_container)
-
-        right_layout.addWidget(QLabel("<h3>Global Master Signal & Diagnostic Monitor</h3>"))
-        self.scope = VisualOscilloscope()
-        right_layout.addWidget(self.scope)
-
-        # Output Terminal
-        self.output_log = QTextEdit()
-        self.output_log.setReadOnly(True)
-        self.output_log.setStyleSheet("background-color: #0a0c0e; color: #00ffcc; font-family: monospace;")
-        right_layout.addWidget(QLabel("<b>DAW Execution & Diagnostic Log</b>"))
-        right_layout.addWidget(self.output_log)
-
-        main_splitter.addWidget(right_container)
-        main_splitter.setSizes([1200, 650])
-
-    # --- 13 Workflow-Centric Tabs ---
-    def create_instruments_rack_tab(self):
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Instruments & Sound Rack Spawner</b>"))
-        layout.addWidget(QPushButton("Spawn Eskivector Synth Node"))
-        layout.addWidget(QPushButton("Spawn Eskibrutus Heavy Node"))
-        layout.addWidget(QPushButton("Spawn Percussion Matrix Unit"))
-        layout.addWidget(QPushButton("Spawn Atmospheric Pad Generator"))
-        layout.addWidget(QPushButton("Spawn Polyphonic Keys Engine"))
-        layout.addStretch()
-        return panel
-
-    def create_virtualization_scripting_tab(self):
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Virtualization & Music Scripting Field</b>"))
-        self.script_editor = QTextEdit("# Algorithmic Music Scripting\nfor x in range(16):\n    note = x * isn(Meum)")
-        self.script_editor.setStyleSheet("background-color: #0d0f12; color: #00ffcc; font-family: monospace;")
-        layout.addWidget(self.script_editor)
-        layout.addWidget(QPushButton("Compile Script to Sequence Lanes"))
-        layout.addStretch()
-        return panel
-
-    def create_sequencer_playlist_tab(self):
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Sequencer & Playlist Arrangement</b>"))
-        seq_grid = QGridLayout()
-        for i in range(4):
-            seq_grid.addWidget(QLabel(f"Track Lane {i+1}"), i, 0)
-            slider = QSlider(Qt.Orientation.Horizontal)
-            slider.setValue(50 + i * 10)
-            seq_grid.addWidget(slider, i, 1)
-        layout.addLayout(seq_grid)
-
-        # Option B integration: Non-intrusive Wavetable sub-bay
-        sub_box = QFrame()
-        sub_box.setStyleSheet("background-color: #121418; border: 1px solid #2a2e39; padding: 6px;")
-        sub_layout = QVBoxLayout(sub_box)
-        sub_layout.addWidget(QLabel("<b>[Embedded Sub-Bay] Wavetable Morph Lane</b>"))
-        sub_layout.addWidget(QDial())
-        layout.addWidget(sub_box)
-        layout.addStretch()
-        return panel
-
-    def create_effects_automation_tab(self):
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Effects Rack & Automation Curves</b>"))
-        layout.addWidget(QPushButton("Add Resonant Filter Effect"))
-        layout.addWidget(QPushButton("Add Overdrive Distortion Unit"))
-
-        # Option B integration: Non-intrusive Isosceles Operator automation sub-bay
-        sub_box = QFrame()
-        sub_box.setStyleSheet("background-color: #121418; border: 1px solid #2a2e39; padding: 6px;")
-        sub_layout = QVBoxLayout(sub_box)
-        sub_layout.addWidget(QLabel("<b>[Embedded Sub-Bay] Isosceles Operator Envelope (isn / ics)</b>"))
-        sub_layout.addWidget(QSlider(Qt.Orientation.Horizontal))
-        layout.addWidget(sub_box)
-        layout.addStretch()
-        return panel
-
-    def create_modular_patchbay_tab(self):
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Modular Patch Bay Canvas Tracker</b>"))
-        canvas = QFrame()
-        canvas.setMinimumHeight(250)
-        canvas.setStyleSheet("background-color: #121418; border: 1px solid #2a2e39; border-radius: 6px;")
-        layout.addWidget(canvas)
-        layout.addWidget(QPushButton("Refresh Node Cords"))
-        layout.addStretch()
-        return panel
-
-    def create_waveshell_editor_tab(self):
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Master Waveshell Editor (Geometric Representation)</b>"))
-        layout.addWidget(QLabel("Active Geometric Mode: Hyperbolic Matrix"))
-        layout.addWidget(QComboBox())
-        layout.addWidget(QPushButton("Bake Waveshell Geometry"))
-        layout.addStretch()
-        return panel
-
-    def create_mixer_channel_strip_tab(self):
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Mixer & Channel Summing Strip</b>"))
-        layout.addWidget(QLabel("Master Volume Fader"))
-        layout.addWidget(QSlider(Qt.Orientation.Vertical))
-        layout.addStretch()
-        return panel
-
-    def create_modulation_matrix_tab(self):
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Modulation Matrix Cross-Router</b>"))
-        layout.addWidget(QComboBox())
-        layout.addWidget(QPushButton("Route LFO to Filter Cutoff"))
-        layout.addStretch()
-        return panel
-
-    def create_analysis_scope_tab(self):
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Real-time Frequency Spectrum Analyzer</b>"))
-        layout.addWidget(QPushButton("Trigger FFT Scan"))
-        layout.addStretch()
-        return panel
-
-    def create_acoustic_lab_tab(self):
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Acoustic & Physical Resonance Sandbox</b>"))
-        layout.addWidget(QPushButton("Test Resonant Feedback Loop"))
-        layout.addStretch()
-        return panel
-
-    def create_preset_browser_tab(self):
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Presets & Sound Library Browser</b>"))
-        layout.addWidget(QComboBox())
-        layout.addWidget(QPushButton("Import Preset File"))
-        layout.addStretch()
-        return panel
-
-    def create_midi_hardware_tab(self):
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>MIDI Controller & Hardware Routing</b>"))
-        layout.addWidget(QComboBox())
-        layout.addWidget(QPushButton("Scan MIDI Ports"))
-        layout.addStretch()
-        return panel
-
-    def create_project_manager_tab(self):
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Project Manager (Import / Export / Memory Banks)</b>"))
-        bank_combo = QComboBox()
-        bank_combo.addItems([
-            "Bank Alpha [90uF/900V Resonant]",
-            "Bank Beta [2000uF/1350V]",
-            "Bank Gamma [3500uF/300V]"
-        ])
-        bank_combo.setStyleSheet("background-color: #1a1e24; color: #00ffcc; border: 1px solid #3a3f4b; padding: 4px;")
-        layout.addWidget(bank_combo)
-        layout.addWidget(QPushButton("Save Project Snapshot"))
-        layout.addWidget(QPushButton("Load Project Snapshot"))
-        layout.addWidget(QPushButton("Export Audio Stem Archive"))
-        layout.addStretch()
-        return panel
-
-    def apply_stylesheet(self):
-
-        palette.setColor(QPalette.ColorRole.Window, QColor("#16181d"))
-        palette.setColor(QPalette.ColorRole.WindowText, QColor("#e0e0e0"))
-        palette.setColor(QPalette.ColorRole.Base, QColor("#0d0f12"))
-        palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#1a1e24"))
-        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#ffffff"))
-        palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#ffffff"))
-        palette.setColor(QPalette.ColorRole.Text, QColor("#e0e0e0"))
-        palette.setColor(QPalette.ColorRole.Button, QColor("#222733"))
-        palette.setColor(QPalette.ColorRole.ButtonText, QColor("#ffffff"))
-        palette.setColor(QPalette.ColorRole.Highlight, QColor("#00aa88"))
-        palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
-        QApplication.setPalette(palette)
-
-
+        file_menu.addAction(save_action)
+        file_menu.addAction(load_action)
+        file_menu.addSeparator()
+        file_menu.addAction(export_action)
 
 if __name__ == "__main__":
-    import sys
     app = QApplication(sys.argv)
-    palette = QPalette()
-    window = ScientificDAWWindow()
+    window = MathematiciansGrooveboxApp()
     window.show()
     sys.exit(app.exec())
