@@ -955,7 +955,7 @@ class EQRVisualizerCanvas(QWidget):
         painter.setFont(QFont("Courier", 10, QFont.Weight.Bold))
         time_text = f"Time: {self.t_step:.2f}s / {self.total_duration_sec:.2f}s [MASTER WAV]"
         painter.drawText(15, 25, time_text)
-        class AdvancedDSPEngine:
+    class AdvancedDSPEngine:
         def __init__(self, sample_rate=44100):
             self.sample_rate = sample_rate
 
@@ -972,12 +972,12 @@ class EQRVisualizerCanvas(QWidget):
             else:
                 raw = np.random.uniform(-1, 1, num_samples)
 
-            shaped = np.tanh(raw * drive)
-            env = np.linspace(1.0, 0.0, num_samples)
-            audio = shaped * env * 0.3
+                shaped = np.tanh(raw * drive)
+                env = np.linspace(1.0, 0.0, num_samples)
+                audio = shaped * env * 0.3
 
-            scaled = np.int16(audio * 32767)
-        return scaled.tobytes()
+                scaled = np.int16(audio * 32767)
+            return scaled.tobytes()
 
     def export_to_wav(self, filename, duration_sec=3.0, freq=220.0, drive=3.0, wave_type=0):
         num_samples = int(self.sample_rate * duration_sec)
