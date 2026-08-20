@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
     QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial
 )
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton
 import random
 from math_engine import MathEngine
 
@@ -605,32 +604,6 @@ class MathEngine:
     def eskitable(x, y, z):
         return np.clip((x + y) * 0.5, -1.0, 1.0) * MathEngine.ics(z)
 
-class EQRDAWStudio(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Equation of Reality (EQR) - Modular DAW Studio")
-        self.resize(1100, 750)
-
-        # Main Layout & Tab Widget
-        self.central_widget = QWidget()
-        self.setCentralWidget(self.central_widget)
-        self.main_layout = QVBoxLayout(self.central_widget)
-
-        self.tabs = QTabWidget()
-        self.main_layout.addWidget(self.tabs)
-
-        # Build Tabs
-
-
-    def append_to_equation(self, text):
-        self.eq_input.insertPlainText(text)
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = EQRDAWStudio()
-    window.show()
-    sys.exit(app.exec())
-# --- Universal Cross-Panel Patch Bus ---
 class GlobalPatchBus:
     def __init__(self):
         self.cables = []
@@ -3808,7 +3781,7 @@ class ScientificDAWWindow(QMainWindow):
         self.setCentralWidget(central_container)
         self.math_engine = EQRMathEngine(use_meum=True)
         self.setWindowTitle("Mathematician's Groovebox - Scientific DAW Laboratory Suite")
-        self.resize(1850, 1000)
+
 
         self.apply_stylesheet()
 
