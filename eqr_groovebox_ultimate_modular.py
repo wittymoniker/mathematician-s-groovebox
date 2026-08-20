@@ -4489,6 +4489,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         file_menu.addAction(export_action)
 
 if __name__ == "__main__":
+    import sys
     app = QApplication(sys.argv)
     window = MathematiciansGrooveboxApp()
     window.show()
