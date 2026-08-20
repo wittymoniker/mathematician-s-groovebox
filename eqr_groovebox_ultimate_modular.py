@@ -108,48 +108,45 @@ class EQRMathEngine:
         return np.cos(arr) / (1.0 + np.abs(np.sin(arr)))
 
     def arcisn(self, val):
-        """Inverse Isosceles Sine implementation with safety clamping."""
+
         arr = np.asarray(val, dtype=float)
         v = np.clip(arr / 2.0, -1.0, 1.0)
         return np.arcsin(v)
 
     def arcics(self, val):
-        """Inverse Isosceles Cosine implementation with safety clamping."""
+
         arr = np.asarray(val, dtype=float)
         v = np.clip(arr / 2.0, -1.0, 1.0)
         return np.arccos(v)
 
     # --- Core Expression Evaluator ---
-    def evaluate(self, expression_str, x, y, z):
-        """
-        Evaluates coordinate expressions using x, y, and z variables
-        alongside custom operators and optional Meum scaling.
-        """
-        # Safe namespace dictionary for safe dynamic evaluation
-        namespace = {
-            'x': x,
-            'y': y,
-            'z': z,
-            'isn': self.isn,
-            'ics': self.ics,
-            'arcisn': self.arcisn,
-            'arcics': self.arcics,
-            'Meum': MEUM_CONSTANT if self.use_meum else 1.0,
-            'arcisn': np.arcisn,
-            'cos': np.cos,
-            'tan': np.tan,
-            'abs': np.abs,
-            'arcics': np.arcics,
-            'e': np.e
+    def evaluate_coordinate_expression(expr_str, x, y, z):
+
+    # Safe namespace dictionary for mathematical parsing
+        allowed_globals = {
+            "__builtins__": {},
+            "sin": np.sin,
+            "cos": np.cos,
+            "tan": np.tan,
+            "sqrt": np.sqrt,
+            "abs": np.abs,
+            "pi": np.pi,
+            "e": np.e
+        }
+
+        local_vars = {
+            "x": float(x),
+            "y": float(y),
+            "z": float(z)
         }
 
         try:
-            # Evaluate string expression safely within the coordinate space
-            result = eval(expression_str, {"__builtins__": {}}, namespace)
-            return result
+            # Evaluates strictly against x, y, and z parameters
+            result = eval(expr_str, allowed_globals, local_vars)
+            return float(result)
         except Exception as e:
-            print(f"Math Engine Evaluation Error: {e}")
-            return np.zeros_like(x) if isinstance(x, np.ndarray) else 0.0
+            print(f"Evaluation Error for expression '{expr_str}': {e}")
+            return 0.0
 class PortWidget(QWidget):
     """Input/output terminal for the scientific patchbay node network."""
     def __init__(self, port_type, parent=None):
@@ -1382,7 +1379,22 @@ class IdealizedMathKnob(QWidget):
         step = span * (0.02 if delta > 0 else -0.02)
         self.value = max(self.min_val, min(self.max_val, self.value + step))
         self.update()
+class SequencerEngine:
+    def __init__(self, steps=16):
+        self.steps = steps
+        self.current_step = 0
+        self.active_pattern = [0.0] * steps
 
+    def step_forward(self, synth_callback):
+        """Advances the sequencer step and triggers sound generation."""
+        val = self.active_pattern[self.current_step]
+
+        # Trigger synth callback with current coordinate step intensity
+        if synth_callback and callable(synth_callback):
+            synth_callback(self.current_step, val)
+
+        self.current_step = (self.current_step + 1) % self.steps
+        return self.current_step
 class ModularSequencerEngine:
     """Drives step logic across tabs and translates steps into active synth events."""
     def __init__(self, total_steps=16):
@@ -3626,21 +3638,19 @@ class EQRVisualizerCanvas(QWidget):
 # MASTER PATCH CANVAS (Visual Wires & Dedicated Synth Jacks)
 # -------------------------------------------------------------------------
 class EQRVectorEngine(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        layout = QFormLayout(self)
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Mathematician's Groovebox")
+        self.resize(1000, 700)
 
-        self.x_input = QDoubleSpinBox()
-        self.x_input.setRange(-100.0, 100.0)
-        self.x_input.setValue(1.0)
+        # Initialize core layout container
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        self.layout = QVBoxLayout(central_widget)
 
-        self.y_input = QDoubleSpinBox()
-        self.y_input.setRange(-100.0, 100.0)
-        self.y_input.setValue(1.0)
-
-        self.z_input = QDoubleSpinBox()
-        self.z_input.setRange(-100.0, 100.0)
-        self.z_input.setValue(1.0)
+        # Title Label / Workspace Indicator
+        self.label = QLabel("Coordinate Audio Synthesis Workspace Active")
+        self.layout.addWidget(self.label)
 
         layout.addRow("Operator Variable X:", self.x_input)
         layout.addRow("Operator Variable Y:", self.y_input)
@@ -4382,12 +4392,10 @@ class ScientificDAWWindow(QMainWindow):
 
 
 
-
 if __name__ == "__main__":
     import sys
     app = QApplication(sys.argv)
     palette = QPalette()
     window = ScientificDAWWindow()
-
     window.show()
     sys.exit(app.exec())
