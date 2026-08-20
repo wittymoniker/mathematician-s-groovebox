@@ -13,12 +13,43 @@ from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QLinearGradient, Q
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
-    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea
+    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider
 )
 import random
 
 MEUM_CONSTANT = 1.1975807343385265188
+class FormulaModulatorWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("<b>Dynamic Coordinate Formula Inputs</b>"))
 
+        # Formula Inputs
+        self.x_input = self.create_formula_row(layout, "X-Axis Expr:", "np.sin(time * 2.0) + base_x")
+        self.y_input = self.create_formula_row(layout, "Y-Axis Expr:", "np.cos(time * 1.5) * base_y")
+        self.z_input = self.create_formula_row(layout, "Z-Axis Expr:", "abs(x + y) - time")
+
+        # Compile Button
+        self.compile_btn = QPushButton("Inject Formulas into Audio Thread")
+        self.compile_btn.setStyleSheet("background-color: darkred; color: white; font-weight: bold;")
+        layout.addWidget(self.compile_btn)
+
+    def create_formula_row(self, parent_layout, label_text, default_expr):
+        row = QHBoxLayout()
+        row.addWidget(QLabel(label_text))
+
+        line_edit = QLineEdit(default_expr)
+        line_edit.setStyleSheet("background-color: #222; color: #0f0; font-family: monospace;")
+        row.addWidget(line_edit)
+
+        # Add a macro slider for manual offset tuning
+        slider = QSlider(Qt.Orientation.Horizontal)
+        slider.setRange(0, 100)
+        slider.setValue(50)
+        row.addWidget(slider)
+
+        parent_layout.addLayout(row)
+        return line_edit
 class VisualOscilloscope(QFrame):
     """Real-time signal output oscilloscope and vector scope."""
     def __init__(self, parent=None):
@@ -53,6 +84,36 @@ class VisualOscilloscope(QFrame):
 
         for j in range(len(points) - 1):
             painter.drawLine(int(points[j][0]), int(points[j][1]), int(points[j+1][0]), int(points[j+1][1]))
+class ModulationMatrixWidget(QFrame):
+    def __init__(self):
+        super().__init__()
+        self.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Sunken)
+        layout = QGridLayout(self)
+
+        layout.addWidget(QLabel("<b>Virtual Patch Matrix</b>"), 0, 0, 1, 4)
+        layout.addWidget(QLabel("Source"), 1, 0)
+        layout.addWidget(QLabel("Destination"), 1, 1)
+        layout.addWidget(QLabel("Amount"), 1, 2)
+
+        # Create 4 patch cables
+        self.patches = []
+        for i in range(4):
+            source_combo = QComboBox()
+            source_combo.addItems(["None", "X Coordinate", "Y Coordinate", "Z Coordinate", "LFO 1", "Step Sequencer"])
+
+            dest_combo = QComboBox()
+            dest_combo.addItems(["None", "Filter Cutoff", "Resonance", "Wave Drive", "Delay Time", "Delay Feedback", "Pitch Node"])
+
+            amount_spin = QDoubleSpinBox()
+            amount_spin.setRange(-1.0, 1.0)
+            amount_spin.setSingleStep(0.01)
+            amount_spin.setValue(0.5)
+
+            layout.addWidget(source_combo, i+2, 0)
+            layout.addWidget(dest_combo, i+2, 1)
+            layout.addWidget(amount_spin, i+2, 2)
+
+            self.patches.append({"source": source_combo, "dest": dest_combo, "amount": amount_spin})
 class PatchbayCanvas(QFrame):
     """Interactive visual patchbay canvas for signal routing and node mapping."""
     def __init__(self, parent=None):
@@ -86,6 +147,44 @@ class MemoryBankSelector(QWidget):
         layout.addWidget(load_btn)
         layout.addWidget(save_btn)
         layout.addStretch()
+class CoordinateVisualizer(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setMinimumHeight(150)
+        self.setStyleSheet("background-color: black;")
+        self.point_history = []
+        self.max_points = 200
+
+    def update_coordinates(self, x, y):
+        """Call this from your sequencer or audio loop to feed data."""
+        self.point_history.append((x, y))
+        if len(self.point_history) > self.max_points:
+            self.point_history.pop(0)
+        self.update() # Triggers a repaint
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor(10, 10, 10))
+
+        if len(self.point_history) < 2:
+            return
+
+        pen = QPen(QColor(0, 255, 150)) # Neon green trace
+        pen.setWidth(2)
+        painter.setPen(pen)
+
+        width = self.width()
+        height = self.height()
+
+        # Draw connections between historical points
+        for i in range(1, len(self.point_history)):
+            # Normalize and scale x, y to widget size (assuming typical values between -1 and 1)
+            x1 = (self.point_history[i-1][0] + 1) * 0.5 * width
+            y1 = (self.point_history[i-1][1] + 1) * 0.5 * height
+            x2 = (self.point_history[i][0] + 1) * 0.5 * width
+            y2 = (self.point_history[i][1] + 1) * 0.5 * height
+
+            painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
 class EQRMathEngine:
     def __init__(self, use_meum=True):
         """
