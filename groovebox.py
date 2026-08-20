@@ -4937,6 +4937,7 @@ class BottomToolboxesPane(QScrollArea):
 
         container.setLayout(layout)
         self.setWidget(container)
+TRANSCENDENTAL_BASE = np.e
 class PaintbrushTable(QTableWidget):
     """Enhanced grid supporting unquantized cell painting, copy/paste buffers, and multi-sequence loading."""
     def __init__(self, parent_app, rows, cols):
@@ -4972,6 +4973,8 @@ class PaintbrushTable(QTableWidget):
             elif col >= 3:
                 item.setText(f"Engage [{active_synth[:6]}]")
                 item.setBackground(QColor(20, 110, 60))
+        # Sync changes back to parent application's master playlist reference
+        self.parent_app.sync_playlist_grid_to_memory()
 
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.StandardKey.Copy):
@@ -4998,6 +5001,7 @@ class PaintbrushTable(QTableWidget):
                             it.setText(val)
                             it.setBackground(QColor(50, 110, 110))
             print("[Playlist] Pasted buffer data into grid successfully.")
+            self.parent_app.sync_playlist_grid_to_memory()
         else:
             super().keyPressEvent(event)
 # ==========================================
@@ -5797,8 +5801,55 @@ class MathematiciansGrooveboxApp(QMainWindow):
             for i, name in enumerate(self.instrument_names_48)
         }
 
+        self.hardcoded_compositions = {
+            "Z-Pinch Resonator": [True, False, True, True, False, True, False, False, True, False, True, True, False, False, True, False],
+            "Topological Fold": [False, True, False, False, True, False, True, True, False, True, False, False, True, True, False, True]
+        }
+
+        # Master storage mirroring the unquantized playlist rows for audio rendering
+        self.master_playlist_data = []
+
         self.export_counter = 1
         self.init_ui_components()
+        self.apply_hardcoded_compositions()
+        self.initialize_default_playlist_memory()
+
+    def apply_hardcoded_compositions(self):
+        for inst_name, pattern in self.hardcoded_compositions.items():
+            if inst_name in self.instrument_sequencer_memory:
+                padded_pattern = (pattern + [False] * 16)[:16]
+                self.instrument_sequencer_memory[inst_name]["steps"] = padded_pattern
+        print("[System] Hardcoded compositions injected into sequencer memory bays.")
+
+    def initialize_default_playlist_memory(self):
+        rows = 32
+        self.master_playlist_data = []
+        for row_idx in range(rows):
+            op_name = self.instrument_names_48[row_idx % len(self.instrument_names_48)]
+            self.master_playlist_data.append({
+                "time_marker": f"T + {row_idx * 3.5:.1f}s",
+                "operator": op_name,
+                "script_tag": f"Script::{op_name[:4].upper()}-X{row_idx}",
+                "velocity": 0.95,
+                "modulation": "Geometric Nullifier Lock",
+                "multi_seq": f"Multi-Load Active [{row_idx % 3 + 1}]"
+            })
+
+    def sync_playlist_grid_to_memory(self):
+        """Reads back current table items from the playlist window into master memory backend."""
+        if hasattr(self, 'active_paint_table') and self.active_paint_table:
+            table = self.active_paint_table
+            self.master_playlist_data = []
+            for r in range(table.rowCount()):
+                row_dict = {
+                    "time_marker": table.item(r, 0).text() if table.item(r, 0) else "",
+                    "operator": table.item(r, 1).text() if table.item(r, 1) else self.instrument_names_48[0],
+                    "script_tag": table.item(r, 2).text() if table.item(r, 2) else "",
+                    "velocity": 0.95,
+                    "modulation": table.item(r, 4).text() if table.item(r, 4) else "",
+                    "multi_seq": table.item(r, 5).text() if table.item(r, 5) else ""
+                }
+                self.master_playlist_data.append(row_dict)
 
     def init_ui_components(self):
         high_contrast_stylesheet = """
@@ -5870,8 +5921,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.instrument_selector_dropdown.addItems(self.instrument_names_48)
         self.instrument_selector_dropdown.currentIndexChanged.connect(self.on_instrument_switched)
 
-        self.btn_idealize_rhythm = QPushButton("✨ Euclidean & Geometry Lock")
-        self.btn_seeded_randomize = QPushButton("🎲 Seeded Harmonic Randomizer")
+        self.btn_idealize_rhythm = QPushButton("✨ Euclidean & Geometry Global Lock")
+        self.btn_seeded_randomize = QPushButton("🎲 Seeded Harmonic Global Randomizer")
         self.spin_seed_val = QSpinBox()
         self.spin_seed_val.setRange(1, 9999)
         self.spin_seed_val.setValue(42)
@@ -5903,6 +5954,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(["Mode: Single Instrument", "Mode: Cross-Loaded Ecosystem"])
 
+        # Global Playlist Switch added to main layout
+        self.chk_global_playlist = QCheckBox("🌐 Global Playlist Arrangement Drive")
+        self.chk_global_playlist.setChecked(True)
+        self.chk_global_playlist.setStyleSheet("color: #00ffff; font-weight: bold;")
+
         self.spin_tuning = QSpinBox()
         self.spin_tuning.setRange(100, 1200)
         self.spin_tuning.setValue(440)
@@ -5918,20 +5974,15 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.chk_pkp_automod = QCheckBox("PKP Envelope Follower")
         self.chk_pkp_automod.setChecked(True)
 
-        self.slider_fractalizer = QSlider(Qt.Orientation.Horizontal)
-        self.slider_fractalizer.setRange(0, 100)
-        self.slider_fractalizer.setValue(85)
-
         self.top_layout.addWidget(self.mode_combo)
+        self.top_layout.addWidget(self.chk_global_playlist)
         self.top_layout.addWidget(QLabel("Tuning:"))
         self.top_layout.addWidget(self.spin_tuning)
-        self.top_layout.addWidget(QLabel("EQR Dynamic Modulation:"))
+        self.top_layout.addWidget(QLabel("EQR Mod:"))
         self.top_layout.addWidget(self.slider_eqr)
         self.top_layout.addWidget(QLabel("PKP Decay:"))
         self.top_layout.addWidget(self.slider_pkp_decay)
         self.top_layout.addWidget(self.chk_pkp_automod)
-        self.top_layout.addWidget(QLabel("Fractalizer:"))
-        self.top_layout.addWidget(self.slider_fractalizer)
 
         master_container.addLayout(self.top_layout)
 
@@ -5980,7 +6031,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         seq_inner.setContentsMargins(0, 0, 0, 0)
 
         seq_header_layout = QHBoxLayout()
-        seq_header_layout.addWidget(QLabel("⚡ PKP Pad Grid with Geometric Phase-Lock & Nullifier Routing"))
+        seq_header_layout.addWidget(QLabel("⚡ PKP Pad Grid with Global Geometric Phase-Lock & Nullifier Routing"))
 
         self.top_sequencer.instance_combo = QComboBox()
         self.top_sequencer.instance_combo.addItems(self.instrument_names_48)
@@ -6042,9 +6093,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
         mem = self.instrument_sequencer_memory[curr_inst]
         for s_idx, btn in enumerate(self.seq_step_buttons):
             if s_idx < len(mem["steps"]):
+                btn.blockSignals(True)
                 btn.setChecked(mem["steps"][s_idx])
+                btn.blockSignals(False)
                 prob = mem["probabilities"][s_idx]
                 btn.setText(f"Pad {s_idx+1}\nAmp:{mem['amplitudes'][s_idx]:.1f}\nPr:{prob}%")
+                btn.setStyleSheet("background-color: #00ffff; color: #060606; border: 2px solid #ffffff; font-weight: bold;" if mem["steps"][s_idx] else "background-color: #121212; color: #00ffff; border: 2px solid #444444;")
 
     def rebuild_sequencer_steps(self, count):
         while self.steps_inner_layout.count():
@@ -6084,32 +6138,28 @@ class MathematiciansGrooveboxApp(QMainWindow):
             self.seq_step_buttons.append(step_btn)
 
     def apply_euclidean_and_idealized_rhythms(self):
-        curr_inst = self.top_sequencer.instance_combo.currentText() if hasattr(self, 'top_sequencer') else self.instrument_names_48[0]
-        inst_idx = self.instrument_names_48.index(curr_inst) + 1
-        base_tuning = self.spin_tuning.value() if hasattr(self, 'spin_tuning') else 440
-
-        patch_freq = base_tuning * (MEUM_CONSTANT ** (inst_idx % 36))
-        mem = self.instrument_sequencer_memory[curr_inst]
-        count = len(mem["steps"])
-
-        pulses = max(2, (inst_idx % 5) + 3)
-        for s in range(count):
-            is_euclidean = ((s * pulses) % count) < pulses
-            mem["steps"][s] = is_euclidean
-            mem["amplitudes"][s] = round(0.5 + 0.5 * abs(np.sin(s * np.pi / count)), 1)
-            mem["probabilities"][s] = 100 if is_euclidean else int(np.random.choice([70, 85, 95, 100]))
+        count = self.spin_seq_length.value() if hasattr(self, 'spin_seq_length') else 16
+        for i, name in enumerate(self.instrument_names_48):
+            mem = self.instrument_sequencer_memory[name]
+            pulses = max(2, (i % 5) + 3)
+            for s in range(count):
+                is_euclidean = ((s * pulses) % count) < pulses
+                if len(mem["steps"]) > s:
+                    mem["steps"][s] = is_euclidean
+                    mem["amplitudes"][s] = round(0.5 + 0.5 * abs(np.sin(s * np.pi / count)), 1)
+                    mem["probabilities"][s] = 100 if is_euclidean else 85
 
         self.reload_active_instrument_sequencer_ui()
-        print(f"[Euclidean & Geometry Engine] Applied harmonic pulse matrix to '{curr_inst}' at {patch_freq:.1f}Hz using updated Meum constant scale.")
+        print(f"[Euclidean & Geometry Engine] Applied global harmonic pulse matrix across all 48 instrument bays.")
 
     def apply_seeded_harmonic_randomization(self):
-        """Applies seeded randomizations that maintain mathematical harmonic spacing to prevent destructive phase clashing."""
         seed_val = self.spin_seed_val.value() if hasattr(self, 'spin_seed_val') else 42
         np.random.seed(seed_val)
 
         rand_idx = np.random.randint(0, len(self.instrument_names_48))
         self.instrument_selector_dropdown.setCurrentIndex(rand_idx)
 
+        count = self.spin_seq_length.value() if hasattr(self, 'spin_seq_length') else 16
         for i, name in enumerate(self.instrument_names_48):
             harmonic_multiplier = float((i % 7) + 1) * (MEUM_CONSTANT / 1.5)
 
@@ -6120,7 +6170,15 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 f"    return np.sin(x * m) * np.cos(y / m) - np.tanh(z * 0.5)"
             )
 
-        print(f"[Resonance Nullifier] Seed #{seed_val} applied with Meum ({MEUM_CONSTANT}) scaling weights.")
+            mem = self.instrument_sequencer_memory[name]
+            for s in range(count):
+                active_state = bool(np.random.choice([True, False], p=[0.4, 0.6]))
+                if len(mem["steps"]) > s:
+                    mem["steps"][s] = active_state
+                    mem["probabilities"][s] = int(np.random.choice([70, 85, 95, 100]))
+
+        self.reload_active_instrument_sequencer_ui()
+        print(f"[Resonance Nullifier] Seed #{seed_val} globally applied across all operators with Meum ({MEUM_CONSTANT}) scaling.")
 
     def toggle_playback(self):
         print("[System] Live high-bitrate audio engine streaming active across cross-loaded operator matrix.")
@@ -6144,9 +6202,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
             bpm = self.spin_bpm.value() if hasattr(self, 'spin_bpm') else 120
             rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 32
             seq_len = self.spin_seq_length.value() if hasattr(self, 'spin_seq_length') else 16
+            global_playlist_enabled = self.chk_global_playlist.isChecked() if hasattr(self, 'chk_global_playlist') else True
 
-            # Corrected Tempo Transcoding:
-            # 1 beat = 60 / BPM seconds. Assuming 4 steps per beat (16th notes), calculate exact step duration.
             seconds_per_beat = 60.0 / bpm
             step_duration = seconds_per_beat / 4.0
             row_duration = step_duration * seq_len
@@ -6161,7 +6218,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             pkp_auto = self.chk_pkp_automod.isChecked()
             seed_val = self.spin_seed_val.value() if hasattr(self, 'spin_seed_val') else 42
 
-            print(f"[Resonance Nullifier] Rendering mixdown at {bpm} BPM (Step duration: {step_duration:.3f}s) to '{file_path}'...")
+            print(f"[Resonance Nullifier] Rendering mixdown (Global Playlist Active: {global_playlist_enabled}) at {bpm} BPM to '{file_path}'...")
 
             np.random.seed(seed_val)
 
@@ -6176,7 +6233,16 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 local_t = t[mask] - start_time
                 row_mix = np.zeros_like(local_t)
 
-                active_cluster = np.random.choice(len(self.instrument_names_48), size=6, replace=False)
+                # Determine active operators for this row based on Global Playlist Mode or random cluster
+                if global_playlist_enabled and row_idx < len(self.master_playlist_data):
+                    playlist_row_entry = self.master_playlist_data[row_idx]
+                    primary_op = playlist_row_entry.get("operator", self.instrument_names_48[0])
+                    # Pick primary operator from the playlist timeline plus 3 companion harmony units
+                    op_indices = [self.instrument_names_48.index(primary_op)] if primary_op in self.instrument_names_48 else [0]
+                    companion_indices = np.random.choice([i for i in range(len(self.instrument_names_48)) if i != op_indices[0]], size=3, replace=False).tolist()
+                    active_cluster = op_indices + companion_indices
+                else:
+                    active_cluster = np.random.choice(len(self.instrument_names_48), size=4, replace=False)
 
                 for op_idx in active_cluster:
                     op_name = self.instrument_names_48[op_idx]
@@ -6187,9 +6253,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
                     dynamic_eqr = base_eqr * (1.0 + 0.3 * np.sin(2.0 * np.pi * 0.2 * local_t + op_idx))
 
-                    # Step-sequencer trigger envelope modulation
                     step_trigger_envelope = np.zeros_like(local_t)
-                    for s_idx in range(seq_len):
+                    for s_idx in range(min(seq_len, len(mem["steps"]))):
                         if mem["steps"][s_idx]:
                             s_start = s_idx * step_duration
                             s_end = s_start + step_duration
@@ -6205,7 +6270,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     env_follower = np.exp(-local_t / max(pkp_decay * (MEUM_CONSTANT if pkp_auto else 1.0), 0.015))
                     pkp_trigger = env_follower * np.sin(2 * np.pi * (base_freq * 2.0) * local_t)
 
-                    combined_gate = np.maximum(step_trigger_envelope, 0.1) # Maintain floor resonance
+                    combined_gate = np.maximum(step_trigger_envelope, 0.1)
                     row_mix += (oscillator * 0.4 + pkp_trigger * 0.6) * combined_gate
 
                 master_mixdown[mask] += row_mix / len(active_cluster)
@@ -6220,6 +6285,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         except Exception as e:
             print(f"[System] Error during audio export: {e}")
+
     def spawn_floating_window(self, attr_name, window_title):
         window = getattr(self, attr_name, None)
 
@@ -6240,7 +6306,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             inst_index = self.instrument_names_48.index(current_instrument) + 1 if current_instrument in self.instrument_names_48 else 1
 
             if attr_name == 'playlist_window':
-                main_layout.addWidget(QLabel("📜 Unquantized Global Playlist Paintbrush Grid (Copy/Paste & Text Shuffling)"))
+                main_layout.addWidget(QLabel("📜 Unquantized Global Playlist Paintbrush Grid (Driven to Audio Export)"))
 
                 time_scale_layout = QHBoxLayout()
                 time_scale_layout.addWidget(QLabel("Duration per Row:"))
@@ -6253,6 +6319,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
                 rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 32
                 track_table = PaintbrushTable(self, rows, 6)
+                self.active_paint_table = track_table
                 track_table.setHorizontalHeaderLabels(["Time Marker", "Cross-Loaded Operator", "Script Tag Shuffler", "Velocity", "Modulation Curve", "Multiple Seq Engage"])
 
                 palette_colors = [
@@ -6271,19 +6338,29 @@ class MathematiciansGrooveboxApp(QMainWindow):
                             total_seconds = row_idx * step_seconds
                             time_label = f"T + {int(total_seconds // 60)}m {int(total_seconds % 60)}s" if total_seconds >= 60 else f"T + {total_seconds:.1f}s"
                             track_table.setItem(row_idx, 0, QTableWidgetItem(time_label))
+                    self.sync_playlist_grid_to_memory()
 
                 time_scale_combo.currentIndexChanged.connect(update_time_markers)
 
                 for row_idx in range(rows):
-                    op_name = self.instrument_names_48[row_idx % len(self.instrument_names_48)]
-                    item_inst = QTableWidgetItem(op_name)
+                    data_entry = self.master_playlist_data[row_idx] if row_idx < len(self.master_playlist_data) else {
+                        "time_marker": f"T + {row_idx * 3.5:.1f}s",
+                        "operator": self.instrument_names_48[row_idx % len(self.instrument_names_48)],
+                        "script_tag": f"Script::OP-X{row_idx}",
+                        "velocity": "95%",
+                        "modulation": "Geometric Nullifier Lock",
+                        "multi_seq": "Multi-Load Active"
+                    }
+
+                    item_inst = QTableWidgetItem(data_entry["operator"])
                     item_inst.setBackground(palette_colors[row_idx % len(palette_colors)])
 
+                    track_table.setItem(row_idx, 0, QTableWidgetItem(data_entry["time_marker"]))
                     track_table.setItem(row_idx, 1, item_inst)
-                    track_table.setItem(row_idx, 2, QTableWidgetItem(f"Script::{op_name[:4].upper()}-X{row_idx}"))
+                    track_table.setItem(row_idx, 2, QTableWidgetItem(data_entry["script_tag"]))
                     track_table.setItem(row_idx, 3, QTableWidgetItem("95%"))
-                    track_table.setItem(row_idx, 4, QTableWidgetItem("Geometric Nullifier Lock"))
-                    track_table.setItem(row_idx, 5, QTableWidgetItem(f"Multi-Load Active [{row_idx % 3 + 1}]"))
+                    track_table.setItem(row_idx, 4, QTableWidgetItem(data_entry["modulation"]))
+                    track_table.setItem(row_idx, 5, QTableWidgetItem(data_entry["multi_seq"]))
 
                 update_time_markers()
                 main_layout.addWidget(track_table)
