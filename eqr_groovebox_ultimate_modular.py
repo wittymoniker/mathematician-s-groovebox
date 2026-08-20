@@ -150,41 +150,38 @@ class MemoryBankSelector(QWidget):
 class CoordinateVisualizer(QWidget):
     def __init__(self):
         super().__init__()
-        self.setMinimumHeight(150)
-        self.setStyleSheet("background-color: black;")
+        self.setMinimumHeight(130)
+        self.setStyleSheet("background-color: black; border: 1px solid #333;")
         self.point_history = []
         self.max_points = 200
 
     def update_coordinates(self, x, y):
-        """Call this from your sequencer or audio loop to feed data."""
         self.point_history.append((x, y))
         if len(self.point_history) > self.max_points:
             self.point_history.pop(0)
-        self.update() # Triggers a repaint
+        self.update()
 
     def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor(10, 10, 10))
-
-        if len(self.point_history) < 2:
+        painter = QPainter()
+        if not painter.begin(self):
             return
 
-        pen = QPen(QColor(0, 255, 150)) # Neon green trace
-        pen.setWidth(2)
-        painter.setPen(pen)
+        try:
+            painter.fillRect(self.rect(), QColor(10, 10, 10))
+            if len(self.point_history) >= 2:
+                pen = QPen(QColor(0, 255, 150))
+                pen.setWidth(2)
+                painter.setPen(pen)
+                width, height = self.width(), self.height()
 
-        width = self.width()
-        height = self.height()
-
-        # Draw connections between historical points
-        for i in range(1, len(self.point_history)):
-            # Normalize and scale x, y to widget size (assuming typical values between -1 and 1)
-            x1 = (self.point_history[i-1][0] + 1) * 0.5 * width
-            y1 = (self.point_history[i-1][1] + 1) * 0.5 * height
-            x2 = (self.point_history[i][0] + 1) * 0.5 * width
-            y2 = (self.point_history[i][1] + 1) * 0.5 * height
-
-            painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+                for i in range(1, len(self.point_history)):
+                    x1 = (self.point_history[i-1][0] + 1) * 0.5 * width
+                    y1 = (self.point_history[i-1][1] + 1) * 0.5 * height
+                    x2 = (self.point_history[i][0] + 1) * 0.5 * width
+                    y2 = (self.point_history[i][1] + 1) * 0.5 * height
+                    painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+        finally:
+            painter.end()  # Guaranteed clean release of the active painter device
 class EQRMathEngine:
     def __init__(self, use_meum=True):
         """
