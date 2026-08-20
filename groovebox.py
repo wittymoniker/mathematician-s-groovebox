@@ -77,7 +77,7 @@ QMenu { background-color: #1e1e1e; color: #d0d0d0; border: 1px solid #333333; }
 QMenu::item:selected { background-color: #ff6b00; color: #ffffff; }
 """
 
-ESKI_INSTRUMENT_LIST = [
+DEFAULT_INSTRUMENT_LIST = [
     "1. Eski-Prime Sine Generator", "2. Dipsy Wavefolder Unit", "3. Laa-Laa Resonance Tank",
     "4. Po Harmonic Shaper", "5. Tinky-Winky Sub-Bass Node", "6. Noo-Noo Dust Filter",
     "7. Tubby Sun Glitch Core", "8. Voice Trumpet Noise Matrix", "9. Windmill Rotor Frequency Modulator",
