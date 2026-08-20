@@ -13,7 +13,7 @@ from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QLinearGradient, Q
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
-    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit,
+    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit, QDialog
 )
 import random
 
@@ -4438,16 +4438,16 @@ class CoordinateVisualizer(QWidget):
                     painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
         finally:
             painter.end()
-            
+
 class PianoRollEditor(QDialog):
     def __init__(self, step_count=32, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Unquantized Piano Roll & Chord Matrix")
         self.resize(900, 450)
         self.setStyleSheet("background-color: #121212; color: #ffffff;")
-        
+
         layout = QVBoxLayout(self)
-        
+
         top_ctrl = QHBoxLayout()
         top_ctrl.addWidget(QLabel("<b>Notes / Chord Grid (Drag duration, set offset sliders)</b>"))
         self.steps_combo = QComboBox()
@@ -4456,34 +4456,34 @@ class PianoRollEditor(QDialog):
         top_ctrl.addWidget(QLabel("Grid Steps:"))
         top_ctrl.addWidget(self.steps_combo)
         layout.addLayout(top_ctrl)
-        
+
         # Grid representation of notes across time
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         grid_container = QWidget()
         self.grid_layout = QGridLayout(grid_container)
-        
+
         self.cells = []
         for step in range(32):
             cell_frame = QFrame()
             cell_frame.setStyleSheet("background-color: #1c1c1c; border: 1px solid #444;")
             c_layout = QVBoxLayout(cell_frame)
-            
+
             btn = QPushButton(f"S{step+1}\nC4")
             btn.setCheckable(True)
             btn.setStyleSheet("background-color: #2a2a2a; color: #ffaa00; font-size: 10px;")
-            
+
             offset_slider = QSlider(Qt.Orientation.Horizontal)
             offset_slider.setRange(-50, 50) # ms offset
             offset_slider.setToolTip("Unquantized Time Offset (+/- ms)")
-            
+
             c_layout.addWidget(btn)
             c_layout.addWidget(QLabel("Offset:"))
             c_layout.addWidget(offset_slider)
-            
+
             self.grid_layout.addWidget(cell_frame, 0, step)
             self.cells.append((btn, offset_slider))
-            
+
         grid_container.setLayout(self.grid_layout)
         scroll.setWidget(grid_container)
         layout.addWidget(scroll)
@@ -4496,22 +4496,22 @@ class PlaylistWindow(QMainWindow):
         self.setWindowTitle("Global Arrangement Playlist & Timeline")
         self.resize(1000, 600)
         self.setStyleSheet("background-color: #141414; color: #fff;")
-        
+
         container = QWidget()
         layout = QVBoxLayout(container)
-        
+
         controls = QHBoxLayout()
         controls.addWidget(QLabel("<b>Snap-to-Grid Scale:</b>"))
         self.grid_scale_combo = QComboBox()
         self.grid_scale_combo.addItems(["1 Bar", "1/2 Beat", "1/4 Beat", "1/8 Beat", "Free / Unquantized"])
         controls.addWidget(self.grid_scale_combo)
-        
+
         controls.addWidget(QLabel("<b>Global Tempo:</b>"))
         self.global_tempo = QLineEdit("120.0 BPM")
         self.global_tempo.setStyleSheet("background-color: #222; color: #00ffaa;")
         controls.addWidget(self.global_tempo)
         layout.addLayout(controls)
-        
+
         self.timeline_view = QTextEdit()
         self.timeline_view.setPlainText(
             "Track 1 [Eskibrutus Primary]  |===| [Bar 1 - 8]  (Local Tempo: 1.0x)\n"
@@ -4520,12 +4520,12 @@ class PlaylistWindow(QMainWindow):
         )
         self.timeline_view.setStyleSheet("background-color: #1a1a1a; color: #00ffaa; font-family: monospace; font-size: 12px;")
         layout.addWidget(self.timeline_view)
-        
+
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(QPushButton("Universal Painter Mode (Drag across tracks)"))
         btn_layout.addWidget(QPushButton("Render Stems to Disk"))
         layout.addLayout(btn_layout)
-        
+
         container.setLayout(layout)
         self.setCentralWidget(container)
 # ==========================================
@@ -4566,14 +4566,14 @@ class FloatingSynthWindow(QMainWindow):
         self.setWindowTitle(f"Modular Synth Node [{synth_id}]: {synth_name}")
         self.resize(450, 550)
         self.setStyleSheet("background-color: #1a1a1a; color: #ffffff;")
-        
+
         container = QWidget()
         layout = QVBoxLayout(container)
-        
+
         title = QLabel(f"<b>{synth_name}</b>")
         title.setStyleSheet("color: #ffaa00; font-size: 14px;")
         layout.addWidget(title)
-        
+
         # Local Tempo Multiplier
         tempo_layout = QHBoxLayout()
         tempo_layout.addWidget(QLabel("Local Tempo Scale:"))
@@ -4583,81 +4583,81 @@ class FloatingSynthWindow(QMainWindow):
         self.local_tempo_box.setSingleStep(0.05)
         tempo_layout.addWidget(self.local_tempo_box)
         layout.addLayout(tempo_layout)
-        
+
         # Percussiveness <-> Key <-> Paddedness Envelope Morph Slider
         layout.addWidget(QLabel("<b>Envelope Morphology (Percussive ⟷ Key ⟷ Padded)</b>"))
         self.env_slider = QSlider(Qt.Orientation.Horizontal)
         self.env_slider.setRange(0, 100)
         self.env_slider.setValue(50)
         layout.addWidget(self.env_slider)
-        
+
         # Standard High-Contrast Parameters
         self.cutoff_slider = QSlider(Qt.Orientation.Horizontal)
         self.drive_slider = QSlider(Qt.Orientation.Horizontal)
-        
+
         layout.addWidget(QLabel("Filter Cutoff Frequency:"))
         layout.addWidget(self.cutoff_slider)
         layout.addWidget(QLabel("Harmonic Fold / Drive Amt:"))
         layout.addWidget(self.drive_slider)
-        
+
         # Universal Sticky Patch Cable Matrix per synth window
         layout.addWidget(QLabel("<b>Sticky Cable Patch Matrix (Gate / Wave / Freq):</b>"))
         patch_grid = QGridLayout()
-        
+
         self.source_select = QComboBox()
         self.source_select.addItems(["Sequencer Gate", "Playlist Trigger", "Amp Waveform", "LFO Modulator", "X-Coordinate", "Y-Coordinate"])
-        
+
         self.dest_select = QComboBox()
         self.dest_select.addItems(["-> Filter Cutoff", "-> Fold Threshold", "-> Envelope Morph", "-> Pitch Shift"])
-        
+
         patch_grid.addWidget(QLabel("Source (Sticky):"), 0, 0)
         patch_grid.addWidget(self.source_select, 0, 1)
         patch_grid.addWidget(QLabel("Destination:"), 1, 0)
         patch_grid.addWidget(self.dest_select, 1, 1)
-        
+
         bind_btn = QPushButton("Establish Cable Connection")
         bind_btn.setStyleSheet("background-color: #0055aa; color: #fff; font-weight: bold;")
         patch_grid.addWidget(bind_btn, 2, 0, 1, 2)
-        
+
         layout.addLayout(patch_grid)
-        
+
         # Piano roll popup trigger
         piano_btn = QPushButton("Open Unquantized Piano Roll Matrix")
         piano_btn.setStyleSheet("background-color: #333; color: #00ffaa; font-weight: bold;")
         piano_btn.clicked.connect(self.open_piano_roll)
         layout.addWidget(piano_btn)
-        
+
         container.setLayout(layout)
         self.setCentralWidget(container)
 
     def open_piano_roll(self):
         self.roll = PianoRollEditor(32, self)
         self.roll.exec()
-        
-        
+
+
 class PermanentPatchBayPanel(QWidget):
     def __init__(self):
         super().__init__()
         self.setStyleSheet("background-color: #121212; border: 1px solid #333; color: #fff;")
         layout = QHBoxLayout(self)
-        
+
         layout.addWidget(QLabel("<b>GLOBAL PATCH BAY & REPEATERS:</b>"))
-        
+
         self.global_src = QComboBox()
         self.global_src.addItems(["Master Clock", "Global Sequencer Trigger", "Playlist Timeline Cursor", "Waveform Phase Root"])
-        
+
         self.global_dest = QComboBox()
         self.global_dest.addItems(["All Synth Fold Thresholds", "Master Bus Limiter", "Repeater Matrix Bus", "Global Pitch Shift"])
-        
+
         self.repeater_slider = QSlider(Qt.Orientation.Horizontal)
         self.repeater_slider.setRange(1, 16)
-        
+
         layout.addWidget(self.global_src)
         layout.addWidget(QLabel("➔"))
         layout.addWidget(self.global_dest)
         layout.addWidget(QLabel("Repeater Multiplier:"))
         layout.addWidget(self.repeater_slider)
-        
+
         connect_btn = QPushButton("Patch Global Bus")
         connect_btn.setStyleSheet("background-color: #00aa55; color: #000; font-weight: bold;")
         layout.addWidget(connect_btn)
@@ -4669,30 +4669,30 @@ class ScriptersPane(QWidget):
         super().__init__()
         self.target_edit = target_formula_edit
         layout = QVBoxLayout(self)
-        
+
         layout.addWidget(QLabel("<b>Advanced Scripter's Console & Keyset</b>"))
-        
+
         self.script_input = QTextEdit()
         self.script_input.setPlainText("# Modular Custom Equation\ndef evaluate_curve(x, y, t):\n    return np.sin(x * t) * np.tanh(y)")
         self.script_input.setStyleSheet("background-color: #0b0b0b; color: #00ffaa; font-family: monospace;")
         layout.addWidget(self.script_input)
-        
+
         keyset_layout = QGridLayout()
         functions = [
-            "np.sin(t)", "np.cos(t)", "np.tanh(x)", 
+            "np.sin(t)", "np.cos(t)", "np.tanh(x)",
             "np.sqrt(abs(x))", "fold(x, 0.5)", "filter(cutoff)",
             "x * y * z", "np.exp(-t)"
         ]
-        
+
         for idx, func in enumerate(functions):
             btn = QPushButton(func)
             btn.setStyleSheet("background-color: #2a2a2a; color: #fff; font-size: 10px;")
             btn.clicked.connect(lambda checked, f=func: self.script_input.insertPlainText(f))
             row, col = divmod(idx, 4)
             keyset_layout.addWidget(btn, row, col)
-            
+
         layout.addLayout(keyset_layout)
-        
+
         inject_btn = QPushButton("Execute & Compile to Active Node")
         inject_btn.setStyleSheet("background-color: #0055aa; color: white; font-weight: bold;")
         inject_btn.clicked.connect(lambda: QMessageBox.information(self, "Compiled", "Script bound successfully."))
@@ -4728,80 +4728,80 @@ class MathematiciansGrooveboxApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("Mathematician's Groovebox - 20-Variant Modular Studio")
         self.resize(1500, 950)
-        
+
         self.dsp_engine = AdvancedDSPEngine()
         self.playlist_window = None
         self.floating_synths = []
-        
+
         self.init_menu_bar()
-        
+
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
-        
+
         # 1. Permanent Patch Bay Panel at the very top
         self.patch_bay = PermanentPatchBayPanel()
         main_layout.addWidget(self.patch_bay)
-        
+
         # 2. Main Workspace Splitter (Left: Synths/Workspaces, Right: Scripter)
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        
+
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
-        
+
         # 20 Primary Synth Options Grid selection
         spawn_controls = QHBoxLayout()
         spawn_controls.addWidget(QLabel("<b>20 Primary Synth Variants:</b>"))
-        
+
         self.synth_selector = QComboBox()
         synth_variants = [
-            "1. Eskibrutus Heavy Node", "2. Additive Harmonic Bank", "3. Formant Vocal Filter", 
-            "4. Stochastic Probability", "5. Vector Synth Pad", "6. State-Variable Filter", 
-            "7. Non-Linear Waveshaper", "8. Stereo Feedback Delay", "9. LFO Generator", 
-            "10. Granular Texture Scraper", "11. ADSR Envelope Unit", "12. Coordinate Formula Router", 
-            "13. Isosceles Operator", "14. Wavetable Morph", "15. Frequency Modulation Bank", 
-            "16. Ring Modulator Matrix", "17. Bitcrush Quantizer", "18. Spectral Resonator", 
+            "1. Eskibrutus Heavy Node", "2. Additive Harmonic Bank", "3. Formant Vocal Filter",
+            "4. Stochastic Probability", "5. Vector Synth Pad", "6. State-Variable Filter",
+            "7. Non-Linear Waveshaper", "8. Stereo Feedback Delay", "9. LFO Generator",
+            "10. Granular Texture Scraper", "11. ADSR Envelope Unit", "12. Coordinate Formula Router",
+            "13. Isosceles Operator", "14. Wavetable Morph", "15. Frequency Modulation Bank",
+            "16. Ring Modulator Matrix", "17. Bitcrush Quantizer", "18. Spectral Resonator",
             "19. Chaos Attractor Synth", "20. Sub-Bass Fundamental"
         ]
         self.synth_selector.addItems(synth_variants)
         spawn_controls.addWidget(self.synth_selector)
-        
+
         spawn_btn = QPushButton("Spawn Floating Modular Window")
         spawn_btn.setStyleSheet("background-color: #0055aa; color: white; font-weight: bold;")
         spawn_btn.clicked.connect(self.spawn_floating_synth)
         spawn_controls.addWidget(spawn_btn)
-        
+
         left_layout.addLayout(spawn_controls)
-        
+
         # Workspace Tabs & Visualizer
         self.tab_manager = QTabWidget()
         self.tab_manager.setTabsClosable(True)
         self.tab_manager.tabCloseRequested.connect(self.close_tab)
         self.add_workspace_tab("Eskibrutus Primary Workspace")
-        
+
         left_layout.addWidget(self.tab_manager, stretch=4)
         splitter.addWidget(left_container)
-        
+
         # Right Side: Scripter Console
         self.scripter_pane = ScriptersPane()
         splitter.addWidget(self.scripter_pane)
         splitter.setSizes([1000, 500])
-        
+
         main_layout.addWidget(splitter)
 
     def add_workspace_tab(self, title):
         container = QWidget()
         layout = QVBoxLayout(container)
-        
+
         visualizer = CoordinateVisualizer()
         formula_edit = QLineEdit("np.sin(t * 1.5) * x")
         formula_edit.setStyleSheet("background-color: #111; color: #00ffaa; font-family: monospace; font-size: 14px;")
-        
+
         layout.addWidget(QLabel(f"--- Active Workspace: {title} ---"))
         layout.addWidget(visualizer)
         layout.addWidget(QLabel("Runtime Coordinate Formula:"))
         layout.addWidget(formula_edit)
-        
+
         container.setLayout(layout)
         self.tab_manager.addTab(container, title)
         self.tab_manager.setCurrentWidget(container)
@@ -4839,16 +4839,16 @@ class MathematiciansGrooveboxApp(QMainWindow):
     def init_menu_bar(self):
         menubar = self.menuBar()
         file_menu = menubar.addMenu("File")
-        
+
         save_action = QAction("Save Project...", self)
         load_action = QAction("Load Project...", self)
-        
+
         playlist_action = QAction("Open Playlist & Arrangement Timeline...", self)
         playlist_action.triggered.connect(self.open_playlist)
-        
+
         export_action = QAction("Export Audio Stems (.wav)...", self)
         export_action.triggered.connect(self.handle_wav_export)
-        
+
         file_menu.addAction(save_action)
         file_menu.addAction(load_action)
         file_menu.addSeparator()
