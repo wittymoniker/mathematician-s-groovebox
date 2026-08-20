@@ -5763,7 +5763,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.btn_script_inst.clicked.connect(lambda: self.spawn_floating_window('script_editor_window', "Instrument Script Editor"))
         nav_layout.addWidget(btn_script_inst)
 
-        btn_script_global = QPushButton("📜 Script Global")
+        self.btn_script_global = QPushButton("📜 Script Global")
 
         # 2. Connect it safely after instantiation
         self.btn_script_editor.clicked.connect(lambda: self.spawn_floating_window('script_editor_window', "Global Script Editor"))
