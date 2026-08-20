@@ -5610,56 +5610,13 @@ class MathematiciansGrooveboxApp(QMainWindow):
         }
 
     def init_ui_components(self):
-        # Apply the dark modular synth color scheme globally
-        dark_stylesheet = """
-            QMainWindow, QWidget {
-                background-color: #121212;
-                color: #e0e0e0;
-                font-family: sans-serif;
-            }
-            QPushButton {
-                background-color: #1e1e1e;
-                color: #00ffcc;
-                border: 1px solid #333333;
-                border-radius: 4px;
-                padding: 6px 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2a2a2a;
-                border: 1px solid #00ffcc;
-            }
-            QSpinBox, QComboBox {
-                background-color: #1e1e1e;
-                color: #ffffff;
-                border: 1px solid #333333;
-                border-radius: 3px;
-                padding: 3px;
-            }
-            QSlider::groove:horizontal {
-                height: 4px;
-                background: #333333;
-                border-radius: 2px;
-            }
-            QSlider::handle:horizontal {
-                background: #00ffcc;
-                width: 12px;
-                margin: -4px 0;
-                border-radius: 6px;
-            }
-            QSplitter::handle {
-                background-color: #222222;
-            }
-        """
-        self.setStyleSheet(dark_stylesheet)
-
         # Master Vertical Layout Container
         master_container = QVBoxLayout()
         master_container.setSpacing(6)
         master_container.setContentsMargins(8, 8, 8, 8)
 
         # -------------------------------------------------------------
-        # 1. TOP TRANSPORT BAR
+        # 1. TRANSPORT & INSTRUMENT SELECTION BAR
         # -------------------------------------------------------------
         self.transport_layout = QHBoxLayout()
 
@@ -5672,23 +5629,20 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.spin_bpm.setRange(40, 240)
         self.spin_bpm.setValue(120)
 
+        # Instrument Selection Dropdown
+        self.instrument_selector_dropdown = QComboBox()
+        self.instrument_selector_dropdown.addItems([f"Instrument Node {i+1}" for i in range(48)])
+
         self.btn_randomize_all = QPushButton("🎲 Randomize Instrument")
         self.btn_export = QPushButton("💾 Export Mixdown")
-
-        # Wire transport buttons safely
-        self.btn_play.clicked.connect(getattr(self, 'toggle_playback', lambda: None))
-        self.btn_stop.clicked.connect(getattr(self, 'stop_playback', lambda: None))
-        self.btn_randomize_all.clicked.connect(getattr(self, 'randomize_single_instrument', lambda: None))
-        self.btn_export.clicked.connect(getattr(self, 'export_mixdown', lambda: None))
 
         self.transport_layout.addWidget(self.btn_play)
         self.transport_layout.addWidget(self.btn_stop)
         self.transport_layout.addWidget(self.btn_record)
         self.transport_layout.addWidget(self.lbl_bpm)
         self.transport_layout.addWidget(self.spin_bpm)
-
-        if hasattr(self, 'memory_bank_selector') and self.memory_bank_selector:
-            self.transport_layout.addWidget(self.memory_bank_selector)
+        self.transport_layout.addWidget(QLabel("Active Instrument:"))
+        self.transport_layout.addWidget(self.instrument_selector_dropdown)
 
         self.transport_layout.addStretch(1)
         self.transport_layout.addWidget(self.btn_randomize_all)
@@ -5697,9 +5651,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.transport_layout)
 
         # -------------------------------------------------------------
-        # 2. ACTIVE SYNTH CHANNEL PARAMETER STRIP
+        # 2. ACTIVE SYNTH CHANNEL PARAMETER STRIP (Mode & Knobs)
         # -------------------------------------------------------------
         self.top_layout = QHBoxLayout()
+
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["Mode: Single Instrument", "Mode: Global Ecosystem"])
 
         self.spin_tuning = QSpinBox()
         self.spin_tuning.setRange(100, 1200)
@@ -5712,15 +5669,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.slider_eqr = QSlider(Qt.Orientation.Horizontal)
         self.slider_eqr.setRange(0, 100)
 
-        self.preset_combo = QComboBox()
-        self.preset_combo.addItems([
-            "Preset A: Topological Fold",
-            "Preset B: Z-Pinch Resonance",
-            "Preset C: Hyperbolic Decay",
-            "Preset D: Quantum Soliton",
-            "Preset E: Custom Matrix Operator"
-        ])
-
+        self.top_layout.addWidget(self.mode_combo)
         self.top_layout.addWidget(QLabel("Tuning:"))
         self.top_layout.addWidget(self.spin_tuning)
         self.top_layout.addWidget(QLabel("Amp:"))
@@ -5731,69 +5680,72 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.top_layout.addWidget(self.slider_fractalizer)
         self.top_layout.addWidget(QLabel("EQR:"))
         self.top_layout.addWidget(self.slider_eqr)
-        self.top_layout.addWidget(self.preset_combo)
 
         master_container.addLayout(self.top_layout)
 
         # -------------------------------------------------------------
-        # 3. OPERATIONS & WORKFLOW TOOLBAR
+        # 3. OPERATIONS & GLOBAL WINDOW POP-OUT TOOLBAR
         # -------------------------------------------------------------
         self.workflow_toolbar = QHBoxLayout()
 
-        # Instantiate buttons first
-        self.btn_edit_synth = QPushButton("🛠 Edit Synthesizer")
-        self.btn_view_playlist = QPushButton("📜 Sequencer & Playlist")
-        self.btn_view_patchbay = QPushButton("🔌 Modular Patch Bay")
-        self.btn_script_editor = QPushButton("📝 Script Editor")
+        self.btn_edit_synth = QPushButton("🛠 Edit Synth Settings")
+        self.btn_view_playlist = QPushButton("📜 Global Playlist Window")
+        self.btn_view_patchbay = QPushButton("🔌 Global Modular Patch Bay")
+        self.btn_script_editor = QPushButton("📝 Global Script Editor")
 
-        self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["Mode: Single Instrument", "Mode: Global Ecosystem"])
-
-        # Now connect them safely once attributes exist
-        self.btn_view_playlist.clicked.connect(lambda: self.switch_workspace_view(getattr(self, 'playlist_window', None)))
-        self.btn_view_patchbay.clicked.connect(lambda: self.switch_workspace_view(getattr(self, 'patch_bay_dialog', None)))
-        self.btn_script_editor.clicked.connect(lambda: self.switch_workspace_view(getattr(self, 'script_editor_window', None)))
+        # Wire up single-instance floating window pop-outs
+        self.btn_edit_synth.clicked.connect(lambda: self.open_global_window('synth_editor_window', QWidget, "Synth Editor"))
+        self.btn_view_playlist.clicked.connect(lambda: self.open_global_window('playlist_window', QWidget, "Global Playlist & Sequencer"))
+        self.btn_view_patchbay.clicked.connect(lambda: self.open_global_window('patch_bay_dialog', QWidget, "Global Modular Patch Bay"))
+        self.btn_script_editor.clicked.connect(lambda: self.open_global_window('script_editor_window', QWidget, "Global Script Editor"))
 
         self.workflow_toolbar.addWidget(self.btn_edit_synth)
         self.workflow_toolbar.addWidget(self.btn_view_playlist)
         self.workflow_toolbar.addWidget(self.btn_view_patchbay)
         self.workflow_toolbar.addWidget(self.btn_script_editor)
-        self.workflow_toolbar.addWidget(self.mode_combo)
 
         master_container.addLayout(self.workflow_toolbar)
 
         # -------------------------------------------------------------
-        # 4. CENTRAL WORKSPACE SPLITTER (Embedded Sequencer + Visualizer)
+        # 4. MAIN PANEL: INSTRUMENT SEQUENCER, SCALES, & VISUALIZER
         # -------------------------------------------------------------
-        self.workspace_splitter = QSplitter(Qt.Orientation.Vertical)
+        main_workspace_layout = QVBoxLayout()
 
-        # Embed the sequencer/playlist directly into the main panel view by default
-        if hasattr(self, 'playlist_window') and self.playlist_window:
-            self.workspace_splitter.addWidget(self.playlist_window)
+        # Instrument-Specific Control Pane (Scale, Tonal Settings, Sequencer Grid)
+        scale_and_seq_layout = QHBoxLayout()
+        self.scale_combo = QComboBox()
+        self.scale_combo.addItems(["Microtonal Matrix", "Pythagorean Tuning", "Meum Ratio Scale", "Z-Pinch Harmonic Scale"])
+        scale_and_seq_layout.addWidget(QLabel("Tonal Scale:"))
+        scale_and_seq_layout.addWidget(self.scale_combo)
+        scale_and_seq_layout.addStretch(1)
+
+        main_workspace_layout.addLayout(scale_and_seq_layout)
+
+        # Embed the specific instrument's internal sequencer/piano roll pane directly here
+        if hasattr(self, 'instrument_sequencer_pane') and self.instrument_sequencer_pane:
+            main_workspace_layout.addWidget(self.instrument_sequencer_pane)
         else:
-            # Fallback container if playlist window isn't pre-built yet
-            fallback_widget = QWidget()
-            fb_layout = QVBoxLayout(fallback_widget)
-            fb_layout.addWidget(QLabel("Sequencer & Playlist Grid Panel"))
-            self.workspace_splitter.addWidget(fallback_widget)
+            self.instrument_sequencer_pane = QWidget()
+            seq_layout = QVBoxLayout(self.instrument_sequencer_pane)
+            seq_placeholder = QLabel("Active Instrument Sequencer & Scale Step Matrix")
+            seq_placeholder.setStyleSheet("color: #00ffcc; background: #181818; padding: 15px; border: 1px solid #333;")
+            seq_layout.addWidget(seq_placeholder)
+            main_workspace_layout.addWidget(self.instrument_sequencer_pane)
 
-        # Visualizer Oscilloscope Canvas at the bottom
+        # Oscilloscope Visualizer at the base of the main panel
         if hasattr(self, 'visual_oscilloscope') and self.visual_oscilloscope:
-            self.workspace_splitter.addWidget(self.visual_oscilloscope)
-        elif hasattr(self, 'visualizer_canvas') and self.visualizer_canvas:
-            self.workspace_splitter.addWidget(self.visualizer_canvas)
+            main_workspace_layout.addWidget(self.visual_oscilloscope)
         else:
             self.visual_oscilloscope = QWidget()
             vis_layout = QVBoxLayout(self.visual_oscilloscope)
-            vis_canvas_label = QLabel("Active Phase-Space Oscilloscope Rendering Canvas")
-            vis_canvas_label.setStyleSheet("color: #00ffcc; font-weight: bold; background: #0a0a0a; padding: 10px;")
-            vis_layout.addWidget(vis_canvas_label)
-            self.workspace_splitter.addWidget(self.visual_oscilloscope)
+            vis_label = QLabel("Phase-Space Oscilloscope Visualizer")
+            vis_label.setStyleSheet("color: #00ffcc; background: #0a0a0a; padding: 8px;")
+            vis_layout.addWidget(vis_label)
+            main_workspace_layout.addWidget(self.visual_oscilloscope)
 
-        self.workspace_splitter.setSizes([450, 150])
-        master_container.addWidget(self.workspace_splitter)
-
+        master_container.addLayout(main_workspace_layout)
         self.main_layout.addLayout(master_container)
+
     def switch_workspace_view(self, widget):
         """Brings the targeted studio module widget into view inside the main workspace splitter."""
         if widget and hasattr(self, 'workspace_splitter'):
@@ -5825,7 +5777,27 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
             for w in widgets:
                 w.blockSignals(False)
-
+    def force_show_panel(self, panel, name):
+            """Forces the target panel to show up, embedding it into the workspace splitter if needed."""
+            print(f"Workflow button clicked: {name}")
+            if panel:
+                panel.show()
+                panel.raise_()
+                if hasattr(self, 'workspace_splitter') and panel.parent() != self.workspace_splitter:
+                    self.workspace_splitter.insertWidget(0, panel)
+            else:
+                print(f"Warning: {name} component instance is None or not initialized.")
+    def open_global_window(self, window_attr_name, window_class_name, title):
+        """Ensures only a single instance of a global studio window is active and pops it out."""
+        window = getattr(self, window_attr_name, None)
+        if window is None or not window.isVisible():
+            # Instantiate if it doesn't exist or was closed
+            window = window_class_name(self)
+            setattr(self, window_attr_name, window)
+            window.setWindowTitle(title)
+        window.show()
+        window.raise_()
+        window.activateWindow()
     def randomize_single_instrument(self):
         """Randomizes synth parameters and updates modulation origins/destinations."""
         # Active node lists from your PatchBay Canvas
