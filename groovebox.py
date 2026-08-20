@@ -10,12 +10,12 @@ import wave
 import json
 import numpy as np
 from PyQt6.QtCore import Qt, QPoint,QPointF, QRectF, QTimer
-from PyQt6.QtGui import (QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont,QAction, QPalette, QAction, QKeyEvent,QBrush,QColor, QKeySequence
-)
+from PyQt6.QtGui import (QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont,QAction, QPalette, QAction, QKeyEvent,QBrush,QColor, QKeySequence)
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
     QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit, QDialog, QInputDialog,QListWidget,QTableWidgetItem, QHeaderView,QProgressBar,QSpinBox, QCheckBox,QComboBox
+    )
 import random
 try:
     import scipy.io.wavfile as wavfile
