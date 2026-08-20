@@ -41,7 +41,7 @@ else
 fi
 
 # 3. Target Script Validation
-TARGET_SCRIPT="eqr_groovebox_ultimate_modular.py"
+TARGET_SCRIPT="groovebox.py"
 
 if [ ! -f "$TARGET_SCRIPT" ]; then
     echo -e "${RED}[!] Error: Ultimate suite script '${TARGET_SCRIPT}' not found.${NC}"
