@@ -5975,47 +5975,32 @@ class MathematiciansGrooveboxApp(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Export Failed", str(e))
             def render_full_mixdown(self, filename, channel_states, grid_data, instrument_names, tempo_bpm=120):
-                seconds_per_beat = 60.0 / float(tempo_bpm)
-                total_cols = len(grid_data[0]) if grid_data else 128
-                total_duration = total_cols * seconds_per_beat * 0.25
+        seconds_per_beat = 60.0 / float(tempo_bpm)
+        total_cols = len(grid_data[0]) if grid_data else 128
+        total_duration = total_cols * seconds_per_beat * 0.25
 
-                num_samples = int(self.sample_rate * total_duration)
-                master_buffer = np.zeros(num_samples, dtype=np.float32)
-                t = np.linspace(0, total_duration, num_samples, endpoint=False)
+        num_samples = int(self.sample_rate * total_duration)
 
-                for track_idx, row in enumerate(grid_data):
-                    state = channel_states[track_idx % len(channel_states)]
-                    base_tuning = state.get("tuning", 432.0)
-                    amplitude = state.get("amplitude", 0.8)
-                    duration_mult = state.get("duration", 1.0)
+        # --- INITIALIZE MASTER BUFFER HERE ---
+        master_buffer = np.zeros(num_samples, dtype=np.float32)
+        t = np.linspace(0, total_duration, num_samples, endpoint=False)
 
-                    for col_idx, cell in enumerate(row):
-                        if cell is not None and cell != "":
-                            start_time = (col_idx / total_cols) * total_duration
-                            note_dur = max(0.05, (total_duration / total_cols) * duration_mult)
-                            end_time = min(total_duration, start_time + note_dur)
+        # Loop through tracks and grid data to populate buffer...
+        for track_idx, row in enumerate(grid_data):
+            # Your rendering logic adding to master_buffer goes here...
+            pass
 
-                            idx_start = int(start_time * self.sample_rate)
-                            idx_end = int(end_time * self.sample_rate)
-                            if idx_start >= num_samples: continue
+        # Normalization and writing out to file
+        max_val = np.max(np.abs(master_buffer))
+        if max_val > 0:
+            master_buffer = master_buffer / max_val * 0.95
 
-                            sub_t = t[idx_start:idx_end] - start_time
-                            if len(sub_t) == 0: continue
-
-                            freq = base_tuning * (1.0 + (col_idx % 12) * 0.03)
-
-                            # Compute math waveform using internal 6 knobs & external controls
-                            raw_audio = self.compute_synth_waveform(track_idx % 48, sub_t, freq, state)
-
-                            # Envelope decay based on duration/percussive setting
-                            env = np.sin(np.pi * sub_t / note_dur)
-                            note_audio = raw_audio * env * 0.1 * amplitude
-
-                            master_buffer[idx_start:idx_start+len(note_audio)] += note_audio
-
-                max_val = np.max(np.abs(master_buffer))
-                if max_val > 0:
-                    master_buffer = master_buffer / max_val * 0.95
+        scaled = np.int16(master_buffer * 32767)
+        with wave.open(filename, 'w') as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(self.sample_rate)
+            wav_file.writeframes(scaled.tobytes())
 class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
