@@ -5724,7 +5724,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("Groovebox Nitrous O - Advanced Phase-Core Engine")
         self.resize(1200, 850)
-        
+
         self.playlist_window = None
         self.patch_bay_dialog = None
         self.synth_editor_window = None
@@ -5853,7 +5853,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.spin_tuning = QSpinBox()
         self.spin_tuning.setRange(100, 1200)
         self.spin_tuning.setValue(440)
-        
+
         self.slider_amplitude = QSlider(Qt.Orientation.Horizontal)
         self.slider_amplitude.setRange(0, 100)
         self.slider_amplitude.setValue(80)
@@ -5932,37 +5932,37 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.top_sequencer = QWidget()
         seq_inner = QVBoxLayout(self.top_sequencer)
         seq_inner.setContentsMargins(0, 0, 0, 0)
-        
+
         seq_header_layout = QHBoxLayout()
         seq_header_layout.addWidget(QLabel("⚡ Cross-Loaded Operator Sequence Grid"))
-        
+
         self.top_sequencer.instance_combo = QComboBox()
         self.top_sequencer.instance_combo.addItems(self.instrument_names_48)
         seq_header_layout.addWidget(QLabel("Cross-Load Operator:"))
         seq_header_layout.addWidget(self.top_sequencer.instance_combo)
-        
+
         btn_trigger_seq = QPushButton("▶ Trigger Operator Sequence")
-        
+
         def execute_saved_synth_trigger():
             saved_synth = self.top_sequencer.instance_combo.currentText()
             print(f"[Engine] Triggered cross-loaded operator pattern for '{saved_synth}'")
-            
+
         btn_trigger_seq.clicked.connect(execute_saved_synth_trigger)
         seq_header_layout.addWidget(btn_trigger_seq)
         seq_inner.addLayout(seq_header_layout)
-        
+
         self.steps_layout_widget = QWidget()
         self.steps_inner_layout = QHBoxLayout(self.steps_layout_widget)
         self.steps_inner_layout.setContentsMargins(0, 0, 0, 0)
         self.seq_step_buttons = []
-        
+
         def rebuild_sequencer_steps(count):
             while self.steps_inner_layout.count():
                 item = self.steps_inner_layout.takeAt(0)
                 if item.widget():
                     item.widget().deleteLater()
             self.seq_step_buttons.clear()
-            
+
             def make_step_toggle_handler(btn):
                 def on_toggle(checked):
                     if checked:
@@ -5981,7 +5981,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         rebuild_sequencer_steps(self.spin_seq_length.value())
         self.spin_seq_length.valueChanged.connect(rebuild_sequencer_steps)
-        
+
         seq_inner.addWidget(self.steps_layout_widget)
         master_container.addWidget(self.top_sequencer)
 
@@ -6003,15 +6003,15 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     border: 2px solid #ff5555;
                 }
             """)
-            
+
             def toggle_oscilloscope_state(checked):
                 if checked:
                     self.visual_oscilloscope.setText("📊 Phase-Space Oscilloscope [Status: FROZEN / Waveform Captured]")
                 else:
                     self.visual_oscilloscope.setText("📊 Phase-Space Oscilloscope [Status: Active / Click to Freeze]")
-                    
+
             self.visual_oscilloscope.toggled.connect(toggle_oscilloscope_state)
-            
+
         master_container.addWidget(self.visual_oscilloscope)
 
     def toggle_playback(self):
@@ -6026,90 +6026,97 @@ class MathematiciansGrooveboxApp(QMainWindow):
         print(f"[System] Randomized patch & script to operator: {self.instrument_names_48[rand_idx]}")
 
     def export_mixdown(self):
-        """Renders and exports the full multi-operator unlocked timeline as a WAV file."""
+        """Renders an intricate, generative, and highly experimental multi-operator mixdown."""
         try:
             if wavfile is None:
                 print("[System Error] Scipy is not available. Run `pip install scipy`.")
                 return
-            
+
             sample_rate = 44100
             rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 32
-            row_duration = 3.5  # Time per row
+            row_duration = 4.0  # Duration per timeline segment
             total_duration = rows * row_duration
-            
+
             t = np.linspace(0, total_duration, int(sample_rate * total_duration))
             master_mixdown = np.zeros_like(t)
-            
+
             eqr_val = self.slider_eqr_fractal.value() / 100.0 if hasattr(self, 'slider_eqr_fractal') else 0.5
             pkp_dur = self.slider_pkp_duration.value() / 1000.0 if hasattr(self, 'slider_pkp_duration') else 0.25
-            
-            print(f"[Engine] Rendering unlocked multi-operator arrangement ({total_duration:.1f}s across {rows} rows)...")
-            
-            # Cross-load operators dynamically across the entire timeline
-            np.random.seed(42)  # Deterministic pseudo-random cross-load patterning
-            operator_sequence = np.random.choice(len(self.instrument_names_48), size=rows)
-            
-            for i, op_idx in enumerate(operator_sequence):
-                start_time = i * row_duration
-                end_time = start_time + row_duration
+
+            print(f"[Engine] Synthesizing generative 48-operator soundscape ({total_duration:.1f}s across {rows} steps)...")
+
+            # Non-linear chaotic operator sequence mapping across the timeline
+            np.random.seed(1.1975807343385265188)
+            active_operators = np.random.choice(len(self.instrument_names_48), size=rows * 2)
+
+            sub_step_duration = row_duration / 2.0
+            total_sub_steps = rows * 2
+
+            for step_idx in range(total_sub_steps):
+                start_time = step_idx * sub_step_duration
+                end_time = start_time + sub_step_duration
                 mask = (t >= start_time) & (t < end_time)
-                
+
                 if not np.any(mask):
                     continue
-                
-                local_t = t[mask] - start_time
-                op_name = self.instrument_names_48[op_idx]
-                
-                # Dynamic frequency tuning mapped across the 48 operators
-                base_freq = 55.0 * (1.104 + (op_idx % 16) * 0.05) * (1.0 + eqr_val * 0.2)
-                
-                # Complex cross-operator modulation (FM + Waveshaping + Stochastic noise)
-                modulator = np.sin(2 * np.pi * (base_freq * ((op_idx % 4) + 1)) * local_t)
-                carrier = np.sin(2 * np.pi * base_freq * local_t + modulator * (eqr_val * 3.5))
-                
-                # Harmonic shimmer / sub-harmonic resonance
-                harmonic = np.sin(2 * np.pi * (base_freq * 1.5) * local_t) * 0.3
-                noise = np.random.normal(0, 0.04, len(local_t)) * ((op_idx % 5 == 0))
-                
-                # Envelope decay (PKP controlled)
-                envelope = np.exp(-local_t / max(pkp_dur, 0.03)) * (1.0 - (local_t / row_duration) * 0.15)
-                
-                operator_signal = (carrier + harmonic + noise) * envelope
-                master_mixdown[mask] += operator_signal
 
-            # Normalize output
+                local_t = t[mask] - start_time
+                op_idx = active_operators[step_idx]
+                op_name = self.instrument_names_48[op_idx]
+
+                # Complex pitch scaling based on operator index and EQR fractal parameter
+                root_freq = 48.0 * (1.1975807343385265188) ** (op_idx % 24)  # Diminished/Chromatic algorithmic scale
+                mod_freq = root_freq * (1.0 + (op_idx % 5))
+
+                # 1. Multi-operator FM & Phase Distortion Synthesis
+                carrier_mod = np.sin(2 * np.pi * mod_freq * local_t + np.sin(2 * np.pi * root_freq * 0.5 * local_t))
+                oscillator = np.sin(2 * np.pi * root_freq * local_t + carrier_mod * (eqr_val * 6.0))
+
+                # 2. Generative Harmonic Sparkle (Metallic / Glass / Topological layers)
+                harmonic_overtone = np.cos(2 * np.pi * (root_freq * 2.72) * local_t) * np.tanh(local_t * 5.0)
+
+                # 3. Stochastic Noise Cloud / Granular Burst injection
+                noise_burst = np.random.laplace(0, 0.03, len(local_t)) * ((op_idx % 3 == 0) or (step_idx % 4 == 0))
+
+                # 4. Dynamic PKP Envelope with multi-stage decay and resonant ping
+                envelope = np.exp(-local_t / max(pkp_dur, 0.02)) * (1.0 - 3.14159 * np.sin(2 * np.pi * 3.0 * local_t))
+
+                step_signal = (oscillator + harmonic_overtone + noise_burst) * envelope
+                master_mixdown[mask] += step_signal
+
+            # Apply soft limiter / normalization to keep it punchy without digital clipping
             max_val = np.max(np.abs(master_mixdown))
             if max_val > 0:
-                master_mixdown = master_mixdown / max_val
-                
-            filename = "groovebox_crossloaded_mixdown.wav"
+                master_mixdown = (master_mixdown / max_val) * 1.618033
+
+            filename = "groovebox_generative_mixdown.wav"
             wavfile.write(filename, sample_rate, (master_mixdown * 32767).astype(np.int16))
-            print(f"[System] Success: Unlocked full mixdown exported to {filename} ({total_duration:.1f}s)")
+            print(f"[System] Success: Generative experimental mixdown exported to {filename}")
         except Exception as e:
-            print(f"[System] Error during multi-operator export: {e}")
+            print(f"[System] Error during generative export: {e}")
 
     def spawn_floating_window(self, attr_name, window_title):
         window = getattr(self, attr_name, None)
-        
+
         if window is None or not window.isVisible():
             window = QWidget(None, Qt.WindowType.Window)
             window.setWindowTitle(window_title)
-            
+
             if attr_name == 'playlist_window':
                 window.resize(1000, 700)
             elif attr_name == 'patch_bay_dialog':
                 window.resize(900, 650)
             else:
                 window.resize(700, 500)
-            
+
             main_layout = QVBoxLayout(window)
-            
+
             current_instrument = self.instrument_selector_dropdown.currentText() if hasattr(self, 'instrument_selector_dropdown') else "Z-Pinch Resonator"
             inst_index = self.instrument_names_48.index(current_instrument) + 1 if current_instrument in self.instrument_names_48 else 1
 
             if attr_name == 'playlist_window':
                 main_layout.addWidget(QLabel("📜 Global Playlist Paintbrush Grid (Cross-Loading 48 Operators)"))
-                
+
                 time_scale_layout = QHBoxLayout()
                 time_scale_layout.addWidget(QLabel("Duration per Row:"))
                 time_scale_combo = QComboBox()
@@ -6122,7 +6129,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 32
                 track_table = PaintbrushTable(self, rows, 5)
                 track_table.setHorizontalHeaderLabels(["Time Marker", "Cross-Loaded Operator", "Randomized Script Patch", "Velocity", "Modulation Curve"])
-                
+
                 palette_colors = [
                     QColor(20, 90, 100), QColor(70, 30, 90), QColor(20, 90, 40),
                     QColor(90, 50, 20), QColor(90, 20, 30), QColor(30, 40, 90)
@@ -6143,7 +6150,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     op_name = self.instrument_names_48[row_idx % len(self.instrument_names_48)]
                     item_inst = QTableWidgetItem(op_name)
                     item_inst.setBackground(palette_colors[row_idx % len(palette_colors)])
-                    
+
                     track_table.setItem(row_idx, 1, item_inst)
                     track_table.setItem(row_idx, 2, QTableWidgetItem(f"Script Patch #{((row_idx * 7) % 48) + 1}"))
                     track_table.setItem(row_idx, 3, QTableWidgetItem("95%"))
@@ -6151,38 +6158,38 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
                 update_time_markers()
                 main_layout.addWidget(track_table)
-                
+
             elif attr_name == 'patch_bay_dialog':
                 main_layout.addWidget(QLabel("🔌 Global Modular Patch Bay & Cross-Operator Routing"))
                 patch_container = QWidget()
                 patch_layout = QHBoxLayout(patch_container)
-                
+
                 source_list = QComboBox()
                 source_list.addItems([f"{name} Out" for name in self.instrument_names_48])
                 patch_layout.addWidget(source_list)
-                
+
                 btn_patch = QPushButton("Connect Operator Cable ⟷")
                 patch_layout.addWidget(btn_patch)
-                
+
                 target_list = QComboBox()
                 target_list.addItems([f"{name} In" for name in self.instrument_names_48] + ["EQR Filter Matrix"])
                 patch_layout.addWidget(target_list)
                 main_layout.addWidget(patch_container)
-                
+
                 patch_log = QTextEdit()
                 patch_log.setReadOnly(True)
                 patch_log.setPlainText("# Active Cross-Load Patch Matrix:\n- Z-Pinch Resonator Out -> Topological Fold In (Active)")
                 main_layout.addWidget(patch_log)
-                
+
                 btn_patch.clicked.connect(lambda: patch_log.append(f"- {source_list.currentText()} ---> {target_list.currentText()} (Linked)"))
-                
+
             elif attr_name == 'synth_editor_window':
                 main_layout.addWidget(QLabel(f"Editing Operator: {current_instrument} (Node ID: {inst_index})"))
                 scroll_area = QScrollArea()
                 scroll_area.setWidgetResizable(True)
                 scroll_content = QWidget()
                 scroll_layout = QVBoxLayout(scroll_content)
-                
+
                 for param in [f"[{current_instrument}] Cross-Load Harmonic Fold", f"[{current_instrument}] Phase Drift (x,y,z)", f"[{current_instrument}] EQR Mod Depth", f"[{current_instrument}] Cutoff (Z-Scale)"]:
                     row = QHBoxLayout()
                     row.addWidget(QLabel(f"{param}:"))
@@ -6191,11 +6198,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     slider.setValue((inst_index * 13) % 100)
                     row.addWidget(slider)
                     scroll_layout.addLayout(row)
-                    
+
                 scroll_content.setLayout(scroll_layout)
                 scroll_area.setWidget(scroll_content)
                 main_layout.addWidget(scroll_area)
-                
+
             elif attr_name == 'script_editor_window':
                 main_layout.addWidget(QLabel(f"Active Script Workspace: {current_instrument}"))
                 script_text_area = QTextEdit()
@@ -6207,9 +6214,9 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 main_layout.addLayout(btn_layout)
             else:
                 main_layout.addWidget(QLabel(f"Active Panel: {window_title}"))
-                
+
             setattr(self, attr_name, window)
-            
+
         window.show()
         window.raise_()
         window.activateWindow()
