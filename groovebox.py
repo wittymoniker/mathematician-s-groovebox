@@ -5892,7 +5892,20 @@ class MathematiciansGrooveboxApp(QMainWindow):
             seq_placeholder.setStyleSheet("color: #00ffcc; background: #181818; padding: 15px; border: 1px solid #333;")
             seq_layout.addWidget(seq_placeholder)
             master_container.addWidget(self.instrument_sequencer_pane)
+        if not hasattr(self, 'top_sequencer') or self.top_sequencer is None:
+            self.top_sequencer = QWidget()
+            seq_inner_layout = QVBoxLayout(self.top_sequencer)
 
+            # Sub-component often expected by methods like randomize_single_instrument
+            self.top_sequencer.instance_combo = QComboBox()
+            self.top_sequencer.instance_combo.addItems([f"Node Instance {i}" for i in range(1, 49)])
+            seq_inner_layout.addWidget(self.top_sequencer.instance_combo)
+
+            seq_placeholder = QLabel("Top Sequencer Step Matrix & Controls")
+            seq_placeholder.setStyleSheet("color: #00ffcc; background: #181818; padding: 15px; border: 1px solid #333;")
+            seq_inner_layout.addWidget(seq_placeholder)
+
+        master_container.addWidget(self.top_sequencer)
         # Re-attach or create the oscilloscope visualizer on the main window
         if hasattr(self, 'visual_oscilloscope') and self.visual_oscilloscope:
             master_container.addWidget(self.visual_oscilloscope)
