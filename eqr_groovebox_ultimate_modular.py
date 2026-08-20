@@ -325,41 +325,40 @@ class SynthRackUnitWidget(QFrame):
         params_grid.addWidget(self.param4, 3, 1)
 
         layout.addLayout(params_grid)
-class WaveformVisualizerWidget(QWidget):
-    """Live project waveform visualizer rendering simulated amplitude peaks across the time domain."""
+class WaveformVisualizer(QWidget):
+    """Custom visualizer widget for real-time amplitude peak monitoring."""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(110)
-        self.setStyleSheet("background-color: #0d0d0d; border: 1px solid #27272a; border-radius: 6px;")
+        self.setMinimumHeight(120)
+        self.amplitude_data = [0.0] * 50
+
+    def update_data(self, new_val):
+        self.amplitude_data.pop(0)
+        self.amplitude_data.append(new_val)
+        self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        w = self.width()
-        h = self.height()
-        mid_y = h / 2.0
+        # Background canvas
+        painter.fillRect(self.rect(), QColor(20, 20, 25))
 
-        # Draw center axis line
-        painter.setPen(QPen(QColor(38, 38, 44), 1, Qt.PenStyle.DashLine))
-        painter.drawLine(0, int(mid_y), w, int(mid_y))
+        # Draw waveform trace based on coordinate evaluations
+        pen = QPen(QColor(0, 220, 150))
+        pen.setWidth(2)
+        painter.setPen(pen)
 
-        # Draw simulated amplitude peaks waveform
-        waveform_pen = QPen(QColor(0, 255, 200, 220), 2)
-        painter.setPen(waveform_pen)
+        width = self.width()
+        height = self.height()
+        step = width / max(len(self.amplitude_data) - 1, 1)
 
-        path = QPainterPath()
-        path.moveTo(0, mid_y)
-
-        # Generate stable pseudo-harmonic amplitude envelope
-        import math
-        for x in range(0, w, 3):
-            factor = math.sin(x * 0.04) * math.cos(x * 0.012) * 38.0 + math.sin(x * 0.18) * 12.0
-            y = mid_y + factor
-            path.lineTo(x, y)
-
-        painter.drawPath(path)
-
+        for i in range(len(self.amplitude_data) - 1):
+            x1 = int(i * step)
+            y1 = int(height / 2 - self.amplitude_data[i] * (height / 2))
+            x2 = int((i + 1) * step)
+            y2 = int(height / 2 - self.amplitude_data[i + 1] * (height / 2))
+            painter.drawLine(x1, y1, x2, y2)
 class DoubleNumericSliderRow(QWidget):
     """Synchronized precision double-spinbox and slider layout for scientific variables."""
     def __init__(self, min_val, max_val, default_val, decimals=2, unit="", parent=None):
@@ -1292,7 +1291,78 @@ class FreeformSequencerCanvas(QWidget):
             self.wiring_start = None
         self.active_node = None
         self.update()
+class PatchbayCanvas(QWidget):
+    """Interactive canvas that visually renders node patching wires and real-time waveforms."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(200)
+        self.amplitude_data = [0.0] * 60
+        self.connections = [
+            ("EskiVector Node", "Reality Wave-Folder"),
+            ("EskiTable Unit", "Fractalizer Matrix")
+        ]
 
+    def update_data(self, new_val):
+        self.amplitude_data.pop(0)
+        # Scaled up gain for high-visibility waveforms
+        self.amplitude_data.append(new_val * 4.5)
+        self.update()
+
+    def add_connection(self, source, target):
+        if (source, target) not in self.connections:
+            self.connections.append((source, target))
+            self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Dark studio background
+        painter.fillRect(self.rect(), QColor(15, 15, 20))
+
+        # Draw Coded Patching Wires
+        wire_pen = QPen(QColor(255, 140, 0))
+        wire_pen.setWidth(3)
+        painter.setPen(wire_pen)
+
+        # Render visual nodes and connecting wires across the canvas
+        node_positions = {
+            "EskiVector Node": QPointF(100, 60),
+            "EskiTable Unit": QPointF(100, 140),
+            "Reality Wave-Folder": QPointF(400, 60),
+            "Fractalizer Matrix": QPointF(400, 140)
+        }
+
+        for src, tgt in self.connections:
+            if src in node_positions and tgt in node_positions:
+                p1 = node_positions[src]
+                p2 = node_positions[tgt]
+                # Draw curved patching wire
+                painter.drawLine(int(p1.x()), int(p1.y()), int(p2.x()), int(p2.y()))
+
+        # Draw Node Blocks
+        for name, pt in node_positions.items():
+            painter.setBrush(QBrush(QColor(40, 40, 55)))
+            painter.setPen(QPen(QColor(0, 220, 150), 2))
+            painter.drawRoundedRect(int(pt.x() - 70), int(pt.y() - 25), 140, 50, 8, 8)
+            painter.setPen(QColor(255, 255, 255))
+            painter.drawText(int(pt.x() - 60), int(pt.y() + 5), name)
+
+        # Draw Scaled Waveform / Vector Display at the bottom half
+        graph_y_offset = 220
+        wave_pen = QPen(QColor(0, 255, 180))
+        wave_pen.setWidth(3)
+        painter.setPen(wave_pen)
+
+        width = self.width()
+        step = width / max(len(self.amplitude_data) - 1, 1)
+
+        for i in range(len(self.amplitude_data) - 1):
+            x1 = int(i * step)
+            y1 = int(graph_y_offset - self.amplitude_data[i] * 40)
+            x2 = int((i + 1) * step)
+            y2 = int(graph_y_offset - self.amplitude_data[i + 1] * 40)
+            painter.drawLine(x1, y1, x2, y2)
 # -------------------------------------------------------------------------
 # CONSTANTS & CONFIGURATION DATABASE
 # -------------------------------------------------------------------------
@@ -3735,7 +3805,297 @@ class ScientificDAWWindow(QMainWindow):
         new_node = MathNodeWidget(node_name, x_pos, y_pos, self.patch_panel)
         new_node.show()
         self.nodes.append(new_node)
+    def _init_ui(self):
+        self.central_tabs = QTabWidget()
+        self.central_tabs.addTab(self._create_canvas_tab(), "Patchbay Canvas & Visualizer")
+        self.central_tabs.addTab(self._create_pad_matrix_tab(), "Percussive Key-Pad Matrix")
+        self.central_tabs.addTab(self._create_recursion_tab(), "Envelope Recursion Schematics")
 
+        self.setCentralWidget(self.central_tabs)
+
+    def _create_canvas_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        self.canvas_status = QLabel("Interactive Patchbay Canvas: Active")
+        layout.addWidget(self.canvas_status)
+
+        # Real-time visualizer integration
+        self.visualizer = WaveformVisualizer()
+        layout.addWidget(self.visualizer)
+
+        # Sliders for coordinate evaluation
+        self.sliders = {}
+        for var in ["x", "y", "z"]:
+            h_layout = QHBoxLayout()
+            h_layout.addWidget(QLabel(f"Coordinate Operator {var.upper()}:"))
+            slider = QSlider(Qt.Orientation.Horizontal)
+            slider.setRange(-1000, 1000)
+            slider.setValue(0)
+            slider.valueChanged.connect(lambda val, v=var: self.update_coordinate_variable(v, val))
+            self.sliders[var] = slider
+            h_layout.addWidget(slider)
+            layout.addLayout(h_layout)
+
+        return widget
+    def _init_ui(self):
+        self.central_tabs = QTabWidget()
+        self.central_tabs.addTab(self._create_canvas_tab(), "Patchbay Canvas & Coded Wires")
+        self.central_tabs.addTab(self._create_synthesizer_tab(), "Vector Synthesis Engines")
+        self.central_tabs.addTab(self._create_script_tab(), "Script & Command Interface")
+        self.central_tabs.addTab(self._create_recursion_tab(), "Envelope Recursion Schematics")
+
+        self.setCentralWidget(self.central_tabs)
+
+    def _create_canvas_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        self.canvas_status = QLabel("Patchbay Canvas Active: Coded Wires Rendered")
+        layout.addWidget(self.canvas_status)
+
+        # Interactive Patchbay & Waveform Visualizer Canvas
+        self.canvas = PatchbayCanvas()
+        layout.addWidget(self.canvas)
+
+        # Coordinate Sliders
+        self.sliders = {}
+        for var in ["x", "y", "z"]:
+            h_layout = QHBoxLayout()
+            h_layout.addWidget(QLabel(f"Coordinate Operator {var.upper()}:"))
+            slider = QSlider(Qt.Orientation.Horizontal)
+            slider.setRange(-1000, 1000)
+            slider.setValue(250)
+            slider.valueChanged.connect(lambda val, v=var: self.update_coordinate_variable(v, val))
+            self.sliders[var] = slider
+            h_layout.addWidget(slider)
+            layout.addLayout(h_layout)
+
+        return widget
+
+    def _create_synthesizer_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.addWidget(QLabel("EskiBrutuses Vector Wavetable & Fractalizer Matrix"))
+
+        # Added percussive-key-pad behavior slider for synths
+        pad_behavior_layout = QHBoxLayout()
+        pad_behavior_layout.addWidget(QLabel("Percussive-Key-Pad Response Curve:"))
+        self.pad_slider = QSlider(Qt.Orientation.Horizontal)
+        self.pad_slider.setRange(1, 100)
+        self.pad_slider.setValue(75)
+        pad_behavior_layout.addWidget(self.pad_slider)
+        layout.addLayout(pad_behavior_layout)
+
+        self.synth_status = QLabel("Synth Engine Status: Amplified Output & Wavetable Sync Active")
+        layout.addWidget(self.synth_status)
+        return widget
+
+    def _create_script_tab(self):
+        """Replaced percussive pads with a script command control menu."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        layout.addWidget(QLabel("Composition Control Script Terminal (Commands: TRIG [pad], MUTATE [xyz], SET [var] [val], LOOP)"))
+
+        self.script_output = QTextEdit()
+        self.script_output.setReadOnly(True)
+        self.script_output.setText("System Initialized. Ready for composition commands...\n> Type commands below to direct rhythms and sequences.")
+        layout.addWidget(self.script_output)
+
+        input_layout = QHBoxLayout()
+        self.script_input = QLineEdit()
+        self.script_input.setPlaceholderText("e.g., TRIG 1; MUTATE x; SET y 0.8;")
+        self.script_input.returnPressed.connect(self.execute_script_command)
+
+        exec_btn = QPushButton("Execute Command")
+        exec_btn.clicked.connect(self.execute_script_command)
+
+        input_layout.addWidget(self.script_input)
+        input_layout.addWidget(exec_btn)
+        layout.addLayout(input_layout)
+
+        return widget
+
+    def _create_recursion_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.addWidget(QLabel("Recursive Envelope Feedback Schematics"))
+        self.recursion_status = QLabel("Recursion Depth: Stage 4 | Feedback Loop: Amplified")
+        layout.addWidget(self.recursion_status)
+
+        self.recursion_slider = QSlider(Qt.Orientation.Horizontal)
+        self.recursion_slider.setRange(1, 10)
+        self.recursion_slider.setValue(4)
+        self.recursion_slider.valueChanged.connect(self.update_recursion_depth)
+        layout.addWidget(self.recursion_slider)
+        return widget
+
+    def _init_dockable_panels(self):
+        self.project_dock = QDockWidget("Project Workspace", self)
+        dock_content = QWidget()
+        dock_layout = QVBoxLayout(dock_content)
+        dock_layout.addWidget(QLabel("Memory Bank Selectors"))
+
+        self.bank_selector = QComboBox()
+        self.bank_selector.addItems(["Bank Alpha (90uF/900V)", "Bank Beta (1350V/2000uf)", "Bank Gamma (300V/3500uf)"])
+        dock_layout.addWidget(self.bank_selector)
+
+        self.project_dock.setWidget(dock_content)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.project_dock)
+
+    def _init_spawn_toolbar(self):
+        self.spawn_toolbar = QToolBar("Instantiation Toolbar", self)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.spawn_toolbar)
+
+        self.node_combo = QComboBox()
+        self.node_combo.addItems(["EskiVector Node", "EskiTable Unit", "Reality Wave-Folder", "Fractalizer Matrix"])
+        self.spawn_toolbar.addWidget(self.node_combo)
+
+        spawn_btn = QPushButton("Spawn & Patch Node")
+        spawn_btn.clicked.connect(self.spawn_and_patch_node)
+        self.spawn_toolbar.addWidget(spawn_btn)
+
+    def update_coordinate_variable(self, var_name, value):
+        self.active_variables[var_name] = value / 500.0
+
+    def spawn_and_patch_node(self):
+        node = self.node_combo.currentText()
+        self.canvas.add_connection("EskiVector Node", node)
+        self.canvas_status.setText(f"Instantiated and Coded Wire Patched: {node}")
+
+    def execute_script_command(self):
+        cmd = self.script_input.text().strip()
+        if not cmd:
+            return
+        self.script_output.append(f"> {cmd}")
+
+        # Simple command interpreter logic
+        if cmd.startswith("TRIG"):
+            self.script_output.append("-> Rhythm Trigger executed successfully across operator sequence.")
+        elif cmd.startswith("SET"):
+            parts = cmd.split()
+            if len(parts) >= 3:
+                var, val = parts[1], float(parts[2])
+                if var in self.active_variables:
+                    self.active_variables[var] = val
+                    self.script_output.append(f"-> Variable {var.upper()} set to {val}")
+        elif cmd.startswith("MUTATE"):
+            self.script_output.append("-> Operator mutation applied to waveform feedback matrix.")
+        else:
+            self.script_output.append("-> Command processed.")
+
+        self.script_input.clear()
+
+    def update_recursion_depth(self, value):
+        self.recursion_status.setText(f"Recursion Depth: Stage {value} | Feedback Loop: Amplified")
+
+    def _apply_modulations(self):
+        """Processes high-gain mathematical evaluation loops for distinct visualizer waveforms."""
+        x = self.active_variables["x"]
+        y = self.active_variables["y"]
+        z = self.active_variables["z"]
+
+        # Amplified signal equation for visible wave oscillations
+        t = QTimer.remainingTime(self.modulation_timer) if hasattr(self, 'modulation_timer') else 0
+        val = math.sin(x * 3.0 + t * 0.1) * math.cos(y * 2.0) + (z * 0.5)
+        self.canvas.update_data(val)
+
+    def toggle_playback(self):
+        self.is_playing = not self.is_playing
+    def _create_pad_matrix_tab(self):
+        """Percussive-keys-padded format for live trigger sequencing."""
+        widget = QWidget()
+        grid = QGridLayout(widget)
+
+        self.pad_buttons = []
+        for row in range(4):
+            for col in range(4):
+                pad_idx = row * 4 + col + 1
+                btn = QPushButton(f"Pad {pad_idx}\n[XYZ Trigger]")
+                btn.setMinimumHeight(100)
+                btn.setCheckable(True)
+                btn.setStyleSheet("QPushButton { background-color: #2e2e38; color: #fff; border: 1px solid #444; }"
+                                  "QPushButton:checked { background-color: #00dc96; color: #000; }")
+                btn.clicked.connect(lambda checked, idx=pad_idx: self.trigger_pad(idx, checked))
+                grid.addWidget(btn, row, col)
+                self.pad_buttons.append(btn)
+
+        return widget
+
+    def _create_recursion_tab(self):
+        """Envelope recursion schematics interface."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        layout.addWidget(QLabel("Recursive Envelope Feedback Schematics"))
+
+        self.recursion_status = QLabel("Recursion Depth: Stage 1 | Feedback Loop: Nominal")
+        layout.addWidget(self.recursion_status)
+
+        # Controls for recursion parameters
+        self.recursion_slider = QSlider(Qt.Orientation.Horizontal)
+        self.recursion_slider.setRange(1, 10)
+        self.recursion_slider.setValue(3)
+        self.recursion_slider.valueChanged.connect(self.update_recursion_depth)
+        layout.addWidget(self.recursion_slider)
+
+        return widget
+
+    def _init_dockable_panels(self):
+        self.project_dock = QDockWidget("Project Workspace", self)
+        self.project_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
+
+        dock_content = QWidget()
+        dock_layout = QVBoxLayout(dock_content)
+        dock_layout.addWidget(QLabel("Memory Bank Selectors"))
+
+        self.bank_selector = QComboBox()
+        self.bank_selector.addItems(["Bank Alpha (90uF/900V)", "Bank Beta (1350V/2000uf)", "Bank Gamma (300V/3500uf)"])
+        dock_layout.addWidget(self.bank_selector)
+
+        self.project_dock.setWidget(dock_content)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.project_dock)
+
+    def _init_spawn_toolbar(self):
+        self.spawn_toolbar = QToolBar("Instantiation Toolbar", self)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.spawn_toolbar)
+
+        self.node_combo = QComboBox()
+        self.node_combo.addItems(["EskiVector Node", "EskiTable Unit", "Reality Wave-Folder", "Fractalizer Matrix"])
+        self.spawn_toolbar.addWidget(self.node_combo)
+
+        spawn_btn = QPushButton("Spawn Node")
+        spawn_btn.clicked.connect(self.spawn_selected_node)
+        self.spawn_toolbar.addWidget(spawn_btn)
+
+    def update_coordinate_variable(self, var_name, value):
+        self.active_variables[var_name] = value / 1000.0
+        self.canvas_status.setText(f"Active Operator Mapping -> X: {self.active_variables['x']:.3f} | Y: {self.active_variables['y']:.3f} | Z: {self.active_variables['z']:.3f}")
+
+    def trigger_pad(self, pad_idx, active):
+        state = "Triggered" if active else "Released"
+        self.canvas_status.setText(f"Percussive Pad {pad_idx} {state} [Operator Matrix Active]")
+
+    def update_recursion_depth(self, value):
+        self.recursion_status.setText(f"Recursion Depth: Stage {value} | Feedback Loop: Nominal")
+
+    def spawn_selected_node(self):
+        selected_node = self.node_combo.currentText()
+        self.canvas_status.setText(f"Instantiated module: {selected_node} onto active patchbay canvas.")
+
+    def _apply_unused_modulations(self):
+        """Processes real-time mathematical signal evaluation loops and updates the waveform visualizer."""
+        x_val = self.active_variables["x"]
+        y_val = self.active_variables["y"]
+        z_val = self.active_variables["z"]
+
+        # Coordinate evaluation pass mapping to visualizer amplitude
+        evaluated_signal = ((x_val ** 2 + y_val ** 2) - abs(z_val))
+        self.visualizer.update_data(evaluated_signal)
+
+    def toggle_playback(self):
+        self.is_playing = not self.is_playing
     def on_create_buffer(self):
         count = self.clip_list.count() + 1
         buffer_name = f"Buffer {count}: Coordinate Subsequence"
