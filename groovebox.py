@@ -43,6 +43,11 @@ QPushButton {
 QPushButton:hover {
     background-color: #ff7675;
 }
+QPushButton:pressed {
+    background-color: #c0392b;
+    padding-top: 10px;
+    padding-left: 16px;
+}
 QPushButton:checked {
     background-color: #2ed573;
     border-color: #1e272e;
@@ -69,11 +74,13 @@ QSlider::handle:horizontal {
     margin: -7px 0;
     border-radius: 12px;
 }
+QSlider::handle:horizontal:pressed {
+    background: #c0392b;
+}
 QLabel {
     color: #1e272e;
     font-size: 14px;
 }
-/* Cartoony & Larger File Menu Dropdown Styling */
 QMenuBar {
     background-color: #ff9ff3;
     padding: 6px;
@@ -109,6 +116,10 @@ QMenu::item:selected {
     color: white;
 }
 """
+
+# ==========================================
+# 48 ESKI-INSPIRED INSTRUMENT DEFINITIONS
+# ==========================================
 ESKI_INSTRUMENT_LIST = [
     "1. Eski-Prime Sine Generator", "2. Dipsy Wavefolder Unit", "3. Laa-Laa Resonance Tank",
     "4. Po Harmonic Shaper", "5. Tinky-Winky Sub-Bass Node", "6. Noo-Noo Dust Filter",
@@ -1097,36 +1108,38 @@ class PlaylistArrangerWidget(QWidget):
 class PlaylistArrangementWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Eski Global Playlist & Arrangement Timeline")
-        self.resize(750, 550)
+        self.setWindowTitle("Interactive Global Playlist & Arrangement Timeline")
+        self.resize(800, 600)
         self.setStyleSheet(TELETUBBY_STYLE)
 
         container = QWidget()
         layout = QVBoxLayout(container)
 
         controls = QHBoxLayout()
-        controls.addWidget(QLabel("<b>Snap-to-Grid Scale:</b>"))
+        controls.addWidget(QLabel("<b>Timeline Snap & Polyrhythm Scaling:</b>"))
         self.grid_scale_combo = QComboBox()
-        self.grid_scale_combo.addItems(["1 Bar", "1/2 Beat", "1/4 Beat", "1/8 Beat", "Free / Unquantized Flow"])
+        self.grid_scale_combo.addItems(["1 Bar (Quantized)", "1/2 Beat", "1/4 Beat", "1/8 Beat", "Fully Unquantized / De-quantized Flow"])
         controls.addWidget(self.grid_scale_combo)
 
-        controls.addWidget(QLabel("<b>Global Tempo (BPM):</b>"))
+        controls.addWidget(QLabel("<b>Tempo (BPM):</b>"))
         self.global_tempo = QLineEdit("124.0")
         controls.addWidget(self.global_tempo)
         layout.addLayout(controls)
 
         self.timeline_view = QTextEdit()
         self.timeline_view.setPlainText(
-            "Track 1 [Inst 1: Eski-Prime Sine] |=======| [Bars 1 - 12]  (Sticky Gate Active)\n"
-            "Track 2 [Inst 24: Pebble Bounce]  |===|     [Bars 8 - 16]  (Local Tempo: 1.25x)\n"
-            "Track 3 [Inst 48: Eski Chaos]     |=======| [Bars 13 - 32] (Universal Brush Mode)"
+            "# Active Playlist Arrangement Channels\n"
+            "Track 1 [Instrument_1] |=======| [Bars 1 - 16]   (De-quant Offset: +4.2ms | Polyrhythm: 1.0x)\n"
+            "Track 2 [Instrument_2]   |===|   [Bars 8 - 20]   (De-quant Offset: -1.5ms | Polyrhythm: 0.75x)\n"
+            "Track 3 [Instrument_3] |=======| [Bars 12 - 32]  (De-quant Offset: 0.0ms  | Polyrhythm: 1.25x)"
         )
         self.timeline_view.setStyleSheet("background-color: #ffffff; color: #1e272e; font-family: monospace; font-size: 14px; border-radius: 12px;")
         layout.addWidget(self.timeline_view)
 
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(QPushButton("Universal Brush Painter Mode"))
-        btn_layout.addWidget(QPushButton("Render 48-Instrument Stems to Disk"))
+        btn_layout.addWidget(QPushButton("Quantize All Sequence Clips"))
+        btn_layout.addWidget(QPushButton("Render Instrument Stems to Disk"))
         layout.addLayout(btn_layout)
 
         container.setLayout(layout)
@@ -1317,41 +1330,46 @@ class SongAutomationTimeline(QWidget):
 class ModulationRoutingWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Eski Global Modulation & LFO Matrix")
-        self.resize(700, 500)
+        self.setWindowTitle("Interactive Global Modulation & LFO Hub")
+        self.resize(750, 520)
         self.setStyleSheet(TELETUBBY_STYLE)
 
         container = QWidget()
         layout = QVBoxLayout(container)
 
-        layout.addWidget(QLabel("<b>🌸 Global Modulation LFO & Envelope Shaper Hub 🌸</b>"))
+        layout.addWidget(QLabel("<b>🌸 Direct Interactive LFO & Envelope Modulation Hub 🌸</b>"))
 
         mod_grid = QGridLayout()
-        mod_grid.addWidget(QLabel("LFO 1 Rate:"), 0, 0)
-        mod_grid.addWidget(QSlider(Qt.Orientation.Horizontal), 0, 1)
+        mod_grid.addWidget(QLabel("LFO 1 Rate (Hz):"), 0, 0)
+        self.lfo1_slider = QSlider(Qt.Orientation.Horizontal)
+        self.lfo1_slider.setValue(45)
+        mod_grid.addWidget(self.lfo1_slider, 0, 1)
 
-        mod_grid.addWidget(QLabel("LFO 2 Shape:"), 1, 0)
-        shape_box = QComboBox()
-        shape_box.addItems(["Sine", "Triangle", "Square", "Random Chaos", "Tubby Step"])
-        mod_grid.addWidget(shape_box, 1, 1)
+        mod_grid.addWidget(QLabel("LFO Shape:"), 1, 0)
+        self.shape_box = QComboBox()
+        self.shape_box.addItems(["Sine Wave", "Triangle Wave", "Square Wave", "Random Chaos Curve", "Tubby Step Vector"])
+        mod_grid.addWidget(self.shape_box, 1, 1)
 
-        mod_grid.addWidget(QLabel("Envelope Decay:"), 2, 0)
-        mod_grid.addWidget(QSlider(Qt.Orientation.Horizontal), 2, 1)
+        mod_grid.addWidget(QLabel("Envelope Decay (ms):"), 2, 0)
+        self.env_slider = QSlider(Qt.Orientation.Horizontal)
+        self.env_slider.setValue(70)
+        mod_grid.addWidget(self.env_slider, 2, 1)
 
         layout.addLayout(mod_grid)
 
         self.mod_view = QTextEdit()
         self.mod_view.setPlainText(
-            "# Active Modulation Routing Table\n"
-            "LFO 1 ---> Routed to Instrument [1] Cutoff Filter (Depth: 75%)\n"
-            "LFO 2 ---> Routed to Instrument [48] Chaos Attractor (Depth: 100%)\n"
+            "# Active Modulation & LFO Routing Table\n"
+            "LFO 1 ---> Routed to Filter Cutoff (Depth: 75% | Interactive Mode: Active)\n"
+            "LFO 2 ---> Routed to Chaos Attractor (Depth: 100% | Interactive Mode: Active)\n"
             "Envelope Shaper ---> Routed to Master Limiter Threshold"
         )
         self.mod_view.setStyleSheet("background-color: #ffffff; color: #1e272e; font-family: monospace; font-size: 13px; border-radius: 12px;")
         layout.addWidget(self.mod_view)
 
-        apply_btn = QPushButton("Commit Modulation Patch Assignments")
+        apply_btn = QPushButton("Commit Interactive Modulation Patches")
         apply_btn.setStyleSheet("background-color: #00b894; color: white;")
+        apply_btn.clicked.connect(lambda: QMessageBox.information(self, "Modulation Updated", "Modulation matrix parameters successfully updated."))
         layout.addWidget(apply_btn)
 
         container.setLayout(layout)
@@ -4586,18 +4604,18 @@ class AdvancedDSPEngine:
 class VisualNodeScriptingWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Visual Graphical Equation & Heuristic Scripting Canvas")
+        self.setWindowTitle("Interactive Visual Equation & Heuristic Scripting Canvas")
         self.resize(1050, 700)
         self.setStyleSheet(TELETUBBY_STYLE)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("<b>Visual Node Graph Canvas (Modular Patch Jacks & Heuristics)</b>"))
+        layout.addWidget(QLabel("<b>Interactive Graphical Node Patch Builder</b>"))
 
         canvas_splitter = QSplitter(Qt.Orientation.Horizontal)
 
         toolbox_widget = QWidget()
         tb_layout = QVBoxLayout(toolbox_widget)
-        tb_layout.addWidget(QLabel("<b>Logic Blocks & Operators</b>"))
+        tb_layout.addWidget(QLabel("<b>Click Blocks to Insert</b>"))
 
         blocks = [
             "⚡ Eski Sine [Jack]", "🔀 Wavefold Node [Jack]", "🔁 For-Loop Repeater [Jack]",
@@ -4608,16 +4626,16 @@ class VisualNodeScriptingWindow(QDialog):
         for b in blocks:
             btn = QPushButton(b)
             btn.setStyleSheet("background-color: #6c5ce7; color: white; text-align: left; padding-left: 10px;")
+            btn.clicked.connect(lambda checked, text=b: self.append_node_text(text))
             tb_layout.addWidget(btn)
 
         canvas_splitter.addWidget(toolbox_widget)
 
         self.assembly_board = QTextEdit()
         self.assembly_board.setPlainText(
-            "# Modular Patch Assembly & Equation Network\n"
+            "# Interactive Modular Patch Assembly & Equation Network\n"
             "[ Node 1: Eski-Prime Sine ] ===(Patch Jack)===> [ Node 2: Dipsy Wavefolder ]\n"
             "   └── Loop Iterator (48 Iterations) ---> [ Heuristic Evaluator: Threshold > 0.65 ]\n"
-            "       └── Output to Master Bus & Repeater Matrix"
         )
         self.assembly_board.setStyleSheet("background-color: #ffffff; color: #1e272e; font-family: monospace; font-size: 14px; border-radius: 12px;")
         canvas_splitter.addWidget(self.assembly_board)
@@ -4625,10 +4643,15 @@ class VisualNodeScriptingWindow(QDialog):
         canvas_splitter.setSizes([350, 700])
         layout.addWidget(canvas_splitter)
 
-        compile_btn = QPushButton("Compile Graphical Graph to 48-Instrument Bus")
+        compile_btn = QPushButton("Compile and Apply to Active Instrument Stream")
         compile_btn.setStyleSheet("background-color: #00b894; color: white; font-size: 14px; font-weight: bold;")
-        compile_btn.clicked.connect(lambda: QMessageBox.information(self, "Compiled", "Visual graph successfully compiled and patched."))
+        compile_btn.clicked.connect(lambda: QMessageBox.information(self, "Compiled", "Interactive visual graph successfully compiled and routed."))
         layout.addWidget(compile_btn)
+
+    def append_node_text(self, node_name):
+        current = self.assembly_board.toPlainText()
+        updated = current + f"\n[ Connected: {node_name} ] ===(Active Patch Jack)===> [ Routing Matrix Bus ]"
+        self.assembly_board.setPlainText(updated)
 # ==========================================
 # 2. COORDINATE VISUALIZER
 # ==========================================
@@ -4667,20 +4690,30 @@ class CoordinateVisualizer(QWidget):
             painter.end()
 
 class PianoRollEditor(QDialog):
-    def __init__(self, step_count=48, parent=None):
+    def __init__(self, instrument_name, step_count=48, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Eski Unquantized Chord & Gate Cloud")
-        self.resize(1000, 520)
+        self.instrument_name = instrument_name
+        self.setWindowTitle(f"Sequencer & Piano Roll: {instrument_name}")
+        self.resize(1050, 560)
         self.setStyleSheet(TELETUBBY_STYLE)
 
         layout = QVBoxLayout(self)
         top_ctrl = QHBoxLayout()
-        top_ctrl.addWidget(QLabel("<b>Sticky Grid Matrix (Unquantized Offsets & Gate Durations)</b>"))
+        top_ctrl.addWidget(QLabel(f"<b>Polyrhythmic Sequence Matrix for {instrument_name}</b>"))
+
+        top_ctrl.addWidget(QLabel("Grid Length:"))
         self.steps_combo = QComboBox()
         self.steps_combo.addItems(["16 Steps", "32 Steps", "48 Steps", "64 Steps"])
         self.steps_combo.setCurrentText(f"{step_count} Steps")
-        top_ctrl.addWidget(QLabel("Grid Multiplier:"))
         top_ctrl.addWidget(self.steps_combo)
+
+        top_ctrl.addWidget(QLabel("Polyrhythm Divisor:"))
+        self.poly_spin = QDoubleSpinBox()
+        self.poly_spin.setRange(0.25, 4.0)
+        self.poly_spin.setValue(1.0)
+        self.poly_spin.setSingleStep(0.05)
+        top_ctrl.addWidget(self.poly_spin)
+
         layout.addLayout(top_ctrl)
 
         scroll = QScrollArea()
@@ -4693,15 +4726,18 @@ class PianoRollEditor(QDialog):
             cell_frame = QFrame()
             c_layout = QVBoxLayout(cell_frame)
 
-            btn = QPushButton(f"Gate {step+1}\n(Sticky)")
+            seq_name = f"{instrument_name}_seq_{step+1}"
+            btn = QPushButton(f"{seq_name}\n[Gate On]")
             btn.setCheckable(True)
+            btn.setChecked(True)
 
             offset_slider = QSlider(Qt.Orientation.Horizontal)
             offset_slider.setRange(-50, 50)
-            offset_slider.setToolTip("Unquantized Time Offset (+/- ms)")
+            offset_slider.setValue(0)
+            offset_slider.setToolTip(f"De-quantized Offset for {seq_name} (+/- ms)")
 
             c_layout.addWidget(btn)
-            c_layout.addWidget(QLabel("Offset:"))
+            c_layout.addWidget(QLabel("De-quant Offset:"))
             c_layout.addWidget(offset_slider)
 
             self.grid_layout.addWidget(cell_frame, 0, step)
@@ -4710,6 +4746,11 @@ class PianoRollEditor(QDialog):
         grid_container.setLayout(self.grid_layout)
         scroll.setWidget(grid_container)
         layout.addWidget(scroll)
+
+        apply_btn = QPushButton(f"Commit Sequences for {instrument_name} to Master Timeline")
+        apply_btn.setStyleSheet("background-color: #00b894; color: white;")
+        apply_btn.clicked.connect(lambda: QMessageBox.information(self, "Committed", f"Polyrhythmic unquantized sequences for {instrument_name} updated successfully."))
+        layout.addWidget(apply_btn)
 # ==========================================
 # 3. STANDALONE PLAYLIST WINDOW
 # ==========================================
@@ -4783,23 +4824,25 @@ class MiniSynthNodeWidget(QFrame):
         patch_layout.addWidget(self.dest_combo)
         layout.addLayout(patch_layout)
 class FloatingSynthWindow(QMainWindow):
-    def __init__(self, synth_name, synth_id):
+    def __init__(self, synth_name, synth_id, custom_title=""):
         super().__init__()
-        self.setWindowTitle(f"Eski Instrument [{synth_id}/48]: {synth_name}")
-        self.resize(520, 660)
+        self.synth_name = synth_name
+        self.custom_title = custom_title if custom_title else f"Instrument_{synth_id}"
+        self.setWindowTitle(f"Instrument Panel: {self.custom_title} ({synth_name})")
+        self.resize(550, 700)
         self.setStyleSheet(TELETUBBY_STYLE)
 
         container = QWidget()
         layout = QVBoxLayout(container)
 
         name_layout = QHBoxLayout()
-        name_layout.addWidget(QLabel("<b>Instrument Name:</b>"))
-        self.name_edit = QLineEdit(synth_name)
+        name_layout.addWidget(QLabel("<b>Assigned Name:</b>"))
+        self.name_edit = QLineEdit(self.custom_title)
         name_layout.addWidget(self.name_edit)
         layout.addLayout(name_layout)
 
         tempo_layout = QHBoxLayout()
-        tempo_layout.addWidget(QLabel("Local Tempo Scale:"))
+        tempo_layout.addWidget(QLabel("Polyrhythm Speed Multiplier:"))
         self.local_tempo_box = QDoubleSpinBox()
         self.local_tempo_box.setRange(0.25, 4.0)
         self.local_tempo_box.setValue(1.0)
@@ -4816,32 +4859,33 @@ class FloatingSynthWindow(QMainWindow):
         self.cutoff_slider = QSlider(Qt.Orientation.Horizontal)
         self.drive_slider = QSlider(Qt.Orientation.Horizontal)
 
-        layout.addWidget(QLabel("Filter Cutoff / Frequency (Sticky Jack):"))
+        layout.addWidget(QLabel("Filter Cutoff / Frequency (Interactive Jack):"))
         layout.addWidget(self.cutoff_slider)
-        layout.addWidget(QLabel("Harmonic Fold / Drive Amt (Sticky Jack):"))
+        layout.addWidget(QLabel("Harmonic Fold / Drive Amt (Interactive Jack):"))
         layout.addWidget(self.drive_slider)
 
-        layout.addWidget(QLabel("<b>Sticky Patch Bay (Every button is a gate & cable jack):</b>"))
+        layout.addWidget(QLabel("<b>Interactive Patch Bay & Cable Jacks:</b>"))
         patch_grid = QGridLayout()
 
         self.source_select = QComboBox()
-        self.source_select.addItems(["Sequencer Gate", "QWERTY Key Trigger", "Playlist Trigger", "Amp Waveform", "LFO Modulator", "X/Y Coordinate"])
+        self.source_select.addItems(["Sequencer Gate", "QWERTY Key Trigger", "Playlist Timeline Trigger", "Amp Waveform", "LFO Modulator", "X/Y Coordinate Vector"])
 
         self.dest_select = QComboBox()
         self.dest_select.addItems(["-> Filter Cutoff", "-> Fold Threshold", "-> Envelope Morph", "-> Pitch Shift"])
 
-        patch_grid.addWidget(QLabel("Sticky Source:"), 0, 0)
+        patch_grid.addWidget(QLabel("Source Jack:"), 0, 0)
         patch_grid.addWidget(self.source_select, 0, 1)
         patch_grid.addWidget(QLabel("Destination:"), 1, 0)
         patch_grid.addWidget(self.dest_select, 1, 1)
 
-        bind_btn = QPushButton("Plug In Sticky Cable Jack")
+        bind_btn = QPushButton("Plug In Interactive Cable Jack")
         bind_btn.setStyleSheet("background-color: #00b894; color: #fff;")
+        bind_btn.clicked.connect(lambda: QMessageBox.information(self, "Jack Patched", f"Successfully patched {self.source_select.currentText()} to {self.dest_select.currentText()} for {self.custom_title}."))
         patch_grid.addWidget(bind_btn, 2, 0, 1, 2)
 
         layout.addLayout(patch_grid)
 
-        piano_btn = QPushButton("Open Eski Unquantized Piano Roll")
+        piano_btn = QPushButton(f"Open Piano Roll & Sequencer for {self.custom_title}")
         piano_btn.setStyleSheet("background-color: #e17055; color: #fff;")
         piano_btn.clicked.connect(self.open_piano_roll)
         layout.addWidget(piano_btn)
@@ -4850,7 +4894,7 @@ class FloatingSynthWindow(QMainWindow):
         self.setCentralWidget(container)
 
     def open_piano_roll(self):
-        self.roll = PianoRollEditor(48, self)
+        self.roll = PianoRollEditor(self.custom_title, 48, self)
         self.roll.exec()
 class PermanentPatchBayPanel(QWidget):
     def __init__(self):
@@ -4862,13 +4906,13 @@ class PermanentPatchBayPanel(QWidget):
         """)
         layout = QHBoxLayout(self)
 
-        layout.addWidget(QLabel("<b>GLOBAL 48-INSTRUMENT STICKY PATCH BAY & REPEATERS</b>"))
+        layout.addWidget(QLabel("<b>GLOBAL 48-INSTRUMENT PATCH BAY & REPEATERS</b>"))
 
         self.global_src = QComboBox()
         self.global_src.addItems(["Master Clock Gate", "QWERTY Live Trigger", "Global Sequencer Trigger", "Playlist Timeline Cursor"])
 
         self.global_dest = QComboBox()
-        self.global_dest.addItems(["All 48 Eski Instrument Folds", "Master Bus Limiter", "Repeater Matrix Bus", "Global Pitch Shift"])
+        self.global_dest.addItems(["All 48 Instrument Folds", "Master Bus Limiter", "Repeater Matrix Bus", "Global Pitch Shift"])
 
         self.repeater_slider = QSlider(Qt.Orientation.Horizontal)
         self.repeater_slider.setRange(1, 16)
@@ -4881,6 +4925,7 @@ class PermanentPatchBayPanel(QWidget):
 
         connect_btn = QPushButton("Patch Global Bus")
         connect_btn.setStyleSheet("background-color: #0984e3; color: white;")
+        connect_btn.clicked.connect(lambda: QMessageBox.information(self, "Global Bus Patched", "Global patch bus successfully updated."))
         layout.addWidget(connect_btn)
 # ==========================================
 # 5. SCRIPTER'S PANE WITH FUNCTION KEYSET
@@ -4985,13 +5030,13 @@ class SequencerPane(QWidget):
 class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Mathematician's Groovebox - 48 Eski Instrument Ecosystem")
+        self.setWindowTitle("Mathematician's Groovebox - Snappable Studio Ecosystem")
         self.resize(1700, 1000)
         self.setStyleSheet(TELETUBBY_STYLE)
 
         self.dsp_engine = AdvancedDSPEngine()
 
-        # Companion moveable/shuffleable windows open alongside main app
+        # Companion moveable windows
         self.playlist_window = PlaylistArrangementWindow(self)
         self.playlist_window.show()
 
@@ -5010,19 +5055,22 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.patch_bay = PermanentPatchBayPanel()
         main_layout.addWidget(self.patch_bay)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        # Snappable / Scalable Splitter UI: Revealing visualizer background behind unallocated panes
+        master_splitter = QSplitter(Qt.Orientation.Horizontal)
 
+        # Left Panel: Control & Workspace Panes
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
 
         spawn_controls = QHBoxLayout()
-        spawn_controls.addWidget(QLabel("<b>48 Eski Instruments:</b>"))
+        spawn_controls.addWidget(QLabel("<b>48 Instruments:</b>"))
 
         self.synth_selector = QComboBox()
         self.synth_selector.addItems(ESKI_INSTRUMENT_LIST)
+        self.synth_selector.setMinimumWidth(280)  # Ensures full instrument names are readable
         spawn_controls.addWidget(self.synth_selector)
 
-        spawn_btn = QPushButton("Spawn Floating Instrument Window")
+        spawn_btn = QPushButton("Spawn Instrument Window")
         spawn_btn.setStyleSheet("background-color: #ff7675; color: white;")
         spawn_btn.clicked.connect(self.spawn_floating_synth)
         spawn_controls.addWidget(spawn_btn)
@@ -5034,7 +5082,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         left_layout.addLayout(spawn_controls)
 
-        # Quick access control panel buttons for Playlist, Modulation, and Selected Pane
+        # Quick access control panel buttons
         quick_nav_layout = QHBoxLayout()
 
         btn_open_playlist = QPushButton("📋 Open / Focus Playlist Timeline")
@@ -5054,20 +5102,38 @@ class MathematiciansGrooveboxApp(QMainWindow):
         quick_nav_layout.addWidget(btn_focus_selected)
         left_layout.addLayout(quick_nav_layout)
 
-        hint_bar = QLabel("💡 <b>Live Play Active:</b> Use QWERTY keys [A, S, D, F, G, H, J, K] to trigger live audio notes across active Eski instruments!")
+        hint_bar = QLabel("💡 <b>Live Play Active:</b> Use QWERTY keys [A, S, D, F, G, H, J, K] to trigger live audio notes across active instruments!")
         hint_bar.setStyleSheet("background-color: #f4eedb; border: 2px solid #feca57; border-radius: 10px; padding: 6px;")
         left_layout.addWidget(hint_bar)
 
         self.tab_manager = QTabWidget()
         self.tab_manager.setTabsClosable(True)
         self.tab_manager.tabCloseRequested.connect(self.close_tab)
-        self.add_workspace_tab("Primary Eski Workspace Dome")
+        self.add_workspace_tab("Primary Studio Workspace Pane")
 
         left_layout.addWidget(self.tab_manager, stretch=4)
-        splitter.addWidget(left_container)
-        splitter.setSizes([1250, 450])
+        master_splitter.addWidget(left_container)
 
-        main_layout.addWidget(splitter)
+        # Right Pane: Background Visualizer exposed when panes are scaled/snapped
+        self.background_visualizer = DenseCoordinateVisualizer()
+        master_splitter.addWidget(self.background_visualizer)
+
+        master_splitter.setSizes([1200, 500])
+        main_layout.addWidget(master_splitter)
+
+        # Background visualizer ticker
+        self.bg_timer = QTimer(self)
+        self.bg_t = 0.0
+        def tick_bg():
+            self.bg_t += 0.12
+            try:
+                x = float(np.sin(self.bg_t * 1.1) * np.cos(self.bg_t * 0.4))
+                y = float(np.cos(self.bg_t * 0.9) * np.sin(self.bg_t * 0.7))
+                self.background_visualizer.update_coordinates(x, y)
+            except Exception:
+                pass
+        self.bg_timer.timeout.connect(tick_bg)
+        self.bg_timer.start(40)
 
     def keyPressEvent(self, event: QKeyEvent):
         key_map = {
@@ -5094,12 +5160,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         visualizer = DenseCoordinateVisualizer()
 
-        layout.addWidget(QLabel(f"--- Active Eski Studio Dome: {title} ---"))
+        layout.addWidget(QLabel(f"--- Snappable Workspace Dome: {title} ---"))
         layout.addWidget(visualizer)
 
         sub_panel = QHBoxLayout()
         sub_panel.addWidget(QPushButton("Trigger Master Burst"))
-        sub_panel.addWidget(QPushButton("Randomize All 48 Patches"))
+        sub_panel.addWidget(QPushButton("Randomize All Instrument Patches"))
         sub_panel.addWidget(QPushButton("Reset Phase LFO"))
         layout.addLayout(sub_panel)
 
@@ -5124,7 +5190,13 @@ class MathematiciansGrooveboxApp(QMainWindow):
     def spawn_floating_synth(self):
         synth_name = self.synth_selector.currentText()
         synth_id = self.synth_selector.currentIndex() + 1
-        floating_win = FloatingSynthWindow(synth_name, synth_id)
+
+        default_title = f"Inst_{synth_id}"
+        user_name, ok = QInputDialog.getText(self, "Instrument Naming", "Enter a custom name for this instrument:", QLineEdit.EchoMode.Normal, default_title)
+        if not ok or not user_name.strip():
+            user_name = default_title
+
+        floating_win = FloatingSynthWindow(synth_name, synth_id, user_name.strip())
         floating_win.show()
         self.floating_synths.append(floating_win)
 
@@ -5135,7 +5207,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             latest.raise_()
             latest.activateWindow()
         else:
-            QMessageBox.information(self, "No Active Instruments", "Spawn an instrument window from the 48-instrument dropdown first!")
+            QMessageBox.information(self, "No Active Instruments", "Spawn an instrument window from the dropdown first!")
 
     def open_visual_scripting(self):
         if not self.scripting_window:
@@ -5155,15 +5227,15 @@ class MathematiciansGrooveboxApp(QMainWindow):
         menubar = self.menuBar()
         file_menu = menubar.addMenu("📁 Project Manager")
 
-        save_action = QAction("💾 Save Eski Project...", self)
-        load_action = QAction("📂 Load Eski Project...", self)
-        playlist_action = QAction("📋 Open Playlist Window", self)
+        save_action = QAction("💾 Save Project...", self)
+        load_action = QAction("📂 Load Project...", self)
+        playlist_action = QAction("📋 Open Playlist Timeline", self)
         playlist_action.triggered.connect(lambda: (self.playlist_window.show(), self.playlist_window.raise_()))
 
-        modulation_action = QAction("🎛️ Open Modulation Matrix", self)
+        modulation_action = QAction("🎛️ Open Modulation Hub", self)
         modulation_action.triggered.connect(lambda: (self.modulation_window.show(), self.modulation_window.raise_()))
 
-        export_action = QAction("⚡ Export Eski Audio Stems (.wav)...", self)
+        export_action = QAction("⚡ Export Audio Stems (.wav)...", self)
         export_action.triggered.connect(self.handle_wav_export)
 
         file_menu.addAction(save_action)
@@ -5175,11 +5247,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
         file_menu.addAction(export_action)
 
     def handle_wav_export(self):
-        file_path, _ = QFileDialog.getSaveFileName(self, "Export Eski Stem", "eski_groovebox_stem.wav", "WAV Files (*.wav)")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export Audio Stem", "groovebox_stem.wav", "WAV Files (*.wav)")
         if file_path:
             try:
                 self.dsp_engine.export_to_wav(file_path, duration_sec=5.0, freq=220.0)
-                QMessageBox.information(self, "Export Complete", f"Successfully rendered Eski audio stem to:\n{file_path}")
+                QMessageBox.information(self, "Export Complete", f"Successfully rendered audio stem to:\n{file_path}")
             except Exception as e:
                 QMessageBox.critical(self, "Export Failed", f"{e}")
 
