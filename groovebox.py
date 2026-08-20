@@ -18,7 +18,10 @@ from PyQt6.QtWidgets import (
     QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit, QDialog, QInputDialog,QListWidget,QTableWidgetItem, QHeaderView,QProgressBar,QSpinBox, QCheckBox,QComboBox
 )
 import random
-
+try:
+    import scipy.io.wavfile as wavfile
+except ImportError:
+    wavfile = None
 MEUM_CONSTANT = 1.1975807343385265188
 DAW_STYLE = """
     QMainWindow, QWidget { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; }
