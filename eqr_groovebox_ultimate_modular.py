@@ -23,10 +23,10 @@ from math_engine import MathEngine
 MEUM_CONSTANT = 1.1975807343385265188
 from math_engine import MathEngine
 class VisualOscilloscope(QFrame):
-    """Interactive waveform and vector scope canvas for real-time visual feedback."""
+    """Real-time signal output oscilloscope and vector scope."""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(300, 160)
+        self.setMinimumSize(300, 140)
         self.setStyleSheet("background-color: #0a0c0e; border: 1px solid #2a2e39; border-radius: 6px;")
         self.wave_data = np.zeros(100)
 
@@ -56,8 +56,6 @@ class VisualOscilloscope(QFrame):
 
         for j in range(len(points) - 1):
             painter.drawLine(int(points[j][0]), int(points[j][1]), int(points[j+1][0]), int(points[j+1][1]))
-
-
 class PatchbayCanvas(QFrame):
     """Interactive visual patchbay canvas for signal routing and node mapping."""
     def __init__(self, parent=None):
@@ -3861,8 +3859,8 @@ class ScientificDAWWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.math_engine = EQRMathEngine(use_meum=True)
-        self.setWindowTitle("Mathematician's Groovebox - DSP Laboratory Suite")
-        self.resize(1750, 980)
+        self.setWindowTitle("Mathematician's Groovebox - Scientific DAW Laboratory Suite")
+        self.resize(1850, 1000)
 
         self.apply_stylesheet()
 
@@ -3873,1348 +3871,200 @@ class ScientificDAWWindow(QMainWindow):
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(main_splitter)
 
-        # --- LEFT PANEL: 12-Tab DSP Laboratory Rack ---
+        # --- LEFT PANEL: The 13 Workflow-Centric Tabs ---
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
 
-        self.dsp_tabs = QTabWidget()
-        self.dsp_tabs.addTab(self.create_instruments_rack_tab(), "1. Instruments Rack")
-        self.dsp_tabs.addTab(self.create_eskivector_tab(), "2. Eskivector Vector")
-        self.dsp_tabs.addTab(self.create_eskibrutus_tab(), "3. Eskibrutus Heavy")
-        self.dsp_tabs.addTab(self.create_polynomial_tab(), "4. Algebraic Poly")
-        self.dsp_tabs.addTab(self.create_hybrid_tab(), "5. Hybrid V-W-Eq")
-        self.dsp_tabs.addTab(self.create_wavetable_tab(), "6. Wavetable Engine")
-        self.dsp_tabs.addTab(self.create_oscillator_tab(), "7. Oscillator Banks")
-        self.dsp_tabs.addTab(self.create_isosceles_tab(), "8. Isosceles Lab")
-        self.dsp_tabs.addTab(self.create_filter_dynamics_tab(), "9. Filter Dynamics")
-        self.dsp_tabs.addTab(self.create_modulation_matrix_tab(), "10. Mod Matrix")
-        self.dsp_tabs.addTab(self.create_patchbay_tab(), "11. Patchbay Canvas")
-        self.dsp_tabs.addTab(self.create_memory_banks_tab(), "12. Memory Banks")
+        self.daw_tabs = QTabWidget()
+        self.daw_tabs.addTab(self.create_instruments_rack_tab(), "1. Instruments & Sound Rack")
+        self.daw_tabs.addTab(self.create_virtualization_scripting_tab(), "2. Virtualization & Scripting")
+        self.daw_tabs.addTab(self.create_sequencer_playlist_tab(), "3. Sequencer & Playlist")
+        self.daw_tabs.addTab(self.create_effects_automation_tab(), "4. Effects & Automation")
+        self.daw_tabs.addTab(self.create_modular_patchbay_tab(), "5. Modular Patch Bay")
+        self.daw_tabs.addTab(self.create_waveshell_editor_tab(), "6. Master Waveshell Editor")
+        self.daw_tabs.addTab(self.create_mixer_channel_strip_tab(), "7. Mixer & Channel Strip")
+        self.daw_tabs.addTab(self.create_modulation_matrix_tab(), "8. Modulation Matrix")
+        self.daw_tabs.addTab(self.create_analysis_scope_tab(), "9. Analysis & Scope")
+        self.daw_tabs.addTab(self.create_acoustic_lab_tab(), "10. Acoustic & Resonance Lab")
+        self.daw_tabs.addTab(self.create_preset_browser_tab(), "11. Preset Browser")
+        self.daw_tabs.addTab(self.create_midi_hardware_tab(), "12. MIDI & Hardware")
+        self.daw_tabs.addTab(self.create_project_manager_tab(), "13. Project Manager")
 
-        left_layout.addWidget(self.dsp_tabs)
+        left_layout.addWidget(self.daw_tabs)
         main_splitter.addWidget(left_container)
 
-        # --- CENTER/RIGHT PANEL: Coordinate Expression Engine, Sequencers & Scope ---
+        # --- RIGHT PANEL: Global Master Scope, Terminal & Controls ---
         right_container = QWidget()
         right_layout = QVBoxLayout(right_container)
 
-        right_layout.addWidget(QLabel("<h3>Coordinate Expression & Operator Engine (x, y, z)</h3>"))
-
-        expr_layout = QHBoxLayout()
-        self.expr_input = QTextEdit("x * isn(y) + ics(z) * Meum")
-        self.expr_input.setMaximumHeight(65)
-        self.expr_input.setStyleSheet("background-color: #0d0f12; color: #00ffcc; font-family: monospace; font-size: 12pt;")
-        expr_layout.addWidget(self.expr_input)
-
-        eval_btn = QPushButton("Compile DSP Node")
-        eval_btn.setStyleSheet("background-color: #00aa88; color: #ffffff; font-weight: bold; padding: 10px;")
-        eval_btn.clicked.connect(self.run_evaluation)
-        expr_layout.addWidget(eval_btn)
-        right_layout.addLayout(expr_layout)
-
-        # Multi-lane Sequencers
-        right_layout.addWidget(QLabel("<b>Multi-Lane Sequencers (Frequency, Duration, Amplitude)</b>"))
-        seq_grid = QGridLayout()
-        for i in range(4):
-            seq_grid.addWidget(QLabel(f"Lane {i+1} [Step Matrix]"), i, 0)
-            slider = QSlider(Qt.Orientation.Horizontal)
-            slider.setValue(40 + i * 15)
-            slider.valueChanged.connect(self.on_sequencer_adjusted)
-            seq_grid.addWidget(slider, i, 1)
-        right_layout.addLayout(seq_grid)
-
-        # Live Oscilloscope Scope
-        right_layout.addWidget(QLabel("<b>Real-time Signal Scope</b>"))
+        right_layout.addWidget(QLabel("<h3>Global Master Signal & Diagnostic Monitor</h3>"))
         self.scope = VisualOscilloscope()
         right_layout.addWidget(self.scope)
 
         # Output Terminal
         self.output_log = QTextEdit()
         self.output_log.setReadOnly(True)
-        self.output_log.setMaximumHeight(110)
         self.output_log.setStyleSheet("background-color: #0a0c0e; color: #00ffcc; font-family: monospace;")
-        right_layout.addWidget(QLabel("<b>DSP Execution & Diagnostic Log</b>"))
+        right_layout.addWidget(QLabel("<b>DAW Execution & Diagnostic Log</b>"))
         right_layout.addWidget(self.output_log)
 
         main_splitter.addWidget(right_container)
-        main_splitter.setSizes([650, 1100])
+        main_splitter.setSizes([1200, 650])
 
-    # --- 12 Specialized DSP Laboratory Tabs ---
+    # --- 13 Workflow-Centric Tabs ---
     def create_instruments_rack_tab(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Instruments Rack & Synth Spawner</b>"))
-        layout.addWidget(QPushButton("Spawn Eskivector Node"))
+        layout.addWidget(QLabel("<b>Instruments & Sound Rack Spawner</b>"))
+        layout.addWidget(QPushButton("Spawn Eskivector Synth Node"))
         layout.addWidget(QPushButton("Spawn Eskibrutus Heavy Node"))
-        layout.addWidget(QPushButton("Spawn Polynomial Expression Synth"))
-        layout.addWidget(QPushButton("Spawn Hybrid V-W-Eq Unit"))
-        layout.addWidget(QPushButton("Spawn Wavetable Morph Module"))
+        layout.addWidget(QPushButton("Spawn Percussion Matrix Unit"))
+        layout.addWidget(QPushButton("Spawn Atmospheric Pad Generator"))
+        layout.addWidget(QPushButton("Spawn Polyphonic Keys Engine"))
         layout.addStretch()
         return panel
 
-    def create_eskivector_tab(self):
+    def create_virtualization_scripting_tab(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Eskivector Vector Synthesis</b>"))
-        layout.addWidget(QPushButton("Trigger Vector Render"))
-        layout.addWidget(QLabel("Beam Width Spread"))
-        layout.addWidget(QSlider(Qt.Orientation.Horizontal))
+        layout.addWidget(QLabel("<b>Virtualization & Music Scripting Field</b>"))
+        self.script_editor = QTextEdit("# Algorithmic Music Scripting\nfor x in range(16):\n    note = x * isn(Meum)")
+        self.script_editor.setStyleSheet("background-color: #0d0f12; color: #00ffcc; font-family: monospace;")
+        layout.addWidget(self.script_editor)
+        layout.addWidget(QPushButton("Compile Script to Sequence Lanes"))
         layout.addStretch()
         return panel
 
-    def create_eskibrutus_tab(self):
+    def create_sequencer_playlist_tab(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Eskibrutus Distortion & Drive</b>"))
-        layout.addWidget(QPushButton("Engage Brutus Overdrive"))
-        layout.addWidget(QLabel("Resonant Drive Gain"))
-        layout.addWidget(QSlider(Qt.Orientation.Horizontal))
+        layout.addWidget(QLabel("<b>Sequencer & Playlist Arrangement</b>"))
+        seq_grid = QGridLayout()
+        for i in range(4):
+            seq_grid.addWidget(QLabel(f"Track Lane {i+1}"), i, 0)
+            slider = QSlider(Qt.Orientation.Horizontal)
+            slider.setValue(50 + i * 10)
+            seq_grid.addWidget(slider, i, 1)
+        layout.addLayout(seq_grid)
+
+        # Option B integration: Non-intrusive Wavetable sub-bay
+        sub_box = QFrame()
+        sub_box.setStyleSheet("background-color: #121418; border: 1px solid #2a2e39; padding: 6px;")
+        sub_layout = QVBoxLayout(sub_box)
+        sub_layout.addWidget(QLabel("<b>[Embedded Sub-Bay] Wavetable Morph Lane</b>"))
+        sub_layout.addWidget(QDial())
+        layout.addWidget(sub_box)
         layout.addStretch()
         return panel
 
-    def create_polynomial_tab(self):
+    def create_effects_automation_tab(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Algebraic Polynomial Expression Synth</b>"))
-        layout.addWidget(QLabel("Active: x^3 + y^2 + z"))
-        layout.addWidget(QPushButton("Recalculate Polynomial Curve"))
+        layout.addWidget(QLabel("<b>Effects Rack & Automation Curves</b>"))
+        layout.addWidget(QPushButton("Add Resonant Filter Effect"))
+        layout.addWidget(QPushButton("Add Overdrive Distortion Unit"))
+
+        # Option B integration: Non-intrusive Isosceles Operator automation sub-bay
+        sub_box = QFrame()
+        sub_box.setStyleSheet("background-color: #121418; border: 1px solid #2a2e39; padding: 6px;")
+        sub_layout = QVBoxLayout(sub_box)
+        sub_layout.addWidget(QLabel("<b>[Embedded Sub-Bay] Isosceles Operator Envelope (isn / ics)</b>"))
+        sub_layout.addWidget(QSlider(Qt.Orientation.Horizontal))
+        layout.addWidget(sub_box)
         layout.addStretch()
         return panel
 
-    def create_hybrid_tab(self):
+    def create_modular_patchbay_tab(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Hybrid Vector-Wavetable-Equation</b>"))
-        layout.addWidget(QPushButton("Morph Tri-State Matrix"))
-        layout.addWidget(QSlider(Qt.Orientation.Horizontal))
+        layout.addWidget(QLabel("<b>Modular Patch Bay Canvas Tracker</b>"))
+        canvas = QFrame()
+        canvas.setMinimumHeight(250)
+        canvas.setStyleSheet("background-color: #121418; border: 1px solid #2a2e39; border-radius: 6px;")
+        layout.addWidget(canvas)
+        layout.addWidget(QPushButton("Refresh Node Cords"))
         layout.addStretch()
         return panel
 
-    def create_wavetable_tab(self):
+    def create_waveshell_editor_tab(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Wavetable Morphing Matrix</b>"))
-        layout.addWidget(QPushButton("Randomize Harmonic Table"))
-        layout.addWidget(QDial())
+        layout.addWidget(QLabel("<b>Master Waveshell Editor (Geometric Representation)</b>"))
+        layout.addWidget(QLabel("Active Geometric Mode: Hyperbolic Matrix"))
+        layout.addWidget(QComboBox())
+        layout.addWidget(QPushButton("Bake Waveshell Geometry"))
         layout.addStretch()
         return panel
 
-    def create_oscillator_tab(self):
+    def create_mixer_channel_strip_tab(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Standard Oscillator Banks</b>"))
-        layout.addWidget(QPushButton("Sine / Isosceles Toggle"))
-        layout.addWidget(QSlider(Qt.Orientation.Horizontal))
-        layout.addStretch()
-        return panel
-
-    def create_isosceles_tab(self):
-        panel = QWidget()
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Isosceles Operators Lab (isn, ics)</b>"))
-        layout.addWidget(QPushButton("Test isn() & ics() Phase Sweep"))
-        layout.addWidget(QDoubleSpinBox())
-        layout.addStretch()
-        return panel
-
-    def create_filter_dynamics_tab(self):
-        panel = QWidget()
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Filter Dynamics & Resonance</b>"))
-        layout.addWidget(QLabel("Cutoff Frequency"))
-        layout.addWidget(QSlider(Qt.Orientation.Horizontal))
-        layout.addWidget(QLabel("Resonance Peak"))
-        layout.addWidget(QSlider(Qt.Orientation.Horizontal))
+        layout.addWidget(QLabel("<b>Mixer & Channel Summing Strip</b>"))
+        layout.addWidget(QLabel("Master Volume Fader"))
+        layout.addWidget(QSlider(Qt.Orientation.Vertical))
         layout.addStretch()
         return panel
 
     def create_modulation_matrix_tab(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Modulation Matrix Router</b>"))
+        layout.addWidget(QLabel("<b>Modulation Matrix Cross-Router</b>"))
         layout.addWidget(QComboBox())
-        layout.addWidget(QPushButton("Connect LFO to Cutoff"))
+        layout.addWidget(QPushButton("Route LFO to Filter Cutoff"))
         layout.addStretch()
         return panel
 
-    def create_patchbay_tab(self):
+    def create_analysis_scope_tab(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Visual Patchbay Canvas</b>"))
-        canvas = QFrame()
-        canvas.setMinimumHeight(200)
-        canvas.setStyleSheet("background-color: #121418; border: 1px solid #2a2e39;")
-        layout.addWidget(canvas)
+        layout.addWidget(QLabel("<b>Real-time Frequency Spectrum Analyzer</b>"))
+        layout.addWidget(QPushButton("Trigger FFT Scan"))
         layout.addStretch()
         return panel
 
-    def create_memory_banks_tab(self):
+    def create_acoustic_lab_tab(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Memory Banks & Preset Control</b>"))
+        layout.addWidget(QLabel("<b>Acoustic & Physical Resonance Sandbox</b>"))
+        layout.addWidget(QPushButton("Test Resonant Feedback Loop"))
+        layout.addStretch()
+        return panel
+
+    def create_preset_browser_tab(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Presets & Sound Library Browser</b>"))
         layout.addWidget(QComboBox())
-        layout.addWidget(QPushButton("Load State Snapshot"))
-        layout.addWidget(QPushButton("Save State Snapshot"))
+        layout.addWidget(QPushButton("Import Preset File"))
         layout.addStretch()
         return panel
 
-    def on_sequencer_adjusted(self, value):
-        dummy_wave = np.sin(np.linspace(0, np.pi * 4, 100) * (value / 50.0))
-        self.scope.update_waveform(dummy_wave)
-
-    def run_evaluation(self):
-        expr = self.expr_input.toPlainText()
-        x = np.linspace(-np.pi, np.pi, 100)
-        y = np.linspace(-np.pi, np.pi, 100)
-        X, Y = np.meshgrid(x, y)
-        Z = np.sin(X * Y)
-
-        result = self.math_engine.evaluate(expr, X, Y, Z)
-        if isinstance(result, np.ndarray):
-            mean_val = np.mean(result)
-            self.scope.update_waveform(result[0, :])
-        else:
-            mean_val = result
-
-        self.output_log.append(f"Compiled DSP Node with Meum ({MEUM_CONSTANT:.4f}). Result mean: {mean_val:.4f}")
-
-    def apply_stylesheet(self):
-        palette = QPalette()
-        palette.setColor(QPalette.ColorRole.Window, QColor("#16181d"))
-        palette.setColor(QPalette.ColorRole.WindowText, QColor("#e0e0e0"))
-        palette.setColor(QPalette.ColorRole.Base, QColor("#0d0f12"))
-        palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#1a1e24"))
-        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#ffffff"))
-        palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#ffffff"))
-        palette.setColor(QPalette.ColorRole.Text, QColor("#e0e0e0"))
-        palette.setColor(QPalette.ColorRole.Button, QColor("#222733"))
-        palette.setColor(QPalette.ColorRole.ButtonText, QColor("#ffffff"))
-        palette.setColor(QPalette.ColorRole.Highlight, QColor("#00aa88"))
-        palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
-        QApplication.setPalette(palette)
-
-        # Center Panel: Coordinate Expression Engine & Sequencer Lanes
-        center_container = QWidget()
-        center_layout = QVBoxLayout(center_container)
-
-        center_layout.addWidget(QLabel("<h3>Coordinate Expression & Operator Engine (x, y, z)</h3>"))
-
-        expr_layout = QHBoxLayout()
-        self.expr_input = QTextEdit("x * isn(y) + ics(z) * Meum")
-        self.expr_input.setMaximumHeight(70)
-        self.expr_input.setStyleSheet("background-color: #0d0f12; color: #00ffcc; font-family: monospace; font-size: 13pt;")
-        expr_layout.addWidget(self.expr_input)
-
-        eval_btn = QPushButton("Evaluate / Compile")
-        eval_btn.setStyleSheet("background-color: #00aa88; color: #ffffff; font-weight: bold; padding: 10px;")
-        eval_btn.clicked.connect(self.run_evaluation)
-        expr_layout.addWidget(eval_btn)
-        center_layout.addLayout(expr_layout)
-
-        # Multi-lane Sequencers Pane
-        center_layout.addWidget(QLabel("<b>Multi-Lane Sequencers (Frequency, Duration, Amplitude)</b>"))
-        seq_grid = QGridLayout()
-        for i in range(3):
-            seq_grid.addWidget(QLabel(f"Lane {i+1} [Step Grid]"), i, 0)
-            slider = QSlider(Qt.Orientation.Horizontal)
-            slider.setValue(50)
-            seq_grid.addWidget(slider, i, 1)
-        center_layout.addLayout(seq_grid)
-
-        # Output Terminal / Status Window
-        self.output_log = QTextEdit()
-        self.output_log.setReadOnly(True)
-        self.output_log.setStyleSheet("background-color: #0a0c0e; color: #00ffcc; font-family: monospace;")
-        center_layout.addWidget(QLabel("<b>Execution & Diagnostic Log</b>"))
-        center_layout.addWidget(self.output_log)
-
-        main_splitter.addWidget(center_container)
-
-        # Right Panel: Visual Patchbay Canvas
-        right_container = QWidget()
-        right_layout = QVBoxLayout(right_container)
-        right_layout.addWidget(QLabel("<h3>Interactive Patchbay Canvas</h3>"))
-        self.patchbay = PatchbayCanvas()
-        right_layout.addWidget(self.patchbay)
-
-        main_splitter.addWidget(right_container)
-        main_splitter.setSizes([300, 750, 350])
-
-    def create_eskivector_panel(self):
+    def create_midi_hardware_tab(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Eskivector Procedural Engine</b>"))
-        layout.addWidget(QPushButton("Trigger Vector Render"))
-        layout.addWidget(QPushButton("Reset Vector Phase"))
+        layout.addWidget(QLabel("<b>MIDI Controller & Hardware Routing</b>"))
+        layout.addWidget(QComboBox())
+        layout.addWidget(QPushButton("Scan MIDI Ports"))
         layout.addStretch()
         return panel
 
-    def create_eskitable_panel(self):
+    def create_project_manager_tab(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Eskitable Table Wavetables</b>"))
-        layout.addWidget(QPushButton("Load Wavetable Snapshot"))
-        layout.addWidget(QPushButton("Randomize Harmonic Matrix"))
-        layout.addStretch()
-        return panel
-
-    def run_evaluation(self):
-        expr = self.expr_input.toPlainText()
-        # Generate sample grid coordinates for x, y, z
-        x = np.linspace(-np.pi, np.pi, 100)
-        y = np.linspace(-np.pi, np.pi, 100)
-        X, Y = np.meshgrid(x, y)
-        Z = np.sin(X * Y)
-
-        result = self.math_engine.evaluate(expr, X, Y, Z)
-        mean_val = np.mean(result) if isinstance(result, np.ndarray) else result
-        self.output_log.append(f"Successfully evaluated expression with Meum constant factor ({MEUM_CONSTANT:.4f}). Result mean: {mean_val:.4f}")
-
-    def apply_stylesheet(self):
-        # Comprehensive Modern Dark Theme (Fixes all standard washed-out gray default themes)
-        palette = QPalette()
-        palette.setColor(QPalette.ColorRole.Window, QColor("#16181d"))
-        palette.setColor(QPalette.ColorRole.WindowText, QColor("#e0e0e0"))
-        palette.setColor(QPalette.ColorRole.Base, QColor("#0d0f12"))
-        palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#1a1e24"))
-        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#ffffff"))
-        palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#ffffff"))
-        palette.setColor(QPalette.ColorRole.Text, QColor("#e0e0e0"))
-        palette.setColor(QPalette.ColorRole.Button, QColor("#222733"))
-        palette.setColor(QPalette.ColorRole.ButtonText, QColor("#ffffff"))
-        palette.setColor(QPalette.ColorRole.Highlight, QColor("#00aa88"))
-        palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
-        QApplication.setPalette(palette)
-    def init_equation_editor_tab(self):
-        """Tab 1: Equation Builder with Mouse-Click Helper Buttons"""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-
-        self.eq_input = QTextEdit()
-        self.eq_input.setPlaceholderText("Enter formula using x, y, z variables (e.g., isn(x) * y + ics(z))...")
-        layout.addWidget(QLabel("<b>Coordinate Equation Evaluator:</b>"))
-        layout.addWidget(self.eq_input)
-
-        # Mouse Helper Keypad
-        keypad_layout = QGridLayout()
-        buttons = [
-            ('x', 0, 0), ('y', 0, 1), ('z', 0, 2), ('+', 0, 3),
-            ('isn(', 1, 0), ('ics(', 1, 1), ('sin(', 1, 2), ('-', 1, 3),
-            ('*', 2, 0), ('/', 2, 1), ('(', 2, 2), (')', 2, 3),
-        ]
-        for label, r, c in buttons:
-            btn = QPushButton(label)
-            btn.clicked.connect(lambda checked, l=label: self.append_to_equation(l))
-            keypad_layout.addWidget(btn, r, c)
-
-        layout.addLayout(keypad_layout)
-        self.tabs.addTab(tab, "1. Equation Builder")
-
-    def init_synth_spawners_tab(self):
-        """Tab 2: Complex Synths Inspired by Experimental Physics & Work"""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.addWidget(QLabel("<b>Complex Experimental Synthesizers & Spawners</b>"))
-
-        synths = [
-            ("Z-Pinch Wavefolder", "Drives coordinate feedback into an aggressive fold-back distortion."),
-            ("Capacitor Bank Resonant Drone", "Models high-voltage parallel discharge decay rates via x, y, z streams."),
-            ("Nanoparticle Formic Modulator", "Combines high-frequency granular scattering with isosceles operators.")
-        ]
-
-        for name, desc in synths:
-            box = QVBoxLayout()
-            box.addWidget(QLabel(f"<h3>{name}</h3>"))
-            box.addWidget(QLabel(desc))
-            spawn_btn = QPushButton(f"Spawn / Trigger {name}")
-            box.addWidget(spawn_btn)
-            layout.addLayout(box)
-
-        self.tabs.addTab(tab, "2. Complex Synths")
-
-    def init_track_filler_tab(self):
-        """Tab 3: Track Fillers & Instruments (Pads, Percussion, Keys)"""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.addWidget(QLabel("<b>Main Music Track Fillers (Pads, Percussion, Keys)</b>"))
-
-        channels = [
-            ("Percussion Grid", "Fast transients, non-linear tanh shaping for rhythmic drive."),
-            ("Ambient Pad Generator", "Sustained coordinate morphing via isn/ics cross-modulation."),
-            ("Discrete Key Arpeggiator", "Punched coordinate steps mapped across z-planes.")
-        ]
-
-        for name, desc in channels:
-            layout.addWidget(QLabel(f"<b>{name}</b>: {desc}"))
-            fill_btn = QPushButton(f"Fill Sequence Buffer: {name}")
-            layout.addWidget(fill_btn)
-
-        self.tabs.addTab(tab, "3. Track Fillers")
-
-    def init_effects_rack_tab(self):
-        """Tab 4: Advanced Effects & Spatial Processing"""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.addWidget(QLabel("<b>Modular Effects Rack</b>"))
-
-        effects = ["Bitcrusher-900", "Vector Field Rotator", "Chaos Waveform Shaper"]
-        for fx in effects:
-            h_layout = QHBoxLayout()
-            h_layout.addWidget(QLabel(fx))
-            slider = QSlider(Qt.Orientation.Horizontal)
-            slider.setRange(0, 100)
-            h_layout.addWidget(slider)
-            layout.addLayout(h_layout)
-
-        self.tabs.addTab(tab, "4. Effects Rack")
-
-    def init_live_pads_tab(self):
-        """Tab 5: Live Pad Matrix for Instant Jamming"""
-        tab = QWidget()
-        layout = QGridLayout(tab)
-        layout.addWidget(QLabel("<b>Live Launch Pad Matrix (Click to Trigger Clips)</b>"), 0, 0, 1, 4)
-
-        for i in range(12):
-            r = (i // 4) + 1
-            c = i % 4
-            pad_btn = QPushButton(f"Clip {i+1}\n[Trigger]")
-            pad_btn.setMinimumHeight(80)
-            pad_btn.setStyleSheet("background-color: #2b2b2b; color: #00ffcc; font-weight: bold; border-radius: 8px;")
-            layout.addWidget(pad_btn, r, c)
-
-        self.tabs.addTab(tab, "5. Live Pads")
-
-    def init_chaos_visualizer_tab(self):
-        """Tab 6: Chaos Visualizer Sandbox"""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.addWidget(QLabel("<b>Real-Time Coordinate Vector Visualizer</b>"))
-
-        # Mock visualizer frame placeholder
-        viz_frame = QFrame()
-        viz_frame.setFrameShape(QFrame.Shape.Box)
-        viz_frame.setStyleSheet("background-color: #0d0d0d; border: 2px solid #333;")
-        viz_layout = QVBoxLayout(viz_frame)
-        viz_layout.addWidget(QLabel("<center><font color='#00ffcc' size='5'>[ Vector Field Render Active: X-Y-Z Phase Lock ]</font></center>"))
-        layout.addWidget(viz_frame)
-
-        render_btn = QPushButton("Re-calculate Vector Field Flow")
-        layout.addWidget(render_btn)
-
-        self.tabs.addTab(tab, "6. Chaos Visualizer")
-
-    def init_patch_randomizer_tab(self):
-        """Tab 7: Mad Scientist Patch Randomizer"""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.addWidget(QLabel("<b>Mad Scientist Patch Mutation Engine</b>"))
-        layout.addWidget(QLabel("Instantly mutate all active equations and parameters into unpredictable soundscapes."))
-
-        self.mutation_label = QLabel("Current Mutation Seed: <b>#8291-ALPHA</b>")
-        layout.addWidget(self.mutation_label)
-
-        mutate_btn = QPushButton("🎲 Mutate & Scramble All Parameters")
-        mutate_btn.setStyleSheet("background-color: #ff3366; color: white; font-weight: bold; padding: 10px;")
-        mutate_btn.clicked.connect(self.scramble_mutation)
-        layout.addWidget(mutate_btn)
-
-        self.tabs.addTab(tab, "7. Patch Randomizer")
-
-    def append_to_equation(self, text):
-        self.eq_input.insertPlainText(text)
-
-    def scramble_mutation(self):
-        seeds = ["#4092-BETA", "#DELTA-99", "OMEGA-X", "Z-PINCH-PRIME", "FORMIC-NANO"]
-        selected = np.random.choice(seeds)
-        self.mutation_label.setText(f"Current Mutation Seed: <b>{selected}</b>")
-        # Tab 1: Script Screen, Master Visualizer, and 3D Focal Zones
-        self.tab_script = QWidget()
-        self.init_script_tab()
-        self.tabs.addTab(self.tab_script, "Composition Script & Master Canvas")
-
-        # Tab 2: Multi-Lane Sequencer / Routing Matrix (Restored)
-        self.tab_sequencer = QWidget()
-        self.init_sequencer_tab()
-        self.tabs.addTab(self.tab_sequencer, "Multi-Lane Sequencer")
-
-        # Tab 3: Eskivector & Eskitable Modular Engines (Restored)
-        self.tab_engines = QWidget()
-        self.init_engines_tab()
-        self.tabs.addTab(self.tab_engines, "Synth Engines (Eskivector/Eskitable)")
-
-    def init_menu_bar(self):
-        menubar = self.menuBar()
-        help_menu = menubar.addMenu("Help / Documentation")
-
-        readme_action = QAction("Open Syntax & Composition README", self)
-        readme_action.triggered.connect(self.show_readme_dialog)
-        help_menu.addAction(readme_action)
-
-    def show_readme_dialog(self):
-        readme_text = (
-            "MATHEMATICIAN'S GROOVEBOX - SYNTAX & COMPOSITION README\n"
-            "====================================================\n\n"
-            "1. COORDINATE ENGINE VARIABLES:\n"
-            "   - Computations process strictly across x, y, and z vector arrays.\n"
-            "   - Time variable 't' drives dynamic frame progression.\n\n"
-            "2. MODERN COMPOSITION SYNTAX EXAMPLES:\n"
-            "   # Hardcoded sequential or conditional composition block:\n"
-            "   if t < 4.0:\n"
-            "       result = isn(x * 4.0 + z) * ics(y * 2.0)\n"
-            "   elif 4.0 <= t < 10.0:\n"
-            "       result = np.tanh(x * y) * 2.5 + np.sin(t)\n"
-            "   else:\n"
-            "       result = ics(x * z) * np.cos(y * 3.0)\n\n"
-            "3. 3D FOCUS ZONE INTERACTION:\n"
-            "   - Left-Click: Select an existing focal point node.\n"
-            "   - Right-Click: Insert a new focus node at the target coordinate.\n"
-            "   - Middle-Click or Scroll Down: Delete the selected focus point.\n"
-            "   - XYZ Dragbars: Real-time manipulation of spatial coordinate parameters."
-        )
-        QMessageBox.information(self, "Composition Syntax README", readme_text)
-
-    def init_script_tab(self):
-        layout = QVBoxLayout(self.tab_script)
-
-        self.visualizer = EQRVisualizerCanvas(self)
-        layout.addWidget(self.visualizer)
-
-        script_layout = QHBoxLayout()
-        default_script = (
-            "# Advanced Composition Series Example\n"
-            "if t < 4.0:\n"
-            "    # Phase 1: High frequency structural sweep\n"
-            "    result = isn(x * 4.0 + z) * ics(y * 2.0)\n"
-            "elif 4.0 <= t < 10.0:\n"
-            "    # Phase 2: Non-linear tanh modulation\n"
-            "    result = np.tanh(x * y) * 2.5 + np.sin(t)\n"
-            "else:\n"
-            "    # Phase 3: Resolution vector folding\n"
-            "    result = ics(x * z) * np.cos(y * 3.0)"
-        )
-
-        self.txt_script_editor = QTextEdit()
-        self.txt_script_editor.setText(default_script)
-        script_layout.addWidget(self.txt_script_editor, 3)
-        layout.addLayout(script_layout)
-
-        zone_layout = QHBoxLayout()
-        self.focus_zone_3d = FocusZone3DWidget(self)
-        zone_layout.addWidget(self.focus_zone_3d, 2)
-
-        sliders_layout = QGridLayout()
-        self.slider_x = QSlider(Qt.Orientation.Horizontal)
-        self.slider_y = QSlider(Qt.Orientation.Horizontal)
-        self.slider_z = QSlider(Qt.Orientation.Horizontal)
-
-        for s in (self.slider_x, self.slider_y, self.slider_z):
-            s.setRange(-100, 100)
-            s.setValue(0)
-
-        self.slider_x.valueChanged.connect(lambda v: self.focus_zone_3d.update_coordinate_axis('x', v / 100.0))
-        self.slider_y.valueChanged.connect(lambda v: self.focus_zone_3d.update_coordinate_axis('y', v / 100.0))
-        self.slider_z.valueChanged.connect(lambda v: self.focus_zone_3d.update_coordinate_axis('z', v / 100.0))
-
-        sliders_layout.addWidget(QLabel("Focus X Axis"), 0, 0)
-        sliders_layout.addWidget(self.slider_x, 0, 1)
-        sliders_layout.addWidget(QLabel("Focus Y Axis"), 1, 0)
-        sliders_layout.addWidget(self.slider_y, 1, 1)
-        sliders_layout.addWidget(QLabel("Focus Z Axis"), 2, 0)
-        sliders_layout.addWidget(self.slider_z, 2, 1)
-
-        zone_layout.addLayout(sliders_layout, 1)
-        layout.addLayout(zone_layout)
-
-        export_layout = QHBoxLayout()
-        self.btn_readme_quick = QPushButton("View Syntax README")
-        self.btn_readme_quick.clicked.connect(self.show_readme_dialog)
-        export_layout.addWidget(self.btn_readme_quick)
-
-        self.btn_compile = QPushButton("Compile and Render WAV Composition")
-        self.btn_compile.clicked.connect(self.compile_composition)
-        export_layout.addWidget(self.btn_compile)
-
-        layout.addLayout(export_layout)
-
-    def init_sequencer_tab(self):
-        """Restores the multi-lane sequencer routing matrix."""
-        layout = QVBoxLayout(self.tab_sequencer)
-        layout.addWidget(QLabel("Multi-Lane Parameter Routing Matrix"))
-
-        self.seq_table = QTableWidget(6, 4)
-        self.seq_table.setHorizontalHeaderLabels(["Lane ID", "Target Coordinate", "Modulation Depth", "State"])
-        for row in range(6):
-            self.seq_table.setItem(row, 0, QTableWidgetItem(f"Lane {row+1}"))
-            self.seq_table.setItem(row, 1, QTableWidgetItem("X-Axis" if row % 2 == 0 else "Y-Axis"))
-            self.seq_table.setItem(row, 2, QTableWidgetItem(f"{(row + 1) * 0.25:.2f}"))
-            self.seq_table.setItem(row, 3, QTableWidgetItem("Active"))
-        layout.addWidget(self.seq_table)
-
-    def init_engines_tab(self):
-        """Restores the Eskivector & Eskitable procedural synthesis modules."""
-        layout = QVBoxLayout(self.tab_engines)
-        layout.addWidget(QLabel("Eskivector & Eskitable Procedural Synthesis Suites"))
-
-        engines_layout = QHBoxLayout()
-        self.eskivector_panel = QTextEdit()
-        self.eskivector_panel.setReadOnly(True)
-        self.eskivector_panel.setText("Eskivector Engine Active:\n- Handles vector spatial rotations.\n- Maps x, y, z directly to audio buffer frequencies.")
-
-        self.eskitable_panel = QTextEdit()
-        self.eskitable_panel.setReadOnly(True)
-        self.eskitable_panel.setText("Eskitable Engine Active:\n- Wavetable lookup synthesis.\n- Evaluates custom isosceles operators (isn, ics).")
-
-        engines_layout.addWidget(self.eskivector_panel)
-        engines_layout.addWidget(self.eskitable_panel)
-        layout.addLayout(engines_layout)
-
-    def compile_composition(self):
-        script_code = self.txt_script_editor.toPlainText()
-        _ = self.coord_engine.evaluate_composition_script(script_code, self.visualizer.t_step)
-        self.setStyleSheet("""
-            QMainWindow { background-color: #0d0d12; }
-            QLabel { color: #d4d4dc; font-size: 12px; }
-            QTabWidget::pane { border: 1px solid #2e2e42; background: #111118; border-radius: 6px; }
-            QTabBar::tab { background: #181824; color: #a1a1b5; padding: 10px 22px; margin-right: 4px; border-top-left-radius: 6px; border-top-right-radius: 6px; font-weight: bold; }
-            QTabBar::tab:selected { background: #004d4d; color: #00ffc8; border: 1px solid #00ffc8; }
-        """)
-
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(12, 12, 12, 12)
-
-        # Master Global Equality & Reliable Export Panel
-        master_panel = QWidget()
-        master_panel.setStyleSheet("background-color: #14141c; border: 1px solid #2e2e42; border-radius: 6px; padding: 8px;")
-        master_layout = QHBoxLayout(master_panel)
-
-        self.master_status = QLabel("Global Equality Framework: Active (XYZ Operator Engine & EQR Matrix)")
-        self.master_status.setStyleSheet("color: #00ffc8; font-weight: bold; font-size: 13px;")
-
-        export_btn = QPushButton("💾 Export Project & Render WAV (Safe File I/O)")
-        export_btn.setStyleSheet("background-color: #004d4d; color: #00ffc8; font-weight: bold; padding: 6px 14px; border-radius: 4px;")
-        export_btn.clicked.connect(self.on_export_project_safe)
-
-        master_layout.addWidget(self.master_status)
-        master_layout.addStretch()
-        master_layout.addWidget(export_btn)
-        main_layout.addWidget(master_panel)
-
-        # Tabs Workspace
-        self.tabs = QTabWidget()
-
-        # Tab 1: Patchbay Canvas
-        patch_tab = QWidget()
-        patch_layout = QVBoxLayout(patch_tab)
-        patch_layout.setContentsMargins(0, 0, 0, 0)
-
-        inst_toolbar = QWidget()
-        inst_toolbar.setStyleSheet("background-color: #14141c; border-bottom: 1px solid #2e2e42; padding: 6px;")
-        inst_layout = QHBoxLayout(inst_toolbar)
-        inst_layout.addWidget(QLabel("Spawn Operator Node:"))
-
-        self.node_type_combo = QComboBox()
-        self.node_type_combo.addItems([
-            "X-Axis Core Processor",
-            "Y-Axis Field Modulator",
-            "Z-Axis Harmonic Evaluator",
-            "Non-Linear Operator Matrix",
-            "Reality Wave-Folder",
-            "EQR Singularity Node"
+        layout.addWidget(QLabel("<b>Project Manager (Import / Export / Memory Banks)</b>"))
+        bank_combo = QComboBox()
+        bank_combo.addItems([
+            "Bank Alpha [90uF/900V Resonant]",
+            "Bank Beta [2000uF/1350V]",
+            "Bank Gamma [3500uF/300V]"
         ])
-        self.node_type_combo.setStyleSheet("background-color: #1c1c28; color: #fff; border: 1px solid #3d3d5c; padding: 4px; border-radius: 4px;")
-        inst_layout.addWidget(self.node_type_combo)
-
-        spawn_btn = QPushButton("+ Instantiate Node")
-        spawn_btn.setStyleSheet("background-color: #004d4d; color: #00ffc8; font-weight: bold; padding: 6px 12px; border-radius: 4px;")
-        spawn_btn.clicked.connect(self.spawn_new_node)
-        inst_layout.addWidget(spawn_btn)
-        inst_layout.addStretch()
-        patch_layout.addWidget(inst_toolbar)
-
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.patch_panel = ScientificCanvas()
-
-        self.nodes = [
-            MathNodeWidget("X-Axis Core Processor", 50, 50, self.patch_panel),
-            MathNodeWidget("Y-Axis Field Modulator", 320, 50, self.patch_panel),
-            MathNodeWidget("Z-Axis Harmonic Evaluator", 590, 50, self.patch_panel),
-            MathNodeWidget("EQR Singularity Node", 860, 50, self.patch_panel)
-        ]
-
-        self.scroll_area.setWidget(self.patch_panel)
-        patch_layout.addWidget(self.scroll_area)
-        self.tabs.addTab(patch_tab, "Mathematical Patchbay")
-
-        # Tab 2: XYZ Sequencer & Coordinate Matrix
-        seq_editor = QWidget()
-        seq_editor.setStyleSheet("background-color: #111118;")
-        seq_layout = QHBoxLayout(seq_editor)
-
-        clip_side = QVBoxLayout()
-        clip_side.addWidget(QLabel("Subsequence Event Buffers"))
-        self.clip_list = QListWidget()
-        self.clip_list.addItem("Buffer 1: Base Equation Loop")
-        self.clip_list.addItem("Buffer 2: Phase Transition")
-        self.clip_list.setStyleSheet("background-color: #14141c; color: #fff; border: 1px solid #2e2e42; border-radius: 4px;")
-        self.clip_list.itemClicked.connect(lambda item: self.inspector_name_input.setText(item.text()))
-        clip_side.addWidget(self.clip_list)
-
-        new_clip_btn = QPushButton("+ Generate Event Buffer")
-        new_clip_btn.setStyleSheet("background-color: #004d4d; color: #00ffc8; padding: 8px; font-weight: bold; border-radius: 4px;")
-        new_clip_btn.clicked.connect(self.on_create_buffer)
-        clip_side.addWidget(new_clip_btn)
-
-        inspector_side = QVBoxLayout()
-        inspector_side.addWidget(QLabel("Coordinate Matrix Inspector (X, Y, Z)"))
-
-        form_layout = QFormLayout()
-        self.inspector_name_input = QLineEdit("Buffer 1: Base Equation Loop")
-        self.inspector_name_input.setStyleSheet("background-color: #14141c; color: #fff; padding: 6px; border: 1px solid #3e3e5c; border-radius: 4px;")
-
-        self.x_coord_spin = DoubleNumericSliderRow(-10.0, 10.0, 1.0, decimals=4, unit="")
-        self.y_coord_spin = DoubleNumericSliderRow(-10.0, 10.0, 1.0, decimals=4, unit="")
-        self.z_coord_spin = DoubleNumericSliderRow(-10.0, 10.0, 1.0, decimals=4, unit="")
-
-        form_layout.addRow("Buffer Label:", self.inspector_name_input)
-        form_layout.addRow("Variable X:", self.x_coord_spin)
-        form_layout.addRow("Variable Y:", self.y_coord_spin)
-        form_layout.addRow("Variable Z:", self.z_coord_spin)
-        inspector_side.addLayout(form_layout)
-
-        commit_btn = QPushButton("Evaluate & Push XYZ Event to Buffer")
-        commit_btn.setStyleSheet("background-color: #004444; color: #00ffc8; padding: 8px; font-weight: bold; border-radius: 4px;")
-        commit_btn.clicked.connect(self.on_commit_xyz_event)
-        inspector_side.addWidget(commit_btn)
-
-        inspector_side.addWidget(QLabel("Evaluated Event Log:"))
-        self.event_log_list = QListWidget()
-        self.event_log_list.setStyleSheet("background-color: #14141c; color: #00ffc8; border: 1px solid #2e2e42; border-radius: 4px;")
-        inspector_side.addWidget(self.event_log_list)
-
-        seq_layout.addLayout(clip_side, 1)
-        seq_layout.addLayout(inspector_side, 2)
-        self.tabs.addTab(seq_editor, "XYZ Sequencer & Matrix")
-
-        # Tab 3: Complete Synth Spawners, Editable Synth Panels, Fractalizer & EQR Synth Suite
-        synth_gen_tab = QWidget()
-        synth_gen_tab.setStyleSheet("background-color: #111118;")
-        synth_gen_layout = QVBoxLayout(synth_gen_tab)
-
-        synth_gen_layout.addWidget(QLabel("Simultaneous Generative Tracker, Eski Synth Suites, EQR Synth & Fractalizer Matrix"))
-
-        # Top: Spawner & Global Equality
-        top_control_panel = QHBoxLayout()
-
-        synth_spawn_box = QFormLayout()
-        self.synth_spawner_combo = QComboBox()
-        self.synth_spawner_combo.addItems([
-            "EskiBrutuses Vector Wavetable Core",
-            "EskiPhased Non-Linear Matrix",
-            "EskiHarmonic Fractalizer Synth",
-            "EskiRecursive Wave-Fold Engine",
-            "EQR Singularity Algebraic Synth"
-        ])
-        self.synth_spawner_combo.setStyleSheet("background-color: #1c1c28; color: #fff; padding: 6px; border: 1px solid #3d3d5c; border-radius: 4px;")
-
-        spawn_synth_btn = QPushButton("Spawn Active Synth Rack Unit")
-        spawn_synth_btn.setStyleSheet("background-color: #004d4d; color: #00ffc8; font-weight: bold; padding: 6px; border-radius: 4px;")
-        spawn_synth_btn.clicked.connect(self.on_spawn_synth_unit)
-
-        synth_spawn_box.addRow("Synth Architecture:", self.synth_spawner_combo)
-        synth_spawn_box.addRow(spawn_synth_btn)
-
-        equality_box = QFormLayout()
-        self.global_equality_input = QLineEdit("f(x, y, z) = x^2 + y^2 - z^2 = 0")
-        self.global_equality_input.setStyleSheet("background-color: #1c1c28; color: #00ffc8; padding: 6px; border: 1px solid #3d3d5c; border-radius: 4px;")
-
-        gen_trigger_btn = QPushButton("Trigger Generative Tracker Engine")
-        gen_trigger_btn.setStyleSheet("background-color: #4d004d; color: #ff00ff; font-weight: bold; padding: 6px; border-radius: 4px;")
-        gen_trigger_btn.clicked.connect(self.on_trigger_generative_tracker)
-
-        equality_box.addRow("Global Primary Equality:", self.global_equality_input)
-        equality_box.addRow(gen_trigger_btn)
-
-        top_control_panel.addLayout(synth_spawn_box, 1)
-        top_control_panel.addLayout(equality_box, 1)
-        synth_gen_layout.addLayout(top_control_panel)
-
-        # Middle Splitter: Added Synth Instances List & Dedicated Editable Synth Rack Drawer
-        middle_splitter = QSplitter(Qt.Orientation.Horizontal)
-
-        left_synth_list_container = QWidget()
-        left_layout = QVBoxLayout(left_synth_list_container)
-        left_layout.addWidget(QLabel("Active Synth Instances (Click to Edit Parameters)"))
-        self.synth_instances_list = QListWidget()
-        self.synth_instances_list.setStyleSheet("background-color: #14141c; color: #00ffc8; border: 1px solid #2e2e42; border-radius: 4px;")
-        self.synth_instances_list.itemClicked.connect(self.on_select_synth_instance)
-        left_layout.addWidget(self.synth_instances_list)
-        middle_splitter.addWidget(left_synth_list_container)
-
-        self.active_synth_drawer_container = QWidget()
-        self.active_drawer_layout = QVBoxLayout(self.active_synth_drawer_container)
-        self.active_drawer_layout.addWidget(QLabel("Dedicated Synth Inspector & Parameter Drawer"))
-
-        # Default placeholder drawer unit
-        self.current_drawer_unit = SynthRackUnitWidget("EskiBrutuses Vector Wavetable Core", 1)
-        self.active_drawer_layout.addWidget(self.current_drawer_unit)
-        middle_splitter.addWidget(self.active_synth_drawer_container)
-
-        synth_gen_layout.addWidget(middle_splitter, 2)
-
-        # Bottom half: Percussive Key-Pads Matrix & SoundCloud Static Waveform Overview
-        bottom_panel = QHBoxLayout()
-
-        keypad_container = QVBoxLayout()
-        keypad_container.addWidget(QLabel("Percussive Mathematical Key-Pad Matrix (XYZ Trigger Pads)"))
-
-        pad_grid = QGridLayout()
-        self.pad_buttons = []
-        for i in range(16):
-            btn = QPushButton(f"Pad {i+1}\n[x{i%4}, y{i//4}]")
-            btn.setStyleSheet("""
-                background-color: #181824;
-                color: #00ffc8;
-                border: 1px solid #2e2e42;
-                border-radius: 6px;
-                font-weight: bold;
-                min-height: 40px;
-            """)
-            btn.clicked.connect(lambda checked, idx=i: self.on_percussive_pad_clicked(idx))
-            pad_grid.addWidget(btn, i // 4, i % 4)
-            self.pad_buttons.append(btn)
-
-        keypad_container.addLayout(pad_grid)
-
-        tracker_container = QVBoxLayout()
-        tracker_container.addWidget(QLabel("Simultaneous Generative Tracker Log"))
-        self.gen_tracker_log = QListWidget()
-        self.gen_tracker_log.setStyleSheet("background-color: #14141c; color: #ff00ff; border: 1px solid #2e2e42; border-radius: 4px;")
-        tracker_container.addWidget(self.gen_tracker_log)
-
-        bottom_panel.addLayout(keypad_container, 1)
-        bottom_panel.addLayout(tracker_container, 1)
-        synth_gen_layout.addLayout(bottom_panel)
-
-        # SoundCloud-Style Project Overview Waveform with Timeline Trigger Labels
-        synth_gen_layout.addWidget(QLabel("Project Overview Waveform & Calculation Timeline Triggers"))
-        self.soundcloud_waveform = SoundCloudTimelineVisualizer()
-        synth_gen_layout.addWidget(self.soundcloud_waveform)
-
-        self.tabs.addTab(synth_gen_tab, "Synth Suites & Generative Tracker")
-        main_layout.addWidget(self.tabs)
-
-        # Internal state tracking
-        self.spawned_synths_data = []
-        self.spawn_synth_unit_internal("EskiBrutuses Vector Wavetable Core")
-    def _init_ui(self):
-        self.central_tabs = QTabWidget()
-        self.central_tabs.addTab(self._create_canvas_tab(), "Patchbay Canvas")
-        self.central_tabs.addTab(self._create_synthesizer_tab(), "Vector Synthesis Engines")
-        self.central_tabs.addTab(self._create_matrix_tab(), "Matrix Sequencer")
-
-        self.setCentralWidget(self.central_tabs)
-
-    def _create_canvas_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        self.canvas_status = QLabel("Interactive Patchbay Canvas: Active")
-        layout.addWidget(self.canvas_status)
-
-        # Sliders for real-time x, y, and z coordinate evaluation
-        self.sliders = {}
-        for var in ["x", "y", "z"]:
-            h_layout = QHBoxLayout()
-            h_layout.addWidget(QLabel(f"Coordinate Operator {var.upper()}:"))
-            slider = QSlider(Qt.Orientation.Horizontal)
-            slider.setRange(-1000, 1000)
-            slider.setValue(0)
-            slider.valueChanged.connect(lambda val, v=var: self.update_coordinate_variable(v, val))
-            self.sliders[var] = slider
-            h_layout.addWidget(slider)
-            layout.addLayout(h_layout)
-
-        return widget
-
-    def _create_synthesizer_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.addWidget(QLabel("EskiBrutuses Vector Wavetable & Fractalizer Matrix"))
-        return widget
-
-    def _create_matrix_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.addWidget(QLabel("Generative Tracker and Multi-Lane Sequencer"))
-        return widget
-
-    def _init_dockable_panels(self):
-        # Dockable panel for project management and memory bank selection
-        self.project_dock = QDockWidget("Project Workspace", self)
-        self.project_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
-
-        dock_content = QWidget()
-        dock_layout = QVBoxLayout(dock_content)
-        dock_layout.addWidget(QLabel("Memory Bank Selectors"))
-
-        self.bank_selector = QComboBox()
-        self.bank_selector.addItems(["Bank Alpha (90uF/900V)", "Bank Beta (1350V/2000uf)", "Bank Gamma (300V/3500uf)"])
-        dock_layout.addWidget(self.bank_selector)
-
-        self.project_dock.setWidget(dock_content)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.project_dock)
-
-    def _init_spawn_toolbar(self):
-        # Toolbar for spawning custom processing nodes onto the workspace
-        self.spawn_toolbar = QToolBar("Instantiation Toolbar", self)
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.spawn_toolbar)
-
-        self.node_combo = QComboBox()
-        self.node_combo.addItems(["EskiVector Node", "EskiTable Unit", "Reality Wave-Folder", "Fractalizer Matrix"])
-        self.spawn_toolbar.addWidget(self.node_combo)
-
-        spawn_btn = QPushButton("Spawn Node")
-        spawn_btn.clicked.connect(self.spawn_selected_node)
-        self.spawn_toolbar.addWidget(spawn_btn)
-
-    def update_coordinate_variable(self, var_name, value):
-        # Processes x, y, and z variable adjustments directly without scaling offsets
-        self.active_variables[var_name] = value / 1000.0
-        self.canvas_status.setText(f"Active Operator Mapping -> X: {self.active_variables['x']:.3f} | Y: {self.active_variables['y']:.3f} | Z: {self.active_variables['z']:.3f}")
-
-    def spawn_selected_node(self):
-        selected_node = self.node_combo.currentText()
-        self.canvas_status.setText(f"Instantiated module: {selected_node} onto active patchbay canvas.")
-
-    def _apply_unused_modulations(self):
-        """Unused function integration: Processes the real-time mathematical signal evaluation loops."""
-        if not self.is_playing:
-            return
-    def spawn_new_node(self):
-        node_name = self.node_type_combo.currentText()
-        count = len(self.nodes)
-        x_pos = 50 + (count % 4) * 270
-        y_pos = 50 + (count // 4) * 190
-        new_node = MathNodeWidget(node_name, x_pos, y_pos, self.patch_panel)
-        new_node.show()
-        self.nodes.append(new_node)
-    def _init_ui(self):
-        self.central_tabs = QTabWidget()
-        self.central_tabs.addTab(self._create_canvas_tab(), "Patchbay Canvas & Visualizer")
-        self.central_tabs.addTab(self._create_pad_matrix_tab(), "Percussive Key-Pad Matrix")
-        self.central_tabs.addTab(self._create_recursion_tab(), "Envelope Recursion Schematics")
-
-        self.setCentralWidget(self.central_tabs)
-
-    def _create_canvas_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        self.canvas_status = QLabel("Interactive Patchbay Canvas: Active")
-        layout.addWidget(self.canvas_status)
-
-        # Real-time visualizer integration
-        self.visualizer = WaveformVisualizer()
-        layout.addWidget(self.visualizer)
-
-        # Sliders for coordinate evaluation
-        self.sliders = {}
-        for var in ["x", "y", "z"]:
-            h_layout = QHBoxLayout()
-            h_layout.addWidget(QLabel(f"Coordinate Operator {var.upper()}:"))
-            slider = QSlider(Qt.Orientation.Horizontal)
-            slider.setRange(-1000, 1000)
-            slider.setValue(0)
-            slider.valueChanged.connect(lambda val, v=var: self.update_coordinate_variable(v, val))
-            self.sliders[var] = slider
-            h_layout.addWidget(slider)
-            layout.addLayout(h_layout)
-
-        return widget
-    def _init_ui(self):
-        self.central_tabs = QTabWidget()
-        self.central_tabs.addTab(self._create_canvas_tab(), "Patchbay Canvas & Coded Wires")
-        self.central_tabs.addTab(self._create_synthesizer_tab(), "Vector Synthesis Engines")
-        self.central_tabs.addTab(self._create_script_tab(), "Script & Command Interface")
-        self.central_tabs.addTab(self._create_recursion_tab(), "Envelope Recursion Schematics")
-
-        self.setCentralWidget(self.central_tabs)
-
-    def _create_canvas_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        self.canvas_status = QLabel("Patchbay Canvas Active: Coded Wires Rendered")
-        layout.addWidget(self.canvas_status)
-
-        # Interactive Patchbay & Waveform Visualizer Canvas
-        self.canvas = PatchbayCanvas()
-        layout.addWidget(self.canvas)
-
-        # Coordinate Sliders
-        self.sliders = {}
-        for var in ["x", "y", "z"]:
-            h_layout = QHBoxLayout()
-            h_layout.addWidget(QLabel(f"Coordinate Operator {var.upper()}:"))
-            slider = QSlider(Qt.Orientation.Horizontal)
-            slider.setRange(-1000, 1000)
-            slider.setValue(250)
-            slider.valueChanged.connect(lambda val, v=var: self.update_coordinate_variable(v, val))
-            self.sliders[var] = slider
-            h_layout.addWidget(slider)
-            layout.addLayout(h_layout)
-
-        return widget
-    def init_patchbay_tab(self):
-         layout = QVBoxLayout(self.tab_patchbay)
-         # Unified canvas handling spatial x, y, z routing and real-time waveforms
-         layout.addWidget(self.visualizer)
-
-         self.control_panel = QHBoxLayout()
-         self.btn_spawn_node = QPushButton("Spawn Operator Node")
-         self.btn_spawn_node.clicked.connect(self.visualizer.spawn_operator_node)
-         self.control_panel.addWidget(self.btn_spawn_node)
-
-         layout.addLayout(self.control_panel)
-    def _create_synthesizer_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.addWidget(QLabel("EskiBrutuses Vector Wavetable & Fractalizer Matrix"))
-
-        # Added percussive-key-pad behavior slider for synths
-        pad_behavior_layout = QHBoxLayout()
-        pad_behavior_layout.addWidget(QLabel("Percussive-Key-Pad Response Curve:"))
-        self.pad_slider = QSlider(Qt.Orientation.Horizontal)
-        self.pad_slider.setRange(1, 100)
-        self.pad_slider.setValue(75)
-        pad_behavior_layout.addWidget(self.pad_slider)
-        layout.addLayout(pad_behavior_layout)
-
-        self.synth_status = QLabel("Synth Engine Status: Amplified Output & Wavetable Sync Active")
-        layout.addWidget(self.synth_status)
-        return widget
-
-    def _create_script_tab(self):
-        """Replaced percussive pads with a script command control menu."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        layout.addWidget(QLabel("Composition Control Script Terminal (Commands: TRIG [pad], MUTATE [xyz], SET [var] [val], LOOP)"))
-
-        self.script_output = QTextEdit()
-        self.script_output.setReadOnly(True)
-        self.script_output.setText("System Initialized. Ready for composition commands...\n> Type commands below to direct rhythms and sequences.")
-        layout.addWidget(self.script_output)
-
-        input_layout = QHBoxLayout()
-        self.script_input = QLineEdit()
-        self.script_input.setPlaceholderText("e.g., TRIG 1; MUTATE x; SET y 0.8;")
-        self.script_input.returnPressed.connect(self.execute_script_command)
-
-        exec_btn = QPushButton("Execute Command")
-        exec_btn.clicked.connect(self.execute_script_command)
-
-        input_layout.addWidget(self.script_input)
-        input_layout.addWidget(exec_btn)
-        layout.addLayout(input_layout)
-
-        return widget
-
-    def _create_recursion_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.addWidget(QLabel("Recursive Envelope Feedback Schematics"))
-        self.recursion_status = QLabel("Recursion Depth: Stage 4 | Feedback Loop: Amplified")
-        layout.addWidget(self.recursion_status)
-
-        self.recursion_slider = QSlider(Qt.Orientation.Horizontal)
-        self.recursion_slider.setRange(1, 10)
-        self.recursion_slider.setValue(4)
-        self.recursion_slider.valueChanged.connect(self.update_recursion_depth)
-        layout.addWidget(self.recursion_slider)
-        return widget
-
-    def _init_dockable_panels(self):
-        self.project_dock = QDockWidget("Project Workspace", self)
-        dock_content = QWidget()
-        dock_layout = QVBoxLayout(dock_content)
-        dock_layout.addWidget(QLabel("Memory Bank Selectors"))
-
-        self.bank_selector = QComboBox()
-        self.bank_selector.addItems(["Bank Alpha (90uF/900V)", "Bank Beta (1350V/2000uf)", "Bank Gamma (300V/3500uf)"])
-        dock_layout.addWidget(self.bank_selector)
-
-        self.project_dock.setWidget(dock_content)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.project_dock)
-
-    def _init_spawn_toolbar(self):
-        self.spawn_toolbar = QToolBar("Instantiation Toolbar", self)
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.spawn_toolbar)
-
-        self.node_combo = QComboBox()
-        self.node_combo.addItems(["EskiVector Node", "EskiTable Unit", "Reality Wave-Folder", "Fractalizer Matrix"])
-        self.spawn_toolbar.addWidget(self.node_combo)
-
-        spawn_btn = QPushButton("Spawn & Patch Node")
-        spawn_btn.clicked.connect(self.spawn_and_patch_node)
-        self.spawn_toolbar.addWidget(spawn_btn)
-
-    def update_coordinate_variable(self, var_name, value):
-        self.active_variables[var_name] = value / 500.0
-
-    def spawn_and_patch_node(self):
-        node = self.node_combo.currentText()
-        self.canvas.add_connection("EskiVector Node", node)
-        self.canvas_status.setText(f"Instantiated and Coded Wire Patched: {node}")
-
-    def execute_script_command(self):
-        cmd = self.script_input.text().strip()
-        if not cmd:
-            return
-        self.script_output.append(f"> {cmd}")
-
-        # Simple command interpreter logic
-        if cmd.startswith("TRIG"):
-            self.script_output.append("-> Rhythm Trigger executed successfully across operator sequence.")
-        elif cmd.startswith("SET"):
-            parts = cmd.split()
-            if len(parts) >= 3:
-                var, val = parts[1], float(parts[2])
-                if var in self.active_variables:
-                    self.active_variables[var] = val
-                    self.script_output.append(f"-> Variable {var.upper()} set to {val}")
-        elif cmd.startswith("MUTATE"):
-            self.script_output.append("-> Operator mutation applied to waveform feedback matrix.")
-        else:
-            self.script_output.append("-> Command processed.")
-
-        self.script_input.clear()
-
-    def update_recursion_depth(self, value):
-        self.recursion_status.setText(f"Recursion Depth: Stage {value} | Feedback Loop: Amplified")
-
-    def _apply_modulations(self):
-        """Processes high-gain mathematical evaluation loops for distinct visualizer waveforms."""
-        x = self.active_variables["x"]
-        y = self.active_variables["y"]
-        z = self.active_variables["z"]
-
-        # Amplified signal equation for visible wave oscillations
-        t = QTimer.remainingTime(self.modulation_timer) if hasattr(self, 'modulation_timer') else 0
-        val = math.sin(x * 3.0 + t * 0.1) * math.cos(y * 2.0) + (z * 0.5)
-        self.canvas.update_data(val)
-
-    def toggle_playback(self):
-        self.is_playing = not self.is_playing
-    def _create_pad_matrix_tab(self):
-        """Percussive-keys-padded format for live trigger sequencing."""
-        widget = QWidget()
-        grid = QGridLayout(widget)
-
-        self.pad_buttons = []
-        for row in range(4):
-            for col in range(4):
-                pad_idx = row * 4 + col + 1
-                btn = QPushButton(f"Pad {pad_idx}\n[XYZ Trigger]")
-                btn.setMinimumHeight(100)
-                btn.setCheckable(True)
-                btn.setStyleSheet("QPushButton { background-color: #2e2e38; color: #fff; border: 1px solid #444; }"
-                                  "QPushButton:checked { background-color: #00dc96; color: #000; }")
-                btn.clicked.connect(lambda checked, idx=pad_idx: self.trigger_pad(idx, checked))
-                grid.addWidget(btn, row, col)
-                self.pad_buttons.append(btn)
-
-        return widget
-
-    def _create_recursion_tab(self):
-        """Envelope recursion schematics interface."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        layout.addWidget(QLabel("Recursive Envelope Feedback Schematics"))
-
-        self.recursion_status = QLabel("Recursion Depth: Stage 1 | Feedback Loop: Nominal")
-        layout.addWidget(self.recursion_status)
-
-        # Controls for recursion parameters
-        self.recursion_slider = QSlider(Qt.Orientation.Horizontal)
-        self.recursion_slider.setRange(1, 10)
-        self.recursion_slider.setValue(3)
-        self.recursion_slider.valueChanged.connect(self.update_recursion_depth)
-        layout.addWidget(self.recursion_slider)
-
-        return widget
-
-    def _init_dockable_panels(self):
-        self.project_dock = QDockWidget("Project Workspace", self)
-        self.project_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
-
-        dock_content = QWidget()
-        dock_layout = QVBoxLayout(dock_content)
-        dock_layout.addWidget(QLabel("Memory Bank Selectors"))
-
-        self.bank_selector = QComboBox()
-        self.bank_selector.addItems(["Bank Alpha (90uF/900V)", "Bank Beta (1350V/2000uf)", "Bank Gamma (300V/3500uf)"])
-        dock_layout.addWidget(self.bank_selector)
-
-        self.project_dock.setWidget(dock_content)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.project_dock)
-
-    def _init_spawn_toolbar(self):
-        self.spawn_toolbar = QToolBar("Instantiation Toolbar", self)
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.spawn_toolbar)
-
-        self.node_combo = QComboBox()
-        self.node_combo.addItems(["EskiVector Node", "EskiTable Unit", "Reality Wave-Folder", "Fractalizer Matrix"])
-        self.spawn_toolbar.addWidget(self.node_combo)
-
-        spawn_btn = QPushButton("Spawn Node")
-        spawn_btn.clicked.connect(self.spawn_selected_node)
-        self.spawn_toolbar.addWidget(spawn_btn)
-
-    def update_coordinate_variable(self, var_name, value):
-        self.active_variables[var_name] = value / 1000.0
-        self.canvas_status.setText(f"Active Operator Mapping -> X: {self.active_variables['x']:.3f} | Y: {self.active_variables['y']:.3f} | Z: {self.active_variables['z']:.3f}")
-
-    def trigger_pad(self, pad_idx, active):
-        state = "Triggered" if active else "Released"
-        self.canvas_status.setText(f"Percussive Pad {pad_idx} {state} [Operator Matrix Active]")
-
-    def update_recursion_depth(self, value):
-        self.recursion_status.setText(f"Recursion Depth: Stage {value} | Feedback Loop: Nominal")
-
-    def spawn_selected_node(self):
-        selected_node = self.node_combo.currentText()
-        self.canvas_status.setText(f"Instantiated module: {selected_node} onto active patchbay canvas.")
-
-    def _apply_unused_modulations(self):
-        """Processes real-time mathematical signal evaluation loops and updates the waveform visualizer."""
-        x_val = self.active_variables["x"]
-        y_val = self.active_variables["y"]
-        z_val = self.active_variables["z"]
-
-        # Coordinate evaluation pass mapping to visualizer amplitude
-        evaluated_signal = ((x_val ** 2 + y_val ** 2) - abs(z_val))
-        self.visualizer.update_data(evaluated_signal)
-
-    def toggle_playback(self):
-        self.is_playing = not self.is_playing
-    def on_create_buffer(self):
-        count = self.clip_list.count() + 1
-        buffer_name = f"Buffer {count}: Coordinate Subsequence"
-        self.clip_list.addItem(buffer_name)
-        items = self.clip_list.findItems(buffer_name, Qt.MatchFlag.MatchExactly)
-        if items:
-            self.clip_list.setCurrentItem(items[0])
-            self.inspector_name_input.setText(buffer_name)
-
-    def on_commit_xyz_event(self):
-        current_buffer = self.clip_list.currentItem()
-        buf_name = current_buffer.text() if current_buffer else "Active Buffer"
-        x_val = self.x_coord_spin.spinbox.value()
-        y_val = self.y_coord_spin.spinbox.value()
-        z_val = self.z_coord_spin.spinbox.value()
-
-        log_entry = f"[{buf_name}] ➔ Evaluated XYZ Vector: X={x_val:.4f} | Y={y_val:.4f} | Z={z_val:.4f}"
-        self.event_log_list.addItem(log_entry)
-
-    def on_spawn_synth_unit(self):
-        synth_name = self.synth_spawner_combo.currentText()
-        self.spawn_synth_unit_internal(synth_name)
-
-    def spawn_synth_unit_internal(self, synth_name):
-        new_id = len(self.spawned_synths_data) + 1
-        synth_unit = SynthRackUnitWidget(synth_name, new_id)
-        self.spawned_synths_data.append((synth_name, new_id, synth_unit))
-
-        item_text = f"{synth_name} (ID #{new_id})"
-        self.synth_instances_list.addItem(item_text)
-        items = self.synth_instances_list.findItems(item_text, Qt.MatchFlag.MatchExactly)
-        if items:
-            self.synth_instances_list.setCurrentItem(items[0])
-
-        self.set_active_synth_drawer(synth_unit)
-        self.gen_tracker_log.addItem(f"[Synth Spawner] Instantiated rack unit: {synth_name} (#ID {new_id})")
-
-    def on_select_synth_instance(self, item):
-        row = self.synth_instances_list.row(item)
-        if 0 <= row < len(self.spawned_synths_data):
-            _, _, synth_unit = self.spawned_synths_data[row]
-            self.set_active_synth_drawer(synth_unit)
-
-    def set_active_synth_drawer(self, synth_unit):
-        # Remove existing drawer widget safely
-        item_to_remove = self.active_drawer_layout.itemAt(1)
-        if item_to_remove and item_to_remove.widget():
-            item_to_remove.widget().setParent(None)
-        self.current_drawer_unit = synth_unit
-        self.active_drawer_layout.addWidget(synth_unit)
-
-    def on_trigger_generative_tracker(self):
-        eq_text = self.global_equality_input.text().strip()
-        self.gen_tracker_log.addItem(f"[Generative Tracker] Executing tracking loop for: {eq_text}")
-
-    def on_percussive_pad_clicked(self, idx):
-        x_coord = (idx % 4) * 0.75
-        y_coord = (idx // 4) * 0.75
-        self.gen_tracker_log.addItem(f"[Percussive Key-Pad] Triggered Pad {idx+1} ➔ X:{x_coord:.2f} Y:{y_coord:.2f}")
-    def create_eskivector_panel(self):
-        panel = QWidget()
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Eskivector Vector Synth</b>"))
-        layout.addWidget(QPushButton("Trigger Vector Render"))
-        layout.addWidget(QPushButton("Reset Vector Phase"))
+        bank_combo.setStyleSheet("background-color: #1a1e24; color: #00ffcc; border: 1px solid #3a3f4b; padding: 4px;")
+        layout.addWidget(bank_combo)
+        layout.addWidget(QPushButton("Save Project Snapshot"))
+        layout.addWidget(QPushButton("Load Project Snapshot"))
+        layout.addWidget(QPushButton("Export Audio Stem Archive"))
         layout.addStretch()
         return panel
-
-    def create_eskibrutus_panel(self):
-        panel = QWidget()
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Eskibrutus Heavy Synthesis Node</b>"))
-        layout.addWidget(QPushButton("Engage Brutus Distortion Matrix"))
-        layout.addWidget(QPushButton("Harmonic Fold Reset"))
-        layout.addStretch()
-        return panel
-
-    def create_polynomial_synth_panel(self):
-        panel = QWidget()
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Algebraic Polynomial Synth</b>"))
-        layout.addWidget(QLabel("Poly Coeffs: [x^3 + y^2 + z]"))
-        layout.addWidget(QPushButton("Recalculate Polynomial Curves"))
-        layout.addStretch()
-        return panel
-
-    def create_hybrid_synth_panel(self):
-        panel = QWidget()
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Hybrid Vector-Wavetable-Equation</b>"))
-        layout.addWidget(QPushButton("Morph Vector Matrix"))
-        layout.addWidget(QPushButton("Sync Wavetable Phase"))
-        layout.addStretch()
-        return panel
-
-    def create_oscillator_panel(self):
-        panel = QWidget()
-        layout = QVBoxLayout(panel)
-        layout.addWidget(QLabel("<b>Standard Oscillator Bank</b>"))
-        layout.addWidget(QPushButton("Sine / Isosceles Toggle"))
-        layout.addWidget(QPushButton("Hard Sync Trigger"))
-        layout.addStretch()
-        return panel
-
-    def run_evaluation(self):
-        expr = self.expr_input.toPlainText()
-        x = np.linspace(-np.pi, np.pi, 100)
-        y = np.linspace(-np.pi, np.pi, 100)
-        X, Y = np.meshgrid(x, y)
-        Z = np.sin(X * Y)
-
-        result = self.math_engine.evaluate(expr, X, Y, Z)
-        mean_val = np.mean(result) if isinstance(result, np.ndarray) else result
-        self.output_log.append(f"Successfully evaluated expression with Meum constant factor ({MEUM_CONSTANT:.4f}). Result mean: {mean_val:.4f}")
 
     def apply_stylesheet(self):
         palette = QPalette()
@@ -5230,24 +4080,8 @@ class ScientificDAWWindow(QMainWindow):
         palette.setColor(QPalette.ColorRole.Highlight, QColor("#00aa88"))
         palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
         QApplication.setPalette(palette)
-    def on_export_project_safe(self):
-        """Safe file export utilizing standard text/binary buffers to avoid platform blockages."""
-        file_path, _ = QFileDialog.getSaveFileName(self, "Export Project & Render WAV", "", "Audio / Project Data (*.wav *.eqr);;All Files (*)")
-        if file_path:
-            try:
-                # Guaranteed robust file write handling for both wav headers & project metadata
-                with open(file_path, 'wb') as f:
-                    # Write standard WAV header stub + EQR metadata payload
-                    f.write(b'RIFF****WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00D\xac\x00\x00\x88X\x01\x00\x02\x00\x10\x00data****')
-                    f.write(b'# EQR Mathematical DAW Project Data & Generated Synth Buffers\n')
-                    for name, uid, unit in self.spawned_synths_data:
-                        mode = unit.mode_combo.currentText()
-                        p1 = unit.param1.spinbox.value()
-                        p2 = unit.param2.spinbox.value()
-                        f.write(f"SYNTH:{name}:{uid}:{mode}:{p1}:{p2}\n".encode('utf-8'))
-                self.gen_tracker_log.addItem(f"[Export Success] Saved project and rendered WAV to: {file_path}")
-            except Exception as e:
-                self.gen_tracker_log.addItem(f"[Export Error] Failed to write file: {str(e)}")
+
+
 
 
 if __name__ == '__main__':
