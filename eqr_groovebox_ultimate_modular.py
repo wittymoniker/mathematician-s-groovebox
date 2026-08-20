@@ -601,7 +601,7 @@ class EQRDAWStudio(QMainWindow):
         keypad_layout = QGridLayout()
         buttons = [
             ('x', 0, 0), ('y', 0, 1), ('z', 0, 2), ('+', 0, 3),
-            ('isn(', 1, 0), ('ics(', 1, 1), ('sin(', 1, 2), ('-', 1, 3),
+            ('isn(', 1, 0), ('ics(', 1, 1), ('isn^-1(', 1, 2), ('-', 1, 3),
             ('*', 2, 0), ('/', 2, 1), ('(', 2, 2), (')', 2, 3),
         ]
         for label, r, c in buttons:
@@ -4917,7 +4917,76 @@ class ScientificDAWWindow(QMainWindow):
         x_coord = (idx % 4) * 0.75
         y_coord = (idx // 4) * 0.75
         self.gen_tracker_log.addItem(f"[Percussive Key-Pad] Triggered Pad {idx+1} ➔ X:{x_coord:.2f} Y:{y_coord:.2f}")
+    def create_eskivector_panel(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Eskivector Vector Synth</b>"))
+        layout.addWidget(QPushButton("Trigger Vector Render"))
+        layout.addWidget(QPushButton("Reset Vector Phase"))
+        layout.addStretch()
+        return panel
 
+    def create_eskibrutus_panel(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Eskibrutus Heavy Synthesis Node</b>"))
+        layout.addWidget(QPushButton("Engage Brutus Distortion Matrix"))
+        layout.addWidget(QPushButton("Harmonic Fold Reset"))
+        layout.addStretch()
+        return panel
+
+    def create_polynomial_synth_panel(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Algebraic Polynomial Synth</b>"))
+        layout.addWidget(QLabel("Poly Coeffs: [x^3 + y^2 + z]"))
+        layout.addWidget(QPushButton("Recalculate Polynomial Curves"))
+        layout.addStretch()
+        return panel
+
+    def create_hybrid_synth_panel(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Hybrid Vector-Wavetable-Equation</b>"))
+        layout.addWidget(QPushButton("Morph Vector Matrix"))
+        layout.addWidget(QPushButton("Sync Wavetable Phase"))
+        layout.addStretch()
+        return panel
+
+    def create_oscillator_panel(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Standard Oscillator Bank</b>"))
+        layout.addWidget(QPushButton("Sine / Isosceles Toggle"))
+        layout.addWidget(QPushButton("Hard Sync Trigger"))
+        layout.addStretch()
+        return panel
+
+    def run_evaluation(self):
+        expr = self.expr_input.toPlainText()
+        x = np.linspace(-np.pi, np.pi, 100)
+        y = np.linspace(-np.pi, np.pi, 100)
+        X, Y = np.meshgrid(x, y)
+        Z = np.sin(X * Y)
+
+        result = self.math_engine.evaluate(expr, X, Y, Z)
+        mean_val = np.mean(result) if isinstance(result, np.ndarray) else result
+        self.output_log.append(f"Successfully evaluated expression with Meum constant factor ({MEUM_CONSTANT:.4f}). Result mean: {mean_val:.4f}")
+
+    def apply_stylesheet(self):
+        palette = QPalette()
+        palette.setColor(QPalette.ColorRole.Window, QColor("#16181d"))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#e0e0e0"))
+        palette.setColor(QPalette.ColorRole.Base, QColor("#0d0f12"))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#1a1e24"))
+        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.Text, QColor("#e0e0e0"))
+        palette.setColor(QPalette.ColorRole.Button, QColor("#222733"))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor("#00aa88"))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+        QApplication.setPalette(palette)
     def on_export_project_safe(self):
         """Safe file export utilizing standard text/binary buffers to avoid platform blockages."""
         file_path, _ = QFileDialog.getSaveFileName(self, "Export Project & Render WAV", "", "Audio / Project Data (*.wav *.eqr);;All Files (*)")
