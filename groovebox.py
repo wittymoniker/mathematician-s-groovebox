@@ -5936,7 +5936,9 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.btn_view_patchbay = QPushButton("🔌 Advanced Modular Patch Bay")
         self.btn_script_inst = QPushButton("📝 Instrument Script Editor")
 
-        self.btn_edit_synth.clicked.connect(...) if hasattr(self.btn_edit_synth, 'clicked') else None
+        self.btn_edit_synth = QPushButton("🛠 Edit Synth Settings & Wavetable")
+        # Simply connect it directly without the safeguarding ellipsis:
+        self.btn_edit_synth.clicked.connect(lambda: self.spawn_floating_window('synth_editor_window', "Synth Settings & Wavetable Interface"))
         self.btn_edit_synth.clicked.connect(lambda: self.spawn_floating_window('synth_editor_window', "Synth Settings & Wavetable Interface"))
         self.btn_view_playlist.clicked.connect(lambda: self.spawn_floating_window('playlist_window', "Unquantized Global Playlist Timeline"))
         self.btn_view_patchbay.clicked.connect(lambda: self.spawn_floating_window('patch_bay_dialog', "Advanced Modular Patch Bay & Visualizer"))
