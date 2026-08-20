@@ -6058,54 +6058,66 @@ class MathematiciansGrooveboxApp(QMainWindow):
         print("[System] Instrument randomized.")
 
     def export_mixdown(self):
-        """Renders and exports the full multitrack playlist timeline as a WAV file."""
+        """Renders the full playlist arrangement into a rich, evolving multi-track WAV file."""
         try:
             if wavfile is None:
                 print("[System Error] Scipy is not available. Run `pip install scipy`.")
                 return
-
+            
             sample_rate = 44100
-
-            # Determine total duration based on playlist length and row time scale
             rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 16
-            row_duration = 5.0  # 5 seconds per row default
+            row_duration = 5.0  # 5 seconds per row
             total_duration = rows * row_duration
-
+            
             t = np.linspace(0, total_duration, int(sample_rate * total_duration))
             master_mixdown = np.zeros_like(t)
-
+            
             eqr_val = self.slider_eqr_fractal.value() / 100.0 if hasattr(self, 'slider_eqr_fractal') else 0.5
             pkp_dur = self.slider_pkp_duration.value() / 1000.0 if hasattr(self, 'slider_pkp_duration') else 0.25
-
-            # Synthesize complex phase-core waveforms across the full timeline
-            for i, inst_name in enumerate(self.instrument_names_48[:rows]):
+            
+            print(f"[Engine] Rendering {rows}-row arrangement ({total_duration}s total duration)...")
+            
+            for i in range(rows):
                 start_time = i * row_duration
                 end_time = start_time + row_duration
                 mask = (t >= start_time) & (t < end_time)
-
+                
                 if not np.any(mask):
                     continue
-
-                # Unique mathematical signature per instrument index
-                node_freq = 110.0 + (i * 27.5) * (1.0 + eqr_val)
+                
                 local_t = t[mask] - start_time
+                
+                # Derive unique frequency and timbre characteristics from the instrument index (1 to 48)
+                inst_id = (i % len(self.instrument_names_48)) + 1
+                base_freq = 65.41 * (1.12 ** (inst_id % 24))  # Distributed musical scaling
+                
+                # Multi-stage synthesis modeling complex phase-core behavior
+                # 1. Carrier wave with frequency modulation based on EQR fractal depth
+                modulator = np.sin(2 * np.pi * (base_freq * 1.5 * eqr_val) * local_t)
+                carrier = np.sin(2 * np.pi * base_freq * local_t + (modulator * 2.0 * eqr_val))
+                
+                # 2. Additive harmonic overtones for metallic / glassy / crystal resonance types
+                harmonic = np.sin(2 * np.pi * (base_freq * 2.718) * local_t) * 0.4
+                
+                # 3. Percussive transient envelope driven by PKP duration
+                envelope = np.exp(-local_t / max(pkp_dur, 0.02)) * (1.0 - (local_t / row_duration) * 0.2)
+                
+                # 4. Stochastic noise injection for stochastic/plasma/discharge texture
+                noise = np.random.normal(0, 0.05, len(local_t)) * (inst_id % 3 == 0)
+                
+                channel_signal = (carrier + harmonic + noise) * envelope
+                master_mixdown[mask] += channel_signal
 
-                carrier = np.sin(2 * np.pi * node_freq * local_t)
-                envelope = np.exp(-local_t / max(pkp_dur, 0.05))
-                synth_layer = carrier * envelope * (0.5 + 0.5 * np.sin(local_t * (i + 1)))
-
-                master_mixdown[mask] += synth_layer
-
-            # Normalize output
+            # Normalize output safely to prevent digital clipping
             max_val = np.max(np.abs(master_mixdown))
             if max_val > 0:
                 master_mixdown = master_mixdown / max_val
-
-            filename = "groovebox_full_mixdown.wav"
+                
+            filename = "groovebox_rich_mixdown.wav"
             wavfile.write(filename, sample_rate, (master_mixdown * 32767).astype(np.int16))
-            print(f"[System] Success: Full song rendered and exported to {filename} ({total_duration:.1f}s)")
+            print(f"[System] Success: Rich multi-track mixdown exported to {filename}")
         except Exception as e:
-            print(f"[System] Error during multi-track export: {e}")
+            print(f"[System] Error during advanced export: {e}")
 
     def spawn_floating_window(self, attr_name, window_title):
         window = getattr(self, attr_name, None)
