@@ -1702,22 +1702,19 @@ class StandardSynthInstance:
         self.freq = freq
         self.sr = sr
         self.phase = 0.0
-        self.life = 100 # Lifespan counter for auto-cleanup
+        self.life = 100
 
     def is_finished(self):
         return self.life <= 0
 
     def render_block(self, num_samples, x, y, z):
         buf = []
-        # Map x variable to frequency shifting, y to amplitude envelope
         modulated_freq = self.freq * (0.8 + abs(x) * 0.4)
         step = (2.0 * math.pi * modulated_freq) / self.sr
-
         for _ in range(num_samples):
             self.phase += step
             val = math.sin(self.phase) * 0.3 * max(0.0, y)
             buf.append(val)
-
         self.life -= 1
         return buf
 
@@ -1726,15 +1723,12 @@ class AdditiveSynthInstance(StandardSynthInstance):
         buf = []
         harmonics = [1.0, 2.0, 3.5, 4.0, 6.0]
         step = (2.0 * math.pi * self.freq) / self.sr
-
         for i in range(num_samples):
             self.phase += step
             sample = 0.0
             for h in harmonics:
-                # Use z variable to modulate harmonic spread
                 sample += math.sin(self.phase * h * (1.0 + z * 0.05)) / h
             buf.append(sample * 0.15 * max(0.0, y))
-
         self.life -= 1
         return buf
 
@@ -1743,14 +1737,12 @@ class FormantSynthInstance(StandardSynthInstance):
         buf = []
         carrier_step = (2.0 * math.pi * self.freq) / self.sr
         formant_step = (2.0 * math.pi * (self.freq * abs(x * 3.0))) / self.sr
-
         for _ in range(num_samples):
             self.phase += carrier_step
             c = math.sin(self.phase)
             m = math.cos(self.phase * 1.5) * math.sin(formant_step)
             val = c * m * 0.2 * abs(z)
             buf.append(val)
-
         self.life -= 1
         return buf
 
@@ -1761,7 +1753,6 @@ class StochasticNoiseInstance(StandardSynthInstance):
             noise = (random.random() * 2.0 - 1.0)
             val = noise * 0.1 * abs(x) * max(0.0, y)
             buf.append(val)
-
         self.life -= 1
         return buf
 class MasterSynthBank:
@@ -1789,6 +1780,9 @@ class MasterSynthBank:
             for i in range(num_samples):
                 buffer[i] += s_buf[i]
         return buffer
+# ==========================================
+# 3. INTERACTIVE SEQUENCER, SERIALIZATION & VISUAL LAYERS
+# ==========================================
 class InteractiveSequencerGrid:
     """Handles step sequencing and triggers live synth module generation."""
     def __init__(self, steps=16):
@@ -1798,21 +1792,19 @@ class InteractiveSequencerGrid:
 
     def step_clock(self, synth_manager, x, y, z):
         self.current_step = (self.current_step + 1) % self.steps
-
-        # If the step matrix is active here, spawn a dynamic synth node
         if self.pattern_matrix[self.current_step] == 1:
-            # Choose module type based on coordinate weighting
             if x > 0.3:
-                m_type = "AdditiveNode"
+                m_type = "Additive"
             elif z > 0.5:
-                m_type = "FormantNode"
+                m_type = "Formant"
             else:
-                m_type = "StochasticNode"
-
+                m_type = "Stochastic"
             base_f = 110.0 * (1.0 + (self.current_step % 8) * 0.2)
             synth_manager.spawn_instance(m_type, base_freq=base_f)
-
         return self.current_step
+
+
+
 class AudioEngineBridge:
     """Bridges the UI coordinate state and sequencer ticks directly to the audio output stream."""
     def __init__(self, synth_manager, sequencer_grid):
@@ -1886,7 +1878,7 @@ class GrooveboxSerializationManager:
             return True
         except Exception as e:
             print(f"Export failed: {e}")
-            return false
+            return False
 
     @staticmethod
     def import_project(filepath, sequencer_grid, synth_manager):
@@ -1894,29 +1886,21 @@ class GrooveboxSerializationManager:
             with open(filepath, 'r') as f:
                 data = json.load(f)
 
-            # Restore pattern matrix
             if "sequencer_pattern" in data:
                 sequencer_grid.pattern_matrix = data["sequencer_pattern"]
 
-            # Restore active synth instances based on saved types
             synth_manager.active_instances.clear()
             if "active_synths" in data:
                 for s_type in data["active_synths"]:
-                    # Map class name strings back to live instances
-                    base_f = 220.0
-                    if s_type == "AdditiveSynthInstance":
-                        synth_manager.spawn_instance("AdditiveNode", base_f)
-                    elif s_type == "FormantSynthInstance":
-                        synth_manager.spawn_instance("FormantNode", base_f)
-                    elif s_type == "StochasticNoiseInstance":
-                        synth_manager.spawn_instance("StochasticNode", base_f)
-                    else:
-                        synth_manager.spawn_instance("StandardNode", base_f)
+                    synth_manager.spawn_instance(s_type, base_freq=220.0)
 
             return data.get("coordinates", {"x": 0.5, "y": 0.5, "z": 0.5})
         except Exception as e:
             print(f"Import failed: {e}")
             return None
+
+
+
 class AdditiveSynthNode(StandardWaveSynthNode):
     """Generates sound using harmonic overtone stacking modulated by z."""
     def generate_block(self, num_samples, x, y, z):
@@ -1961,26 +1945,20 @@ class NoiseBurstNode(StandardWaveSynthNode):
         return buf
 class VisualInstrumentLayerManager:
     """Manages the visual stacking and layout rendering of active synth modules on screen."""
-    def __init__(self, canvas_or_layout_frame):
-        self.container = canvas_or_layout_frame
+    def __init__(self):
         self.visual_nodes = []
 
     def update_visual_stack(self, active_instances):
-        """Clears and re-stacks visual UI representation cards for active instrument nodes."""
-        # Clear out old visual nodes from layout if your framework uses clear methods
         self.visual_nodes.clear()
-
         for idx, instance in enumerate(active_instances):
             node_name = type(instance).__name__
-            # Create a visual representation dictionary for your UI framework to draw
             ui_node_card = {
                 "id": idx,
                 "type": node_name,
-                "layer_depth": idx * 15, # Offset stacking coordinate for visual layering
+                "layer_depth": idx * 15,
                 "status": "Active"
             }
             self.visual_nodes.append(ui_node_card)
-
         return self.visual_nodes
 # -------------------------------------------------------------------------
 # GLOBAL CABLE ROUTING & RESAMPLING BUS MANAGER
