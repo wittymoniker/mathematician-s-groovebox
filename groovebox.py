@@ -5610,7 +5610,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         }
 
     def init_ui_components(self):
-        # Apply the dark modular synth color scheme globally to the entire application instance
+        # Apply the dark modular synth color scheme globally to the application instance
         dark_stylesheet = """
             QMainWindow, QWidget, QDialog {
                 background-color: #121212;
@@ -5652,8 +5652,23 @@ class MathematiciansGrooveboxApp(QMainWindow):
             QApplication.instance().setStyleSheet(dark_stylesheet)
         self.setStyleSheet(dark_stylesheet)
 
-        # Master Vertical Layout Container
-        master_container = QVBoxLayout()
+        # Ensure the main window central widget is properly established without overwriting active layouts
+        central_widget = self.centralWidget()
+        if central_widget is None:
+            central_widget = QWidget(self)
+            self.setCentralWidget(central_widget)
+
+        # Reuse or safely set the master container layout on the central widget
+        master_container = central_widget.layout()
+        if master_container is None:
+            master_container = QVBoxLayout(central_widget)
+        else:
+            # Clear any old items if re-initializing
+            while master_container.count():
+                item = master_container.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+
         master_container.setSpacing(6)
         master_container.setContentsMargins(8, 8, 8, 8)
 
@@ -5759,7 +5774,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # -------------------------------------------------------------
         main_workspace_layout = QVBoxLayout()
 
-        # Instrument-Specific Control Pane (Scale & Tonal Settings)
         scale_and_seq_layout = QHBoxLayout()
         self.scale_combo = QComboBox()
         self.scale_combo.addItems(["Microtonal Matrix", "Pythagorean Tuning", "Z-Pinch Harmonic Scale"])
@@ -5769,7 +5783,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         main_workspace_layout.addLayout(scale_and_seq_layout)
 
-        # Instrument-specific sequencer pane embedded directly on the main panel
         if hasattr(self, 'instrument_sequencer_pane') and self.instrument_sequencer_pane:
             main_workspace_layout.addWidget(self.instrument_sequencer_pane)
         else:
@@ -5780,7 +5793,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
             seq_layout.addWidget(seq_placeholder)
             main_workspace_layout.addWidget(self.instrument_sequencer_pane)
 
-        # Oscilloscope Visualizer at the base of the main panel
         if hasattr(self, 'visual_oscilloscope') and self.visual_oscilloscope:
             main_workspace_layout.addWidget(self.visual_oscilloscope)
         else:
@@ -5792,13 +5804,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
             main_workspace_layout.addWidget(self.visual_oscilloscope)
 
         master_container.addLayout(main_workspace_layout)
-
-        if self.centralWidget() is None:
-            central_widget = QWidget(self)
-            self.setCentralWidget(central_widget)
-            central_widget.setLayout(master_container)
-        else:
-            self.centralWidget().setLayout(master_container)
     def spawn_floating_window(self, attr_name, window_title):
         """Ensures a single floating instance of a global module exists and pops it out as a separate window."""
         window = getattr(self, attr_name, None)
