@@ -927,25 +927,25 @@ class AdvancedDSPEngine:
             resonance = np.arcsin(np.clip(pinched * (0.5 + eqr), -0.99, 0.99))
             return resonance * k3 * (1.0 + k4 * np.sin(sub_t * k5 * 10.0)) * (1.0 - k6)
 
-    elif preset == 2:
-        # Preset 2: Hyperbolic & Torus Phase-Space
-        hyp = np.sinh(k1 * np.sin(phase)) / (1.0 + np.cosh(k2 * np.cos(phase * k3)))
-        torus_mod = np.cos(phase * (1.0 + k4)) + 0.5 * np.sin(phase * (2.0 + k5))
-        return hyp * torus_mod * (1.0 + fractal * 3.0) * (1.0 - k6 * 0.2)
+        elif preset == 2:
+            # Preset 2: Hyperbolic & Torus Phase-Space
+            hyp = np.sinh(k1 * np.sin(phase)) / (1.0 + np.cosh(k2 * np.cos(phase * k3)))
+            torus_mod = np.cos(phase * (1.0 + k4)) + 0.5 * np.sin(phase * (2.0 + k5))
+            return hyp * torus_mod * (1.0 + fractal * 3.0) * (1.0 - k6 * 0.2)
 
-    elif preset == 3:
-        # Preset 3: Stochastic & Entropic Noise Lattice
-        stochastic_jitter = np.random.normal(0, 0.15, len(sub_t)) * k1
-        chaotic_wave = np.sin(phase * (1.0 + k2) + stochastic_jitter)
-        modulated = chaotic_wave / (1.0 + k3 * np.abs(np.sin(phase * k4)))
-        return modulated * k5 * (1.0 + eqr * 2.0) * (1.0 - k6 * 0.3)
+        elif preset == 3:
+            # Preset 3: Stochastic & Entropic Noise Lattice
+            stochastic_jitter = np.random.normal(0, 0.15, len(sub_t)) * k1
+            chaotic_wave = np.sin(phase * (1.0 + k2) + stochastic_jitter)
+            modulated = chaotic_wave / (1.0 + k3 * np.abs(np.sin(phase * k4)))
+            return modulated * k5 * (1.0 + eqr * 2.0) * (1.0 - k6 * 0.3)
 
-    else:
-        # Preset 4: Custom Polynomial / Matrix Operator
-        # Uses the track index to scale harmonic spacing dynamically across the 48 synths
-        harmonic_offset = 1.0 + (track_idx % 12) * 0.08
-        poly = k1 * (np.sin(phase * harmonic_offset)**3) - k2 * (np.cos(phase * k3)**2) + k4 * np.sin(phase)
-        return np.tanh(poly * (1.0 + fractal * 4.0)) * (1.0 + eqr) * (1.0 - k6 * 0.1)
+        else:
+            # Preset 4: Custom Polynomial / Matrix Operator
+            # Uses the track index to scale harmonic spacing dynamically across the 48 synths
+            harmonic_offset = 1.0 + (track_idx % 12) * 0.08
+            poly = k1 * (np.sin(phase * harmonic_offset)**3) - k2 * (np.cos(phase * k3)**2) + k4 * np.sin(phase)
+            return np.tanh(poly * (1.0 + fractal * 4.0)) * (1.0 + eqr) * (1.0 - k6 * 0.1)
 class MathEngine:
     """Core mathematical engine evaluated strictly on x, y, z variables without Meum factors."""
     @staticmethod
