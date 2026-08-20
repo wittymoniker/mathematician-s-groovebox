@@ -5555,6 +5555,32 @@ class CustomVSTKnobsDialog(QDialog):
 class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
+
+        # 1. Initialize channel states using the class method
+        self.channel_states = [self.create_new_channel_state() for _ in range(48)]
+
+        # Rest of your __init__ setup...
+
+    def create_new_channel_state(self):
+        return {
+            # 5 External Panel Controls
+            "tuning": 440.0,
+            "amplitude": 0.8,
+            "duration": 0.5,
+            "fractalizer": 0.5,
+            "eqr_effect": 0.5,
+            "preset_idx": 0,
+
+            # 6 Internal Synth Sliding Scale Parameters (0.0 to 1.0)
+            "internal_p1": 0.5,
+            "internal_p2": 0.5,
+            "internal_p3": 0.5,
+            "internal_p4": 0.5,
+            "internal_p5": 0.5,
+            "internal_p6": 0.5,
+
+            "curvature_eq": "x * 1.5 + y - z"
+        }
         self.setWindowTitle("Mathematician's DAW - Ultimate Studio Suite")
         self.resize(1650, 950)
         self.setStyleSheet(DAW_STYLE)
@@ -6034,7 +6060,35 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 max_val = np.max(np.abs(master_buffer))
                 if max_val > 0:
                     master_buffer = master_buffer / max_val * 0.95
+class MathematiciansGrooveboxApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
 
+        # 1. Initialize channel states using the class method
+        self.channel_states = [self.create_new_channel_state() for _ in range(48)]
+
+        # Rest of your __init__ setup...
+
+    def create_new_channel_state(self):
+        return {
+            # 5 External Panel Controls
+            "tuning": 440.0,
+            "amplitude": 0.8,
+            "duration": 0.5,
+            "fractalizer": 0.5,
+            "eqr_effect": 0.5,
+            "preset_idx": 0,
+
+            # 6 Internal Synth Sliding Scale Parameters (0.0 to 1.0)
+            "internal_p1": 0.5,
+            "internal_p2": 0.5,
+            "internal_p3": 0.5,
+            "internal_p4": 0.5,
+            "internal_p5": 0.5,
+            "internal_p6": 0.5,
+
+            "curvature_eq": "x * 1.5 + y - z"
+        }
                 scaled = np.int16(master_buffer * 32767)
                 with wave.open(filename, 'w') as wav_file:
                     wav_file.setnchannels(1)
