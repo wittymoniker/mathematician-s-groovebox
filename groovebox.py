@@ -5758,11 +5758,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
         nav_layout.addWidget(btn_patch)
 
         btn_script_inst = QPushButton("📜 Script Instrument")
-        btn_script_inst.clicked.connect(self.execute_script_instrument)
+        self.btn_script_inst.clicked.connect(lambda: self.spawn_floating_window('script_editor_window', "Instrument Script Editor"))
         nav_layout.addWidget(btn_script_inst)
 
         btn_script_global = QPushButton("📜 Script Global")
-        btn_script_global.clicked.connect(self.execute_script_global)
+        self.btn_script_editor.clicked.connect(lambda: self.spawn_floating_window('script_editor_window', "Global Script Editor"))
         nav_layout.addWidget(btn_script_global)
 
         top_layout.addWidget(nav_frame, stretch=1)
@@ -5829,6 +5829,71 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_splitter.setSizes([800, 800])
         main_layout.addWidget(master_splitter)
 
+    def spawn_floating_window(self, attr_name, window_title):
+        """Spawns a distinct floating window, tailoring content for synth settings or instrument scripts."""
+        window = getattr(self, attr_name, None)
+
+        if window is None or not window.isVisible():
+            window = QWidget(None, Qt.WindowType.Window)
+            window.setWindowTitle(window_title)
+            window.resize(650, 500)
+
+            layout = QVBoxLayout(window)
+
+            # Identify the active instrument node from the dropdown
+            current_instrument = self.instrument_selector_dropdown.currentText() if hasattr(self, 'instrument_selector_dropdown') else "Instrument Node 1"
+
+            if attr_name == 'synth_editor_window':
+                layout.addWidget(QLabel(f"Editing Parameters for: {current_instrument}"))
+
+                # Preset Dropdown specific to this synth
+                preset_layout = QHBoxLayout()
+                preset_layout.addWidget(QLabel("Synth Preset:"))
+                synth_preset_combo = QComboBox()
+                synth_preset_combo.addItems([
+                    f"{current_instrument} - Topological Fold",
+                    f"{current_instrument} - Z-Pinch Resonance",
+                    f"{current_instrument} - Quantum Soliton Matrix"
+                ])
+                preset_layout.addWidget(synth_preset_combo)
+                layout.addLayout(preset_layout)
+
+                # 6 Unique Knobs/Sliders tailored to the active architecture
+                params = ["Harmonic Fold", "Phase Drift", "Amplitude Mod", "Cutoff Frequency", "Resonance Spike", "Fractal Depth"]
+                for param in params:
+                    row = QHBoxLayout()
+                    row.addWidget(QLabel(f"{param}:"))
+                    slider = QSlider(Qt.Orientation.Horizontal)
+                    slider.setRange(0, 100)
+                    slider.setValue(50)
+                    row.addWidget(slider)
+                    layout.addLayout(row)
+
+            elif attr_name == 'script_editor_window':
+                # Instrument-specific script editor interface
+                layout.addWidget(QLabel(f"Active Instrument Script Workspace: {current_instrument}"))
+                layout.addWidget(QLabel("Write or modify coordinate equations (utilizing x, y, z variables):"))
+
+                from PyQt6.QtWidgets import QTextEdit
+                script_text_area = QTextEdit()
+                # Default sample script using x, y, z coordinate mapping
+                script_text_area.setPlainText(f"# Script for {current_instrument}\n# Formula processing loop\ndef evaluate_wave(x, y, z):\n    return x * y - z")
+                layout.addWidget(script_text_area)
+
+                btn_layout = QHBoxLayout()
+                btn_run_script = QPushButton("▶ Run Instrument Script")
+                btn_save_script = QPushButton("💾 Save Script")
+                btn_layout.addWidget(btn_run_script)
+                btn_layout.addWidget(btn_save_script)
+                layout.addLayout(btn_layout)
+            else:
+                layout.addWidget(QLabel(f"Active Panel: {window_title}"))
+
+            setattr(self, attr_name, window)
+
+        window.show()
+        window.raise_()
+        window.activateWindow()
     def init_menu_bar(self):
         menubar = self.menuBar()
         file_menu = menubar.addMenu("📁 File")
