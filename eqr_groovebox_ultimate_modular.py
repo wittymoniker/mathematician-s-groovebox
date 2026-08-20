@@ -4084,8 +4084,7 @@ class ScientificDAWWindow(QMainWindow):
 
 
 
-if __name__ == '__main__':
-    import sys
+if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = ScientificDAWWindow()
     window.show()
