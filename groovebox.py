@@ -147,39 +147,6 @@ class MemoryBankSelector(QWidget):
         layout.addWidget(load_btn)
         layout.addWidget(save_btn)
         layout.addStretch()
-class CoordinateVisualizer(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setMinimumHeight(110)
-        self.setStyleSheet("background-color: black; border: 1px solid #333;")
-        self.point_history = []
-        self.max_points = 150
-
-    def update_coordinates(self, x, y):
-        self.point_history.append((x, y))
-        if len(self.point_history) > self.max_points:
-            self.point_history.pop(0)
-        self.update()
-
-    def paintEvent(self, event):
-        painter = QPainter()
-        if not painter.begin(self):
-            return
-        try:
-            painter.fillRect(self.rect(), QColor(10, 10, 10))
-            if len(self.point_history) >= 2:
-                pen = QPen(QColor(0, 255, 150))
-                pen.setWidth(2)
-                painter.setPen(pen)
-                width, height = self.width(), self.height()
-                for i in range(1, len(self.point_history)):
-                    x1 = (self.point_history[i-1][0] + 1) * 0.5 * width
-                    y1 = (self.point_history[i-1][1] + 1) * 0.5 * height
-                    x2 = (self.point_history[i][0] + 1) * 0.5 * width
-                    y2 = (self.point_history[i][1] + 1) * 0.5 * height
-                    painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
-        finally:
-            painter.end()
 class EQRMathEngine:
     def __init__(self, use_meum=True):
         """
@@ -259,60 +226,7 @@ class PortWidget(QWidget):
             self.parent().start_cable_drag(self)
         event.accept()
 
-class PlaylistWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Groovebox Playlist & Arrangement Timeline")
-        self.resize(600, 400)
 
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.addWidget(QLabel("<b>Arrangement Timeline / Pattern Tracks</b>"))
-
-        self.track_view = QTextEdit()
-        self.track_view.setPlainText("Track 1: [Eskibrutus Node 1] ---> Bars 1-16\nTrack 2: [Stochastic Node 2] ---> Bars 9-24\nTrack 3: [Wavefold Modulation] ---> Bars 17-32")
-        self.track_view.setStyleSheet("background-color: #151515; color: #00ffaa; font-family: monospace;")
-
-        layout.addWidget(self.track_view)
-
-        btn_layout = QHBoxLayout()
-        btn_layout.addWidget(QPushButton("Add Audio Stem"))
-        btn_layout.addWidget(QPushButton("Render Arrangement"))
-        layout.addLayout(btn_layout)
-
-        container.setLayout(layout)
-        self.setCentralWidget(container)
-class MiniSynthNodeWidget(QFrame):
-    def __init__(self, synth_name):
-        super().__init__()
-        self.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Raised)
-        self.setStyleSheet("background-color: #1e1e1e; border: 1px solid #444; border-radius: 6px;")
-
-        layout = QVBoxLayout(self)
-        title = QLabel(f"<b>Mini-Synth: {synth_name}</b>")
-        title.setStyleSheet("color: #ffaa00;")
-        layout.addWidget(title)
-
-        # Parameters / Sliders
-        self.cutoff_slider = QSlider(Qt.Orientation.Horizontal)
-        self.drive_slider = QSlider(Qt.Orientation.Horizontal)
-
-        layout.addWidget(QLabel("Cutoff / Frequency Freq:"))
-        layout.addWidget(self.cutoff_slider)
-        layout.addWidget(QLabel("Distortion / Fold Drive:"))
-        layout.addWidget(self.drive_slider)
-
-        # Crosswire Patch Cable Dropdowns
-        patch_layout = QHBoxLayout()
-        self.src_combo = QComboBox()
-        self.src_combo.addItems(["X Coord", "Y Coord", "Z Coord", "LFO 1"])
-        self.dest_combo = QComboBox()
-        self.dest_combo.addItems(["-> Filter Cutoff", "-> Fold Threshold", "-> Pitch Mod"])
-
-        patch_layout.addWidget(self.src_combo)
-        patch_layout.addWidget(QLabel("⤹"))
-        patch_layout.addWidget(self.dest_combo)
-        layout.addLayout(patch_layout)
 class ScientificCanvas(QWidget):
     """Interactive node patchbay canvas with Bezier signal cables."""
     def __init__(self, parent=None):
@@ -381,48 +295,6 @@ class ScientificCanvas(QWidget):
         path.cubicTo(ctrl1, ctrl2, p2)
         return path
 
-class ScriptersPane(QWidget):
-    def __init__(self, target_formula_edit):
-        super().__init__()
-        self.target_edit = target_formula_edit
-        layout = QVBoxLayout(self)
-
-        layout.addWidget(QLabel("<b>Advanced Scripter's Console & Keyset</b>"))
-
-        self.script_input = QTextEdit()
-        self.script_input.setPlainText("# Write custom modular script here\ndef custom_transform(x, y, t):\n    return np.sin(x * t) * np.tanh(y)")
-        self.script_input.setStyleSheet("background-color: #111; color: #0f0; font-family: monospace;")
-        layout.addWidget(self.script_input)
-
-        # Keyset buttons to avoid manual typing
-        keyset_layout = QGridLayout()
-        functions = [
-            "np.sin(t)", "np.cos(t)", "np.tanh(x)",
-            "np.sqrt(abs(x))", "fold(x, 0.5)", "filter(cutoff)",
-            "x * y * z", "np.exp(-t)"
-        ]
-
-        for idx, func in enumerate(functions):
-            btn = QPushButton(func)
-            btn.setStyleSheet("background-color: #2a2a2a; color: #fff; font-size: 10px;")
-            btn.clicked.connect(lambda checked, f=func: self.insert_snippet(f))
-            row, col = divmod(idx, 4)
-            keyset_layout.addWidget(btn, row, col)
-
-        layout.addLayout(keyset_layout)
-
-        inject_btn = QPushButton("Execute & Push to Active Node")
-        inject_btn.setStyleSheet("background-color: #0055aa; color: white; font-weight: bold;")
-        inject_btn.clicked.connect(self.push_script)
-        layout.addWidget(inject_btn)
-
-    def insert_snippet(self, snippet):
-        self.script_input.insertPlainText(snippet)
-
-    def push_script(self):
-        if self.target_edit:
-            self.target_edit.setText("np.sin(t * 2.0) * np.tanh(x)")
-            QMessageBox.information(self, "Scripter Engine", "Custom code compiled and bound to active synth node parameters.")
 class MathNodeWidget(QFrame):
     """Draggable processing node for algebra & vector fields."""
     def __init__(self, name, x, y, parent=None):
@@ -2136,27 +2008,7 @@ class ModularTabController:
             return z * 1.2 # Stochastic noise scatter focus
         else:
             return (x + y + z) / 3.0 # Master blend
-class AdvancedDSPEngine:
-    def __init__(self, sample_rate=44100):
-        self.sample_rate = sample_rate
 
-    def process_eskibrutus_distortion(self, audio_in, drive, fold_thresh):
-        shaper = np.tanh(audio_in * (1.0 + drive * 8.0))
-        folded = np.where(np.abs(shaper) > fold_thresh, fold_thresh - (np.abs(shaper) - fold_thresh), shaper)
-        return folded
-
-    def export_to_wav(self, filename, duration_sec=3.0, freq=440.0):
-        num_samples = int(self.sample_rate * duration_sec)
-        t = np.linspace(0, duration_sec, num_samples, endpoint=False)
-        raw_audio = np.sin(2 * np.pi * freq * t)
-        processed = self.process_eskibrutus_distortion(raw_audio, drive=0.7, fold_thresh=0.5)
-        scaled = np.int16(processed * 32767)
-
-        with wave.open(filename, 'w') as wav_file:
-            wav_file.setnchannels(1)
-            wav_file.setsampwidth(2)
-            wav_file.setframerate(self.sample_rate)
-            wav_file.writeframes(scaled.tobytes())
 class GrooveboxSerializationManager:
     """Handles saving and loading of sequencer patterns and active synth configurations."""
 
@@ -4528,6 +4380,195 @@ class ModularTabManager(QTabWidget):
             widget = self.widget(index)
             self.removeTab(index)
             widget.deleteLater()
+class AdvancedDSPEngine:
+    def __init__(self, sample_rate=44100):
+        self.sample_rate = sample_rate
+
+    def process_eskibrutus_distortion(self, audio_in, drive, fold_thresh):
+        shaper = np.tanh(audio_in * (1.0 + drive * 8.0))
+        folded = np.where(np.abs(shaper) > fold_thresh, fold_thresh - (np.abs(shaper) - fold_thresh), shaper)
+        return folded
+
+    def export_to_wav(self, filename, duration_sec=3.0, freq=440.0):
+        num_samples = int(self.sample_rate * duration_sec)
+        t = np.linspace(0, duration_sec, num_samples, endpoint=False)
+        raw_audio = np.sin(2 * np.pi * freq * t)
+        processed = self.process_eskibrutus_distortion(raw_audio, drive=0.7, fold_thresh=0.5)
+        scaled = np.int16(processed * 32767)
+
+        with wave.open(filename, 'w') as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(self.sample_rate)
+            wav_file.writeframes(scaled.tobytes())
+
+# ==========================================
+# 2. COORDINATE VISUALIZER
+# ==========================================
+class CoordinateVisualizer(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setMinimumHeight(110)
+        self.setStyleSheet("background-color: black; border: 1px solid #333;")
+        self.point_history = []
+        self.max_points = 150
+
+    def update_coordinates(self, x, y):
+        self.point_history.append((x, y))
+        if len(self.point_history) > self.max_points:
+            self.point_history.pop(0)
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter()
+        if not painter.begin(self):
+            return
+        try:
+            painter.fillRect(self.rect(), QColor(10, 10, 10))
+            if len(self.point_history) >= 2:
+                pen = QPen(QColor(0, 255, 150))
+                pen.setWidth(2)
+                painter.setPen(pen)
+                width, height = self.width(), self.height()
+                for i in range(1, len(self.point_history)):
+                    x1 = (self.point_history[i-1][0] + 1) * 0.5 * width
+                    y1 = (self.point_history[i-1][1] + 1) * 0.5 * height
+                    x2 = (self.point_history[i][0] + 1) * 0.5 * width
+                    y2 = (self.point_history[i][1] + 1) * 0.5 * height
+                    painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+        finally:
+            painter.end()
+
+# ==========================================
+# 3. STANDALONE PLAYLIST WINDOW
+# ==========================================
+class PlaylistWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Groovebox Playlist & Arrangement Timeline")
+        self.resize(600, 400)
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.addWidget(QLabel("<b>Arrangement Timeline / Pattern Tracks</b>"))
+
+        self.track_view = QTextEdit()
+        self.track_view.setPlainText("Track 1: [Eskibrutus Node 1] ---> Bars 1-16\nTrack 2: [Stochastic Node 2] ---> Bars 9-24\nTrack 3: [Wavefold Modulation] ---> Bars 17-32")
+        self.track_view.setStyleSheet("background-color: #151515; color: #00ffaa; font-family: monospace;")
+
+        layout.addWidget(self.track_view)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addWidget(QPushButton("Add Audio Stem"))
+        btn_layout.addWidget(QPushButton("Render Arrangement"))
+        layout.addLayout(btn_layout)
+
+        container.setLayout(layout)
+        self.setCentralWidget(container)
+
+# ==========================================
+# 4. MINIATURE SYNTH WIDGET WITH PATCH CABLES
+# ==========================================
+class MiniSynthNodeWidget(QFrame):
+    def __init__(self, synth_name):
+        super().__init__()
+        self.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Raised)
+        self.setStyleSheet("background-color: #1e1e1e; border: 1px solid #444; border-radius: 6px;")
+
+        layout = QVBoxLayout(self)
+        title = QLabel(f"<b>Mini-Synth: {synth_name}</b>")
+        title.setStyleSheet("color: #ffaa00;")
+        layout.addWidget(title)
+
+        self.cutoff_slider = QSlider(Qt.Orientation.Horizontal)
+        self.drive_slider = QSlider(Qt.Orientation.Horizontal)
+
+        layout.addWidget(QLabel("Cutoff / Frequency Freq:"))
+        layout.addWidget(self.cutoff_slider)
+        layout.addWidget(QLabel("Distortion / Fold Drive:"))
+        layout.addWidget(self.drive_slider)
+
+        patch_layout = QHBoxLayout()
+        self.src_combo = QComboBox()
+        self.src_combo.addItems(["X Coord", "Y Coord", "Z Coord", "LFO 1"])
+        self.dest_combo = QComboBox()
+        self.dest_combo.addItems(["-> Filter Cutoff", "-> Fold Threshold", "-> Pitch Mod"])
+
+        patch_layout.addWidget(self.src_combo)
+        patch_layout.addWidget(QLabel("⤹"))
+        patch_layout.addWidget(self.dest_combo)
+        layout.addLayout(patch_layout)
+
+# ==========================================
+# 5. SCRIPTER'S PANE WITH FUNCTION KEYSET
+# ==========================================
+class ScriptersPane(QWidget):
+    def __init__(self, target_formula_edit=None):
+        super().__init__()
+        self.target_edit = target_formula_edit
+        layout = QVBoxLayout(self)
+
+        layout.addWidget(QLabel("<b>Advanced Scripter's Console & Keyset</b>"))
+
+        self.script_input = QTextEdit()
+        self.script_input.setPlainText("# Write custom modular script here\ndef custom_transform(x, y, t):\n    return np.sin(x * t) * np.tanh(y)")
+        self.script_input.setStyleSheet("background-color: #111; color: #0f0; font-family: monospace;")
+        layout.addWidget(self.script_input)
+
+        keyset_layout = QGridLayout()
+        functions = [
+            "np.sin(t)", "np.cos(t)", "np.tanh(x)",
+            "np.sqrt(abs(x))", "fold(x, 0.5)", "filter(cutoff)",
+            "x * y * z", "np.exp(-t)"
+        ]
+
+        for idx, func in enumerate(functions):
+            btn = QPushButton(func)
+            btn.setStyleSheet("background-color: #2a2a2a; color: #fff; font-size: 10px;")
+            btn.clicked.connect(lambda checked, f=func: self.insert_snippet(f))
+            row, col = divmod(idx, 4)
+            keyset_layout.addWidget(btn, row, col)
+
+        layout.addLayout(keyset_layout)
+
+        inject_btn = QPushButton("Execute & Push to Active Node")
+        inject_btn.setStyleSheet("background-color: #0055aa; color: white; font-weight: bold;")
+        inject_btn.clicked.connect(self.push_script)
+        layout.addWidget(inject_btn)
+
+    def insert_snippet(self, snippet):
+        self.script_input.insertPlainText(snippet)
+
+    def push_script(self):
+        if self.target_edit:
+            self.target_edit.setText("np.sin(t * 2.0) * np.tanh(x)")
+            QMessageBox.information(self, "Scripter Engine", "Custom code compiled and bound to active synth node parameters.")
+
+# ==========================================
+# 6. SEQUENCER PANE
+# ==========================================
+class SequencerPane(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("<b>16-Step Modulation Sequencer</b>"))
+
+        grid_layout = QGridLayout()
+        self.steps = []
+        for i in range(16):
+            btn = QPushButton(str(i+1))
+            btn.setCheckable(True)
+            btn.setStyleSheet("background-color: #222; color: #888;")
+            btn.clicked.connect(lambda checked, b=btn: b.setStyleSheet("background-color: #00aa55; color: #fff;" if b.isChecked() else "background-color: #222; color: #888;"))
+            row, col = divmod(i, 8)
+            grid_layout.addWidget(btn, row, col)
+            self.steps.append(btn)
+
+        layout.addLayout(grid_layout)
+
+# ==========================================
+# 7. MAIN WINDOW & LAYOUT INTEGRATION
+# ==========================================
 class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -4536,6 +4577,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         self.dsp_engine = AdvancedDSPEngine()
         self.playlist_window = None
+        self.active_formula_ref = None
 
         self.init_menu_bar()
 
@@ -4543,7 +4585,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.setCentralWidget(central_widget)
         main_layout = QHBoxLayout(central_widget)
 
-        # Splitter to separate Left Workspace and Right Scripter/Sequencer
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # Left Side: Tabs + Mini-Synths + Sequencer
@@ -4559,20 +4600,15 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.tab_manager.setTabsClosable(True)
         self.tab_manager.tabCloseRequested.connect(self.close_tab)
 
-        # Add initial workspace tab
-        self.add_workspace_node("Eskibrutus Primary Node")
-
         left_layout.addLayout(top_ctrl)
         left_layout.addWidget(self.tab_manager, stretch=3)
 
-        # Sequencer Pane at bottom-left
         self.seq_pane = SequencerPane()
         left_layout.addWidget(self.seq_pane, stretch=1)
 
         splitter.addWidget(left_container)
 
-        # Right Side: Scripter's Console Pane
-        self.active_formula_ref = None # Will point to active tab's formula editor
+        # Right Side: Scripter's Console Pane (Instantiated FIRST so references work safely)
         self.scripter_pane = ScriptersPane(None)
         splitter.addWidget(self.scripter_pane)
 
@@ -4580,6 +4616,9 @@ class MathematiciansGrooveboxApp(QMainWindow):
         main_layout.addWidget(splitter)
 
         spawn_btn.clicked.connect(lambda: self.add_workspace_node("Modular Synth Variant"))
+
+        # Now safely create the initial workspace node after `self.scripter_pane` exists
+        self.add_workspace_node("Eskibrutus Primary Node")
 
     def add_workspace_node(self, title):
         container = QWidget()
@@ -4589,15 +4628,15 @@ class MathematiciansGrooveboxApp(QMainWindow):
         formula_edit = QLineEdit("np.sin(t * 1.5) * x")
         formula_edit.setStyleSheet("background-color: #111; color: #0f0; font-family: monospace;")
 
-        # Update scripter reference target
+        # Bind the active formula editor reference to the scripter pane
         self.active_formula_ref = formula_edit
-        self.scripter_pane.target_edit = formula_edit
+        if hasattr(self, 'scripter_pane'):
+            self.scripter_pane.target_edit = formula_edit
 
         layout.addWidget(QLabel(f"--- Workspace: {title} ---"))
         layout.addWidget(visualizer)
         layout.addWidget(formula_edit)
 
-        # Miniature crosswire patchable synth frame inside the tab
         mini_synth = MiniSynthNodeWidget(title)
         layout.addWidget(mini_synth)
 
@@ -4605,7 +4644,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.tab_manager.addTab(container, title)
         self.tab_manager.setCurrentWidget(container)
 
-        # Timer loop for visualizer animation
         timer = QTimer(container)
         t_val = [0.0]
         def tick():
