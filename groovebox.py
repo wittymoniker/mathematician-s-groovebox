@@ -2794,7 +2794,6 @@ class DAWPlaylistGrid(QMainWindow):
         self.tempo_spin.setValue(120)
         toolbar.addWidget(self.tempo_spin)
 
-        # Randomize Song button relocated here
         random_song_btn = QPushButton("🎲 Randomize Song")
         random_song_btn.setStyleSheet("background-color: #9900cc; color: white; font-weight: bold;")
         random_song_btn.clicked.connect(self.randomize_entire_song_from_playlist)
@@ -5459,6 +5458,7 @@ class TopSideInstrumentSequencerPanel(QWidget):
         row1.addWidget(QLabel("<b>Instance:</b>"))
         self.instance_combo = QComboBox()
         self.update_instance_list()
+        self.instance_combo.currentIndexChanged.connect(self.on_instance_changed)
         row1.addWidget(self.instance_combo, stretch=2)
 
         row1.addWidget(QLabel("<b>Type:</b>"))
@@ -5466,9 +5466,9 @@ class TopSideInstrumentSequencerPanel(QWidget):
         self.inst_combo.addItems(DEFAULT_INSTRUMENT_LIST)
         row1.addWidget(self.inst_combo, stretch=3)
 
-        row1.addWidget(QLabel("Tonal Curvature Eq (x, y, z / Meum):"))
+        row1.addWidget(QLabel("Tonal Curvature Eq (x, y, z):"))
         self.curvature_eq_input = QLineEdit("x * 1.618033 + y - z")
-        self.curvature_eq_input.setToolTip("Enter mathematical curvature equation using x, y, z variables.")
+        self.curvature_eq_input.textChanged.connect(self.on_curvature_changed)
         row1.addWidget(self.curvature_eq_input, stretch=3)
 
         # Local Sequencer Play / Loop Button
@@ -5493,12 +5493,23 @@ class TopSideInstrumentSequencerPanel(QWidget):
         layout.addWidget(self.scroll_area)
 
     def update_instance_list(self):
+        self.instance_combo.blockSignals(True)
         self.instance_combo.clear()
         if self.app_ref and hasattr(self.app_ref, 'instrument_names'):
             labels = [f"Ch {i+1}: {name}" for i, name in enumerate(self.app_ref.instrument_names)]
             self.instance_combo.addItems(labels)
         else:
             self.instance_combo.addItems([f"Ch {i+1}: {name}" for i, name in enumerate(DEFAULT_INSTRUMENT_LIST)])
+        self.instance_combo.blockSignals(False)
+
+    def on_instance_changed(self, index):
+        if self.app_ref and hasattr(self.app_ref, 'sync_ui_to_current_channel'):
+            self.app_ref.sync_ui_to_current_channel(index)
+
+    def on_curvature_changed(self, text):
+        curr_idx = self.instance_combo.currentIndex()
+        if self.app_ref and hasattr(self.app_ref, 'channel_states') and 0 <= curr_idx < len(self.app_ref.channel_states):
+            self.app_ref.channel_states[curr_idx]["curvature_eq"] = text
 
     def rebuild_step_buttons(self, count):
         for box in self.step_boxes:
@@ -5576,12 +5587,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.patch_bay_dialog = ModularPatchBayDialog(self)
         self.readme_dialog = ReadmeGuideDialog(self)
 
-        # Initialize channel states
+        # Initialize channel states with 3 wavefunction parameters
         self.channel_states = []
         for i in range(len(self.instrument_names)):
             self.channel_states.append({
                 "tuning": 432.0, "volume": 0.8, "duration": 1.0,
-                "realism": 0.5, "fractallized": 0.5, "percussive": 0.5,
+                "wave_param1": 0.5, "wave_param2": 0.618, "wave_param3": 0.33,
                 "curvature_eq": "x * 1.618033 + y - z"
             })
 
@@ -5622,31 +5633,47 @@ class MathematiciansGrooveboxApp(QMainWindow):
         nav_layout.addWidget(btn_patch)
 
         btn_script_inst = QPushButton("📜 Script Instrument")
-        btn_script_inst.clicked.connect(lambda: QMessageBox.information(self, "Script Instrument", "Instrument symbol execution hook ready."))
+        btn_script_inst.clicked.connect(self.execute_script_instrument)
         nav_layout.addWidget(btn_script_inst)
 
         btn_script_global = QPushButton("📜 Script Global")
-        btn_script_global.clicked.connect(lambda: QMessageBox.information(self, "Script Global", "Global EQR phase-space script execution hook ready."))
+        btn_script_global.clicked.connect(self.execute_script_global)
         nav_layout.addWidget(btn_script_global)
 
         top_layout.addWidget(nav_frame, stretch=1)
         main_layout.addLayout(top_layout)
 
-        # Sound Sculpting Strip
+        # Sound Sculpting Strip with 3 Wavefunction Knobs per Synth
         synth_strip = QFrame()
         strip_layout = QHBoxLayout(synth_strip)
-        strip_layout.addWidget(QLabel("<b>🎛️ Active Synth Sculpting Knobs:</b>"))
+        strip_layout.addWidget(QLabel("<b>🎛️ Active Synth Wavefunction Knobs:</b>"))
 
-        strip_layout.addWidget(QLabel("Fractal:"))
-        self.slider_fract = QSlider(Qt.Orientation.Horizontal)
-        self.slider_fract.setRange(0, 100)
-        self.slider_fract.setValue(50)
-        strip_layout.addWidget(self.slider_fract)
+        strip_layout.addWidget(QLabel("Wave P1:"))
+        self.slider_p1 = QSlider(Qt.Orientation.Horizontal)
+        self.slider_p1.setRange(0, 100)
+        self.slider_p1.setValue(50)
+        self.slider_p1.valueChanged.connect(self.on_knob_changed)
+        strip_layout.addWidget(self.slider_p1)
+
+        strip_layout.addWidget(QLabel("Wave P2:"))
+        self.slider_p2 = QSlider(Qt.Orientation.Horizontal)
+        self.slider_p2.setRange(0, 100)
+        self.slider_p2.setValue(62)
+        self.slider_p2.valueChanged.connect(self.on_knob_changed)
+        strip_layout.addWidget(self.slider_p2)
+
+        strip_layout.addWidget(QLabel("Wave P3:"))
+        self.slider_p3 = QSlider(Qt.Orientation.Horizontal)
+        self.slider_p3.setRange(0, 100)
+        self.slider_p3.setValue(33)
+        self.slider_p3.valueChanged.connect(self.on_knob_changed)
+        strip_layout.addWidget(self.slider_p3)
 
         strip_layout.addWidget(QLabel("Tuning (Hz):"))
         self.spin_tuning = QDoubleSpinBox()
         self.spin_tuning.setRange(200.0, 880.0)
         self.spin_tuning.setValue(432.0)
+        self.spin_tuning.valueChanged.connect(self.on_tuning_changed)
         strip_layout.addWidget(self.spin_tuning)
 
         main_layout.addWidget(synth_strip)
@@ -5656,7 +5683,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
         left_layout.addWidget(QLabel("<b>🌌 EQR Phase-Space Operator:</b>"))
-        self.macro_fractal = self.slider_fract
+        self.macro_fractal = self.slider_p1
         left_layout.addWidget(FractallizerVisualizerCanvas(self, self))
         master_splitter.addWidget(left_container)
 
@@ -5691,6 +5718,37 @@ class MathematiciansGrooveboxApp(QMainWindow):
         export_wav.triggered.connect(self.export_wav_mixdown)
         file_menu.addAction(export_wav)
 
+    def sync_ui_to_current_channel(self, index):
+        if 0 <= index < len(self.channel_states):
+            state = self.channel_states[index]
+            self.spin_tuning.blockSignals(True)
+            self.slider_p1.blockSignals(True)
+            self.slider_p2.blockSignals(True)
+            self.slider_p3.blockSignals(True)
+
+            self.spin_tuning.setValue(state["tuning"])
+            self.slider_p1.setValue(int(state["wave_param1"] * 100))
+            self.slider_p2.setValue(int(state["wave_param2"] * 100))
+            self.slider_p3.setValue(int(state["wave_param3"] * 100))
+            self.top_sequencer.curvature_eq_input.setText(state["curvature_eq"])
+
+            self.spin_tuning.blockSignals(False)
+            self.slider_p1.blockSignals(False)
+            self.slider_p2.blockSignals(False)
+            self.slider_p3.blockSignals(False)
+
+    def on_knob_changed(self):
+        curr_idx = self.top_sequencer.instance_combo.currentIndex()
+        if 0 <= curr_idx < len(self.channel_states):
+            self.channel_states[curr_idx]["wave_param1"] = self.slider_p1.value() / 100.0
+            self.channel_states[curr_idx]["wave_param2"] = self.slider_p2.value() / 100.0
+            self.channel_states[curr_idx]["wave_param3"] = self.slider_p3.value() / 100.0
+
+    def on_tuning_changed(self, val):
+        curr_idx = self.top_sequencer.instance_combo.currentIndex()
+        if 0 <= curr_idx < len(self.channel_states):
+            self.channel_states[curr_idx]["tuning"] = val
+
     def add_new_instrument(self):
         text, ok = QInputDialog.getText(self, "Add Instrument", "Enter new instrument name:")
         if ok and text:
@@ -5698,8 +5756,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
             full_name = f"{new_idx}. {text}"
             self.instrument_names.append(full_name)
             self.channel_states.append({
-                "tuning": round(random.uniform(420.0, 445.0), 2), "volume": 0.8, "duration": 1.0,
-                "realism": random.random(), "fractallized": random.random(), "percussive": random.random(),
+                "tuning": 432.0, "volume": 0.8, "duration": 1.0,
+                "wave_param1": 0.5, "wave_param2": 0.618, "wave_param3": 0.33,
                 "curvature_eq": "x * 1.618033 + y - z"
             })
             self.top_sequencer.update_instance_list()
@@ -5718,22 +5776,47 @@ class MathematiciansGrooveboxApp(QMainWindow):
             self.playlist_window.update_vertical_headers()
             QMessageBox.information(self, "Instrument Updated", f"Instrument renamed to '{text}'.")
 
+    def execute_script_instrument(self):
+        curr_idx = self.top_sequencer.instance_combo.currentIndex()
+        eq = self.top_sequencer.curvature_eq_input.text()
+        try:
+            x, y, z = self.slider_p1.value() / 100.0, self.slider_p2.value() / 100.0, self.slider_p3.value() / 100.0
+            result = eval(eq, {"__builtins__": None}, {"x": x, "y": y, "z": z, "np": np})
+            QMessageBox.information(self, "Script Instrument Result", f"Successfully evaluated active instrument script:\nExpression: {eq}\nResult: {result}")
+        except Exception as e:
+            QMessageBox.critical(self, "Script Error", f"Failed to evaluate expression: {e}")
+
+    def execute_script_global(self):
+        try:
+            results = []
+            for i, state in enumerate(self.channel_states):
+                x, y, z = state["wave_param1"], state["wave_param2"], state["wave_param3"]
+                res = eval(state["curvature_eq"], {"__builtins__": None}, {"x": x, "y": y, "z": z, "np": np})
+                results.append(f"Ch {i+1}: {res:.4f}")
+            QMessageBox.information(self, "Script Global Results", "Global EQR phase-space evaluated across all instruments:\n" + "\n".join(results))
+        except Exception as e:
+            QMessageBox.critical(self, "Script Error", f"Global script evaluation failed: {e}")
+
     def randomize_single_instrument(self):
         curr_idx = self.top_sequencer.instance_combo.currentIndex()
         if curr_idx >= 0 and curr_idx < len(self.channel_states):
             state = self.channel_states[curr_idx]
             state["tuning"] = round(random.uniform(415.0, 450.0), 2)
-            state["realism"] = random.random()
-            state["fractallized"] = random.random()
-            self.spin_tuning.setValue(state["tuning"])
-            QMessageBox.information(self, "Instrument Randomized", f"Randomized parameters for active instrument instance.")
+            state["wave_param1"] = random.random()
+            state["wave_param2"] = random.random()
+            state["wave_param3"] = random.random()
+            self.sync_ui_to_current_channel(curr_idx)
+            QMessageBox.information(self, "Instrument Randomized", "Randomized parameters for active instrument instance.")
 
     def randomize_entire_song(self):
         self.playlist_window.tempo_spin.setValue(random.randint(80, 160))
         for state in self.channel_states:
             state["tuning"] = round(random.uniform(415.0, 450.0), 2)
-            state["realism"] = random.random()
-            state["fractallized"] = random.random()
+            state["wave_param1"] = random.random()
+            state["wave_param2"] = random.random()
+            state["wave_param3"] = random.random()
+        curr_idx = self.top_sequencer.instance_combo.currentIndex()
+        self.sync_ui_to_current_channel(curr_idx)
         self.patch_bay_dialog.randomize_matrix()
 
         grid = self.playlist_window.grid_table
@@ -5772,6 +5855,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             self.instrument_names = data.get("instruments", self.instrument_names)
             self.top_sequencer.update_instance_list()
             self.playlist_window.update_vertical_headers()
+            self.sync_ui_to_current_channel(0)
             QMessageBox.information(self, "Project Loaded", "Project state restored successfully.")
 
     def export_wav_mixdown(self):
