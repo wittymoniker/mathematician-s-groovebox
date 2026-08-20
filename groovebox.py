@@ -5610,13 +5610,56 @@ class MathematiciansGrooveboxApp(QMainWindow):
         }
 
     def init_ui_components(self):
+        # Apply the dark modular synth color scheme globally to the application window
+        dark_stylesheet = """
+            QMainWindow, QWidget {
+                background-color: #121212;
+                color: #e0e0e0;
+                font-family: sans-serif;
+            }
+            QPushButton {
+                background-color: #1e1e1e;
+                color: #00ffcc;
+                border: 1px solid #333333;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2a2a2a;
+                border: 1px solid #00ffcc;
+            }
+            QSpinBox, QComboBox {
+                background-color: #1e1e1e;
+                color: #ffffff;
+                border: 1px solid #333333;
+                border-radius: 3px;
+                padding: 3px;
+            }
+            QSlider::groove:horizontal {
+                height: 4px;
+                background: #333333;
+                border-radius: 2px;
+            }
+            QSlider::handle:horizontal {
+                background: #00ffcc;
+                width: 12px;
+                margin: -4px 0;
+                border-radius: 6px;
+            }
+            QSplitter::handle {
+                background-color: #222222;
+            }
+        """
+        self.setStyleSheet(dark_stylesheet)
+
         # Master Vertical Layout Container
         master_container = QVBoxLayout()
         master_container.setSpacing(6)
         master_container.setContentsMargins(8, 8, 8, 8)
 
         # -------------------------------------------------------------
-        # 1. TOP TRANSPORT BAR (Play, Stop, BPM, Memory Banks, Export)
+        # 1. TOP TRANSPORT BAR
         # -------------------------------------------------------------
         self.transport_layout = QHBoxLayout()
 
@@ -5631,6 +5674,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         self.btn_randomize_all = QPushButton("🎲 Randomize Instrument")
         self.btn_export = QPushButton("💾 Export Mixdown")
+
+        # Wire up transport buttons securely
+        self.btn_play.clicked.connect(getattr(self, 'toggle_playback', lambda: None))
+        self.btn_stop.clicked.connect(getattr(self, 'stop_playback', lambda: None))
+        self.btn_randomize_all.clicked.connect(getattr(self, 'randomize_single_instrument', lambda: None))
+        self.btn_export.clicked.connect(getattr(self, 'export_mixdown', lambda: None))
 
         self.transport_layout.addWidget(self.btn_play)
         self.transport_layout.addWidget(self.btn_stop)
@@ -5648,7 +5697,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.transport_layout)
 
         # -------------------------------------------------------------
-        # 2. ACTIVE SYNTH CHANNEL PARAMETER STRIP (5 Knobs + Presets)
+        # 2. ACTIVE SYNTH CHANNEL PARAMETER STRIP (5 Knobs)
         # -------------------------------------------------------------
         self.top_layout = QHBoxLayout()
 
@@ -5687,7 +5736,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.top_layout)
 
         # -------------------------------------------------------------
-        # 3. OPERATIONS & WORKFLOW TOOLBAR (Views, Script Editor, Mode)
+        # 3. OPERATIONS & WORKFLOW TOOLBAR (With Window Triggers)
         # -------------------------------------------------------------
         self.workflow_toolbar = QHBoxLayout()
 
@@ -5696,9 +5745,13 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.btn_view_patchbay = QPushButton("🔌 Modular Patch Bay")
         self.btn_script_editor = QPushButton("📝 Script Editor")
 
-        # Mode Toggle (Global vs Single Instrument)
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(["Mode: Single Instrument", "Mode: Global Ecosystem"])
+
+        # Wire up window toggle buttons
+        self.btn_view_playlist.clicked.connect(lambda: self.playlist_window.show() if hasattr(self, 'playlist_window') and self.playlist_window else None)
+        self.btn_view_patchbay.clicked.connect(lambda: self.patch_bay_dialog.show() if hasattr(self, 'patch_bay_dialog') and self.patch_bay_dialog else None)
+        self.btn_script_editor.clicked.connect(lambda: self.script_editor_window.show() if hasattr(self, 'script_editor_window') and self.script_editor_window else None)
 
         self.workflow_toolbar.addWidget(self.btn_edit_synth)
         self.workflow_toolbar.addWidget(self.btn_view_playlist)
@@ -5709,12 +5762,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.workflow_toolbar)
 
         # -------------------------------------------------------------
-        # 4. CENTRAL WORKSPACE SPLITTER (Sequencer + Canvas + Visualizer)
+        # 4. CENTRAL WORKSPACE SPLITTER (Sequencer + Patchbay + Visualizer)
         # -------------------------------------------------------------
         workspace_splitter = QSplitter(Qt.Orientation.Vertical)
 
-        # Primary Workspace Container for Sequencer & Patchbay
-        sub_splitter = QSplitter(Qt.Orientation.Horizontal)
+        sub_splitter = QSplitter(Qt.Orientation.Vertical)
         if hasattr(self, 'playlist_window') and self.playlist_window:
             sub_splitter.addWidget(self.playlist_window)
         if hasattr(self, 'patch_bay_dialog') and self.patch_bay_dialog:
@@ -5722,20 +5774,22 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         workspace_splitter.addWidget(sub_splitter)
 
-        # Dedicated Visualizer Oscilloscope Canvas at the Bottom
+        # Visualizer Oscilloscope Canvas at the bottom
         if hasattr(self, 'visual_oscilloscope') and self.visual_oscilloscope:
             workspace_splitter.addWidget(self.visual_oscilloscope)
+        elif hasattr(self, 'visualizer_canvas') and self.visualizer_canvas:
+            workspace_splitter.addWidget(self.visualizer_canvas)
         else:
-            # Fallback visualizer container if attribute isn't pre-initialized
             self.visual_oscilloscope = QWidget()
             vis_layout = QVBoxLayout(self.visual_oscilloscope)
-            vis_layout.addWidget(QLabel("Visual Oscilloscope / Phase-Space Trace Canvas"))
+            vis_canvas_label = QLabel("Active Phase-Space Oscilloscope Rendering Canvas")
+            vis_canvas_label.setStyleSheet("color: #00ffcc; font-weight: bold; background: #0a0a0a; padding: 10px;")
+            vis_layout.addWidget(vis_canvas_label)
             workspace_splitter.addWidget(self.visual_oscilloscope)
 
         workspace_splitter.setSizes([450, 150])
         master_container.addWidget(workspace_splitter)
 
-        # Apply to main window layout
         self.main_layout.addLayout(master_container)
 
     def sync_ui_to_current_channel(self, index):
