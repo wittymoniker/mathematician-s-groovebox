@@ -1960,7 +1960,6 @@ class ModularTabManager(QTabWidget):
 
         # Add initial control tab workspace
         self.add_new_module_tab("Core Synthesizer Matrix")
-
     def add_new_module_tab(self, title_prefix="Node Module"):
         tab_count = self.count()
         tab_title = f"{title_prefix} {tab_count + 1}"
@@ -1976,7 +1975,11 @@ class ModularTabManager(QTabWidget):
         layout.addWidget(QLabel(f"--- {tab_title} Workspace ---"))
         layout.addWidget(self.create_dsp_control_panel())
         layout.addWidget(self.create_patch_bay_panel())
-
+        layout.addWidget(QLabel(f"--- {tab_title} Workspace ---"))
+        layout.addWidget(CoordinateVisualizer())       # Snippet 5
+        layout.addWidget(FormulaModulatorWidget())     # Snippet 3
+        layout.addWidget(ModulationMatrixWidget())     # Snippet 4
+        layout.addWidget(self.create_dsp_control_panel())
         scroll.setWidget(inner_widget)
 
         tab_layout = QVBoxLayout(container)
