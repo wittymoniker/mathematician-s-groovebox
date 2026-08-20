@@ -14,7 +14,7 @@ from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QLinearGradient, Q
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
-    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter
+    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox
 )
 import random
 from math_engine import MathEngine
@@ -3644,7 +3644,89 @@ class ScientificDAWWindow(QMainWindow):
         # Internal state tracking
         self.spawned_synths_data = []
         self.spawn_synth_unit_internal("EskiBrutuses Vector Wavetable Core")
+    def _init_ui(self):
+        self.central_tabs = QTabWidget()
+        self.central_tabs.addTab(self._create_canvas_tab(), "Patchbay Canvas")
+        self.central_tabs.addTab(self._create_synthesizer_tab(), "Vector Synthesis Engines")
+        self.central_tabs.addTab(self._create_matrix_tab(), "Matrix Sequencer")
 
+        self.setCentralWidget(self.central_tabs)
+
+    def _create_canvas_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        self.canvas_status = QLabel("Interactive Patchbay Canvas: Active")
+        layout.addWidget(self.canvas_status)
+
+        # Sliders for real-time x, y, and z coordinate evaluation
+        self.sliders = {}
+        for var in ["x", "y", "z"]:
+            h_layout = QHBoxLayout()
+            h_layout.addWidget(QLabel(f"Coordinate Operator {var.upper()}:"))
+            slider = QSlider(Qt.Orientation.Horizontal)
+            slider.setRange(-1000, 1000)
+            slider.setValue(0)
+            slider.valueChanged.connect(lambda val, v=var: self.update_coordinate_variable(v, val))
+            self.sliders[var] = slider
+            h_layout.addWidget(slider)
+            layout.addLayout(h_layout)
+
+        return widget
+
+    def _create_synthesizer_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.addWidget(QLabel("EskiBrutuses Vector Wavetable & Fractalizer Matrix"))
+        return widget
+
+    def _create_matrix_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.addWidget(QLabel("Generative Tracker and Multi-Lane Sequencer"))
+        return widget
+
+    def _init_dockable_panels(self):
+        # Dockable panel for project management and memory bank selection
+        self.project_dock = QDockWidget("Project Workspace", self)
+        self.project_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
+
+        dock_content = QWidget()
+        dock_layout = QVBoxLayout(dock_content)
+        dock_layout.addWidget(QLabel("Memory Bank Selectors"))
+
+        self.bank_selector = QComboBox()
+        self.bank_selector.addItems(["Bank Alpha (90uF/900V)", "Bank Beta (1350V/2000uf)", "Bank Gamma (300V/3500uf)"])
+        dock_layout.addWidget(self.bank_selector)
+
+        self.project_dock.setWidget(dock_content)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.project_dock)
+
+    def _init_spawn_toolbar(self):
+        # Toolbar for spawning custom processing nodes onto the workspace
+        self.spawn_toolbar = QToolBar("Instantiation Toolbar", self)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.spawn_toolbar)
+
+        self.node_combo = QComboBox()
+        self.node_combo.addItems(["EskiVector Node", "EskiTable Unit", "Reality Wave-Folder", "Fractalizer Matrix"])
+        self.spawn_toolbar.addWidget(self.node_combo)
+
+        spawn_btn = QPushButton("Spawn Node")
+        spawn_btn.clicked.connect(self.spawn_selected_node)
+        self.spawn_toolbar.addWidget(spawn_btn)
+
+    def update_coordinate_variable(self, var_name, value):
+        # Processes x, y, and z variable adjustments directly without scaling offsets
+        self.active_variables[var_name] = value / 1000.0
+        self.canvas_status.setText(f"Active Operator Mapping -> X: {self.active_variables['x']:.3f} | Y: {self.active_variables['y']:.3f} | Z: {self.active_variables['z']:.3f}")
+
+    def spawn_selected_node(self):
+        selected_node = self.node_combo.currentText()
+        self.canvas_status.setText(f"Instantiated module: {selected_node} onto active patchbay canvas.")
+
+    def _apply_unused_modulations(self):
+        """Unused function integration: Processes the real-time mathematical signal evaluation loops."""
+        if not self.is_playing:
+            return
     def spawn_new_node(self):
         node_name = self.node_type_combo.currentText()
         count = len(self.nodes)
