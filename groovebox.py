@@ -5795,13 +5795,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         self.main_layout.addLayout(master_container)
     def switch_workspace_view(self, widget):
-            """Embeds and raises the target workflow widget directly inside the main workspace splitter."""
-            if widget and hasattr(self, 'workspace_splitter'):
-                # Ensure the widget is added to the splitter if not already present
-                if widget.parent() != self.workspace_splitter:
-                    self.workspace_splitter.addWidget(widget)
-                widget.show()
-                widget.raise_()
+        """Brings the targeted studio module widget into view inside the main workspace splitter."""
+        if widget and hasattr(self, 'workspace_splitter'):
+            if widget.parent() != self.workspace_splitter:
+                self.workspace_splitter.addWidget(widget)
+            widget.show()
+            widget.raise_()
     def sync_ui_to_current_channel(self, index):
         if 0 <= index < len(self.channel_states):
             state = self.channel_states[index]
