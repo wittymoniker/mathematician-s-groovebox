@@ -5652,7 +5652,33 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.top_layout.addWidget(self.preset_combo)
 
         content_layout.addLayout(self.top_layout)
+        # 1. Top Control Bar (The 5 external knobs + preset dropdown)
+        content_layout.addLayout(self.top_layout)
 
+        # --- PASTE THIS BUTTON TOOLBAR BLOCK HERE ---
+        self.button_layout = QHBoxLayout()
+
+        self.btn_play = QPushButton("Play / Toggle Sequence")
+        self.btn_randomize = QPushButton("Randomize Current Node")
+        self.btn_export = QPushButton("Export Mixdown (WAV)")
+        self.btn_clear = QPushButton("Clear Tracks")
+
+        # Connect buttons to your app functions if they exist
+        self.btn_play.clicked.connect(getattr(self, 'toggle_playback', lambda: None))
+        self.btn_randomize.clicked.connect(getattr(self, 'randomize_single_instrument', lambda: None))
+        self.btn_export.clicked.connect(getattr(self, 'export_mixdown', lambda: None))
+        self.btn_clear.clicked.connect(getattr(self, 'clear_sequence', lambda: None))
+
+        self.button_layout.addWidget(self.btn_play)
+        self.button_layout.addWidget(self.btn_randomize)
+        self.button_layout.addWidget(self.btn_export)
+        self.button_layout.addWidget(self.btn_clear)
+
+        content_layout.addLayout(self.button_layout)
+        # ---------------------------------------------
+
+        # 2. Central Splitter for the Sequencer Grid & Workspace Canvas
+        workspace_splitter = QSplitter(Qt.Orientation.Vertical)
         # 2. Central Splitter for the Sequencer Grid & Workspace Canvas
         workspace_splitter = QSplitter(Qt.Orientation.Vertical)
 
