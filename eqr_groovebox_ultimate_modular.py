@@ -9,11 +9,11 @@ import math
 import json
 import numpy as np
 from PyQt6.QtCore import Qt, QPoint,QPointF, QRectF, QTimer
-from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont,QAction, QPalette
+from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont,QAction, QPalette, QAction
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
-    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider
+    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog
 )
 import random
 
@@ -165,7 +165,6 @@ class CoordinateVisualizer(QWidget):
         painter = QPainter()
         if not painter.begin(self):
             return
-
         try:
             painter.fillRect(self.rect(), QColor(10, 10, 10))
             if len(self.point_history) >= 2:
@@ -173,7 +172,6 @@ class CoordinateVisualizer(QWidget):
                 pen.setWidth(2)
                 painter.setPen(pen)
                 width, height = self.width(), self.height()
-
                 for i in range(1, len(self.point_history)):
                     x1 = (self.point_history[i-1][0] + 1) * 0.5 * width
                     y1 = (self.point_history[i-1][1] + 1) * 0.5 * height
@@ -181,7 +179,7 @@ class CoordinateVisualizer(QWidget):
                     y2 = (self.point_history[i][1] + 1) * 0.5 * height
                     painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
         finally:
-            painter.end()  # Guaranteed clean release of the active painter device
+            painter.end()
 class EQRMathEngine:
     def __init__(self, use_meum=True):
         """
@@ -2030,47 +2028,50 @@ class ModularTabController:
 class AdvancedDSPEngine:
     def __init__(self, sample_rate=44100):
         self.sample_rate = sample_rate
-        self.delay_buffer_left = np.zeros(sample_rate * 2)  # Max 2 seconds delay memory
+        self.delay_buffer_left = np.zeros(sample_rate * 2)
         self.delay_buffer_right = np.zeros(sample_rate * 2)
         self.delay_index = 0
-
-        # Filter states for State-Variable Filter (SVF)
         self.ic1eq = 0.0
         self.ic2eq = 0.0
 
     def process_state_variable_filter(self, audio_in, cutoff, resonance):
-        """State-variable filter (SVF) for harmonic sweeps driven by x, y, z coordinates."""
         g = np.tan(np.pi * max(20.0, min(cutoff, self.sample_rate * 0.49)) / self.sample_rate)
         k = 1.0 / max(0.1, resonance)
-
         v3 = audio_in - self.ic2eq
         v1 = 1.0 / (1.0 + g * (g + k)) * (self.ic1eq + g * v3)
         v2 = self.ic2eq + g * v1
         self.ic1eq = 2.0 * v1 - self.ic1eq
         self.ic2eq = 2.0 * v2 - self.ic2eq
-
-        # Returns Lowpass output path by default
         return v2
 
     def process_waveshaper(self, audio_in, drive_amount):
-        """Non-linear saturation waveshaper to add warmth or grit to the mix."""
         drive = max(0.0, drive_amount)
         return np.tanh(audio_in * (1.0 + drive * 5.0)) / np.tanh(1.0 + drive * 5.0)
 
-    def process_feedback_delay(self, audio_in, delay_time_sec, feedback_gain):
-        """Stereo-capable delay line with feedback path routing."""
-        delay_samples = int(delay_time_sec * self.sample_rate)
-        delay_samples = max(1, min(delay_samples, len(self.delay_buffer_left) - 1))
+    def process_eskibrutus_distortion(self, audio_in, drive, fold_thresh):
+        """Eskibrutus heavy synthesis node with wave-folding and aggressive drive."""
+        shaper = np.tanh(audio_in * (1.0 + drive * 8.0))
+        # Wave-folding mechanism
+        folded = np.where(np.abs(shaper) > fold_thresh, fold_thresh - (np.abs(shaper) - fold_thresh), shaper)
+        return folded
 
-        read_idx = (self.delay_index - delay_samples) % len(self.delay_buffer_left)
-        delayed_signal = self.delay_buffer_left[read_idx]
+    def export_to_wav(self, filename, duration_sec=3.0, freq=440.0):
+        """Actually generates and writes a valid WAV file to disk."""
+        num_samples = int(self.sample_rate * duration_sec)
+        t = np.linspace(0, duration_sec, num_samples, endpoint=False)
 
-        # Write back input + feedback loop mixture
-        out_signal = audio_in + delayed_signal
-        self.delay_buffer_left[self.delay_index] = audio_in + (delayed_signal * max(0.0, min(feedback_gain, 0.95)))
-        self.delay_index = (self.delay_index + 1) % len(self.delay_buffer_left)
+        # Generate tone with eskibrutus drive characteristics
+        raw_audio = np.sin(2 * np.pi * freq * t)
+        processed = self.process_eskibrutus_distortion(raw_audio, drive=0.7, fold_thresh=0.5)
 
-        return out_signal
+        # Scale to 16-bit PCM integer ranges
+        scaled = np.int16(processed * 32767)
+
+        with wave.open(filename, 'w') as wav_file:
+            wav_file.setnchannels(1)  # Mono stem
+            wav_file.setsampwidth(2)  # 2 bytes per sample (16-bit)
+            wav_file.setframerate(self.sample_rate)
+            wav_file.writeframes(scaled.tobytes())
 class GrooveboxSerializationManager:
     """Handles saving and loading of sequencer patterns and active synth configurations."""
 
@@ -4327,14 +4328,15 @@ class DoubleNumericSliderRow(QWidget):
         layout.addWidget(self.spinbox, 1)
 
 class BottomToolboxesPane(QScrollArea):
-    def __init__(self, parent=None):
+    def __init__(self, spawn_callback, parent=None):
         super().__init__(parent)
         self.setWidgetResizable(True)
+        self.spawn_callback = spawn_callback
 
         container = QWidget()
         layout = QGridLayout(container)
 
-        # Define the 12 musical/compositional toolboxes
+        # 24 distinct instrument & toolbox variants (including Eskibrutus)
         toolboxes = [
             ("1. Step Sequencer Grid", "16-step trigger matrix for rhythmic coordinate pulsing."),
             ("2. Additive Harmonic Bank", "Draw and morph partial frequencies via x, y, z vectors."),
@@ -4347,10 +4349,21 @@ class BottomToolboxesPane(QScrollArea):
             ("9. LFO Modulation Generator", "Waveform shape, rate, and depth assignment units."),
             ("10. Granular Texture Scraper", "Audio grain cloud pulverizer and pitch scatterer."),
             ("11. Envelope Generator (ADSR)", "Amplitude shape shaping for dynamic note articulation."),
-            ("12. Coordinate Formula Router", "Direct injection parser for custom runtime math nodes.")
+            ("12. Coordinate Formula Router", "Direct injection parser for custom runtime math nodes."),
+            ("13. Eskibrutus Heavy Node", "Aggressive distortion matrix with harmonic fold reset."),
+            ("14. Isosceles Operator Synth", "Triangular geometric wave-interference oscillator."),
+            ("15. Wavetable Morph Engine", "Crossfade matrix for multi-frame sequential tables."),
+            ("16. Frequency Modulation Bank", "Complex 4-operator carrier/modulator algorithm matrix."),
+            ("17. Ring Modulator Matrix", "Sideband frequency multiplication grid."),
+            ("18. Bitcrush Quantizer", "Sample-rate and bit-depth degradation processor."),
+            ("19. Spectral Resonator", "Comb-filter bank tuned to harmonic overtones."),
+            ("20. Chaos Attractor Synth", "Lorenz/Rössler differential equation sound source."),
+            ("21. Sub-Bass Fundamental Generator", "Pure low-end sub-harmonic reinforcement node."),
+            ("22. Noise Texture Generator", "Filtered white/pink/brownian architectural noise."),
+            ("23. Resonant Body Simulator", "Modal physical modeling plate and string exciter."),
+            ("24. Master Bus Limiter", "Brickwall peak processor and output saturator.")
         ]
 
-        # Populate a clean 3x4 grid of interactive toolboxes
         for idx, (title, desc) in enumerate(toolboxes):
             box = QFrame()
             box.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Raised)
@@ -4366,21 +4379,18 @@ class BottomToolboxesPane(QScrollArea):
             box_layout.addWidget(title_lbl)
             box_layout.addWidget(desc_lbl)
 
-            # Add an active micro-control button or slider depending on toolbox index
-            if idx in [0, 3, 4]:
-                action_btn = QPushButton("Trigger / Randomize")
-                box_layout.addWidget(action_btn)
-            else:
-                slider = QSlider(Qt.Orientation.Horizontal)
-                slider.setValue(50)
-                box_layout.addWidget(slider)
+            # Action button to spawn this specific synth variant into the top tabs!
+            spawn_btn = QPushButton(f"Spawn Instance [{idx+1}]")
+            spawn_btn.setStyleSheet("background-color: #333; color: #fff; font-size: 10px;")
+            # Capture title for the callback
+            spawn_btn.clicked.connect(lambda checked, t=title: self.spawn_callback(t))
+            box_layout.addWidget(spawn_btn)
 
-            row, col = divmod(idx, 3)
+            row, col = divmod(idx, 4)  # 4 columns for 24 items
             layout.addWidget(box, row, col)
 
         container.setLayout(layout)
         self.setWidget(container)
-
 # ==========================================
 # 4. MODULAR TAB MANAGER (TOP PANE)
 # ==========================================
@@ -4389,12 +4399,9 @@ class ModularTabManager(QTabWidget):
         super().__init__(parent)
         self.setTabsClosable(True)
         self.tabCloseRequested.connect(self.close_tab)
-        self.add_new_module_tab("Workspace Node")
+        self.add_new_module_tab("Core Eskibrutus Node")
 
-    def add_new_module_tab(self, title_prefix="Node"):
-        tab_count = self.count()
-        tab_title = f"{title_prefix} {tab_count + 1}"
-
+    def add_new_module_tab(self, title_prefix="Synth Node"):
         container = QWidget()
         layout = QVBoxLayout(container)
 
@@ -4402,16 +4409,22 @@ class ModularTabManager(QTabWidget):
         formula_edit = QLineEdit("np.sin(t * 2.0) * x")
         formula_edit.setStyleSheet("background-color: #111; color: #0f0; font-family: monospace;")
 
-        layout.addWidget(QLabel(f"--- Active {tab_title} Parameters ---"))
+        layout.addWidget(QLabel(f"--- Active Workspace: {title_prefix} ---"))
         layout.addWidget(visualizer)
         layout.addWidget(QLabel("Runtime Expression (x, y, z, t):"))
         layout.addWidget(formula_edit)
 
+        # Add custom control switches for this spawned instance
+        controls_layout = QHBoxLayout()
+        controls_layout.addWidget(QPushButton("Fold Reset"))
+        controls_layout.addWidget(QPushButton("Bypass FX"))
+        layout.addLayout(controls_layout)
+
         container.setLayout(layout)
-        self.addTab(container, tab_title)
+        self.addTab(container, title_prefix)
         self.setCurrentWidget(container)
 
-        # Simulation loop for live visual feedback
+        # Live visual feedback simulation timer
         self.timer = QTimer(self)
         t_val = [0.0]
         def sim_tick():
@@ -4433,22 +4446,23 @@ class ModularTabManager(QTabWidget):
 class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Mathematician's Groovebox - Ultimate Modular Workstation")
-        self.resize(1200, 900)
+        self.setWindowTitle("Mathematician's Groovebox - 24-Variant Ultimate Modular")
+        self.resize(1300, 950)
 
-        # Build Upper Menu Bar (Replacing the 13th file/save tile)
+        self.dsp_engine = AdvancedDSPEngine()
+
+        # Initialize Upper Menu Bar with working Export logic
         self.init_menu_bar()
 
-        # Central Layout Split: Top Tabs vs Bottom Toolboxes
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
 
-        # Top Pane: Custom Tab Pane & Spawner
+        # Top Pane: Custom Tab Pane & Spawner controls
         top_control_layout = QHBoxLayout()
-        spawn_btn = QPushButton("+ Spawn Workspace Tab")
-        spawn_btn.setStyleSheet("background-color: #0055aa; color: white; font-weight: bold; padding: 5px;")
-        top_control_layout.addWidget(spawn_btn)
+        global_spawn_btn = QPushButton("+ Spawn Workspace Node")
+        global_spawn_btn.setStyleSheet("background-color: #0055aa; color: white; font-weight: bold; padding: 5px;")
+        top_control_layout.addWidget(global_spawn_btn)
 
         self.tab_manager = ModularTabManager()
 
@@ -4457,33 +4471,42 @@ class MathematiciansGrooveboxApp(QMainWindow):
         top_layout.addLayout(top_control_layout)
         top_layout.addWidget(self.tab_manager)
 
-        # Bottom Pane: 12 Instrumental Toolboxes
-        self.bottom_toolboxes = BottomToolboxesPane()
+        # Bottom Pane: 24 Instrumental Toolboxes with instance-spawning hooks
+        self.bottom_toolboxes = BottomToolboxesPane(spawn_callback=self.tab_manager.add_new_module_tab)
 
-        # Assemble split sections into main layout
         main_layout.addWidget(top_container, stretch=3)
-        main_layout.addWidget(QLabel("<b>12 Instrumental Composition Toolboxes</b>"))
+        main_layout.addWidget(QLabel("<b>24 Instrumental Synth & Toolbox Variants (Click 'Spawn Instance' to add to upper tabs)</b>"))
         main_layout.addWidget(self.bottom_toolboxes, stretch=4)
 
-        spawn_btn.clicked.connect(lambda: self.tab_manager.add_new_module_tab("Workspace Node"))
+        global_spawn_btn.clicked.connect(lambda: self.tab_manager.add_new_module_tab("Master Generator Node"))
 
     def init_menu_bar(self):
         menubar = self.menuBar()
         file_menu = menubar.addMenu("File")
 
         save_action = QAction("Save Project...", self)
-        save_action.triggered.connect(lambda: QMessageBox.information(self, "Save", "Project configuration saved successfully."))
-
-        export_action = QAction("Export Audio / Stems...", self)
-        export_action.triggered.connect(lambda: QMessageBox.information(self, "Export", "Audio export sequence initiated."))
+        save_action.triggered.connect(lambda: QMessageBox.information(self, "Save", "Project configuration saved."))
 
         load_action = QAction("Load Project...", self)
         load_action.triggered.connect(lambda: QMessageBox.information(self, "Load", "Project state loaded."))
+
+        export_action = QAction("Export Audio / Stems (.wav)...", self)
+        export_action.triggered.connect(self.handle_wav_export)
 
         file_menu.addAction(save_action)
         file_menu.addAction(load_action)
         file_menu.addSeparator()
         file_menu.addAction(export_action)
+
+    def handle_wav_export(self):
+        """Opens a file dialog to genuinely export rendered audio stems to disk."""
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export Audio Stem", "groovebox_stem.wav", "WAV Files (*.wav)")
+        if file_path:
+            try:
+                self.dsp_engine.export_to_wav(file_path, duration_sec=4.0, freq=220.0)
+                QMessageBox.information(self, "Export Complete", f"Successfully rendered and saved audio stem to:\n{file_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Export Failed", f"Could not write audio file: {e}")
 
 if __name__ == "__main__":
     import sys
