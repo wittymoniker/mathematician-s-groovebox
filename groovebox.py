@@ -4966,7 +4966,6 @@ class PaintbrushTable(QTableWidget):
                 item.setText(active_synth)
                 item.setBackground(QColor(0, 180, 180))
             elif col == 2:
-                # Text-based identifier parameter shuffling & script tag painting
                 shuffled_tag = f"Script::{active_synth[:4].upper()}-X{(row*13)%99}"
                 item.setText(shuffled_tag)
                 item.setBackground(QColor(90, 30, 110))
@@ -4975,7 +4974,6 @@ class PaintbrushTable(QTableWidget):
                 item.setBackground(QColor(20, 110, 60))
 
     def keyPressEvent(self, event):
-        # Support copy and paste of painted sections of the playlist grid
         if event.matches(QKeySequence.StandardKey.Copy):
             selected_ranges = self.selectedRanges()
             self.clipboard_data = []
@@ -5769,7 +5767,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.script_editor_window = None
         self.visual_oscilloscope = None
 
-        # 48 Unique Instrument Types
         self.instrument_names_48 = [
             "Z-Pinch Resonator", "Topological Fold", "Quantum Soliton", "Harmonic Phase-Shift",
             "Sub-Harmonic Drone", "Micro-Transient Click", "Stochastic Noise Matrix", "Voltage Controlled Crystal",
@@ -5785,13 +5782,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
             "Magnetic Flux Modulator", "Eddy Current Oscillator", "Standing Wave Matrix", "Quantum Entanglement Node"
         ]
 
-        # Sequencer memory bound individually to every single instrument (16 steps default per instrument)
         self.instrument_sequencer_memory = {
             name: {"steps": [False] * 16, "gates": [True] * 16, "amplitudes": [1.0] * 16}
             for name in self.instrument_names_48
         }
 
-        # Instrument-specific script workspaces & parameter dictionaries
         self.instrument_scripts = {
             name: f"# Script workspace for {name}\ndef evaluate_wave(x, y, z):\n    return np.sin(x * {(i%12)+1}.0) * np.cos(y) - z"
             for i, name in enumerate(self.instrument_names_48)
@@ -5858,9 +5853,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.setSpacing(6)
         master_container.setContentsMargins(8, 8, 8, 8)
 
-        # -------------------------------------------------------------
-        # 1. TRANSPORT & INSTRUMENT SELECTOR BAR
-        # -------------------------------------------------------------
         self.transport_layout = QHBoxLayout()
         self.btn_play = QPushButton("▶ Live Audio Play")
         self.btn_stop = QPushButton("⏹ Stop")
@@ -5893,9 +5885,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         master_container.addLayout(self.transport_layout)
 
-        # -------------------------------------------------------------
-        # 2. SEPARATE EQR, PKP, AND FRACTALIZER CORE CONTROL STRIP
-        # -------------------------------------------------------------
         self.top_layout = QHBoxLayout()
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(["Mode: Single Instrument", "Mode: Cross-Loaded Ecosystem"])
@@ -5904,12 +5893,10 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.spin_tuning.setRange(100, 1200)
         self.spin_tuning.setValue(440)
 
-        # Standalone EQR Controls
         self.slider_eqr = QSlider(Qt.Orientation.Horizontal)
         self.slider_eqr.setRange(0, 100)
         self.slider_eqr.setValue(50)
 
-        # Standalone PKP (Perc Keys Pads) Controls with Self-Modulation option
         self.slider_pkp_decay = QSlider(Qt.Orientation.Horizontal)
         self.slider_pkp_decay.setRange(1, 1000)
         self.slider_pkp_decay.setValue(250)
@@ -5917,7 +5904,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.chk_pkp_automod = QCheckBox("PKP Self-Modulate")
         self.chk_pkp_automod.setChecked(True)
 
-        # Renamed 'Mix' slider to dedicated Fractalizer core function
         self.slider_fractalizer = QSlider(Qt.Orientation.Horizontal)
         self.slider_fractalizer.setRange(0, 100)
         self.slider_fractalizer.setValue(85)
@@ -5935,9 +5921,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         master_container.addLayout(self.top_layout)
 
-        # -------------------------------------------------------------
-        # 3. WORKFLOW TOOLBAR
-        # -------------------------------------------------------------
         self.workflow_toolbar = QHBoxLayout()
         self.btn_edit_synth = QPushButton("🛠 Edit Synth Settings & Wavetable")
         self.btn_view_playlist = QPushButton("📜 Unquantized Playlist & Paintbrush Window")
@@ -5956,9 +5939,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         master_container.addLayout(self.workflow_toolbar)
 
-        # -------------------------------------------------------------
-        # 4. UNLOCKED SEQUENCE & PLAYLIST LENGTH CONTROLS
-        # -------------------------------------------------------------
         sizing_layout = QHBoxLayout()
         sizing_layout.addWidget(QLabel("Sequence Length (Steps):"))
         self.spin_seq_length = QSpinBox()
@@ -5981,9 +5961,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         sizing_container.setLayout(sizing_layout)
         master_container.addWidget(sizing_container)
 
-        # -------------------------------------------------------------
-        # 5. INSTRUMENT-BOUND SEQUENCER & PKP PAD MATRIX WITH AMPLITUDE/PITCH GATES
-        # -------------------------------------------------------------
         self.top_sequencer = QWidget()
         seq_inner = QVBoxLayout(self.top_sequencer)
         seq_inner.setContentsMargins(0, 0, 0, 0)
@@ -6068,22 +6045,23 @@ class MathematiciansGrooveboxApp(QMainWindow):
             mem["amplitudes"].extend([1.0] * (count - len(mem["amplitudes"])))
             mem["gates"].extend([True] * (count - len(mem["gates"])))
 
-        def make_handler(s_idx):
-            def on_toggle(checked):
-                curr_i = self.top_sequencer.instance_combo.currentText()
-                self.instrument_sequencer_memory[curr_i]["steps"][s_idx] = checked
-                if checked:
-                    btn.setStyleSheet("background-color: #00ffff; color: #060606; border: 2px solid #ffffff; font-weight: bold;")
-                else:
-                    btn.setStyleSheet("background-color: #121212; color: #00ffff; border: 2px solid #444444;")
-            return on_toggle
-
         for s in range(count):
             step_btn = QPushButton(f"Pad {s+1}\nAmp:{mem['amplitudes'][s]:.1f}")
             step_btn.setCheckable(True)
             step_btn.setChecked(mem["steps"][s])
             step_btn.setStyleSheet("background-color: #00ffff; color: #060606; border: 2px solid #ffffff; font-weight: bold;" if mem["steps"][s] else "background-color: #121212; color: #00ffff; border: 2px solid #444444;")
-            step_btn.toggled.connect(make_handler(s))
+
+            def make_handler(target_btn, s_idx):
+                def on_toggle(checked):
+                    curr_i = self.top_sequencer.instance_combo.currentText()
+                    self.instrument_sequencer_memory[curr_i]["steps"][s_idx] = checked
+                    if checked:
+                        target_btn.setStyleSheet("background-color: #00ffff; color: #060606; border: 2px solid #ffffff; font-weight: bold;")
+                    else:
+                        target_btn.setStyleSheet("background-color: #121212; color: #00ffff; border: 2px solid #444444;")
+                return on_toggle
+
+            step_btn.toggled.connect(make_handler(step_btn, s))
             self.steps_inner_layout.addWidget(step_btn)
             self.seq_step_buttons.append(step_btn)
 
@@ -6097,7 +6075,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         rand_idx = np.random.randint(0, len(self.instrument_names_48))
         self.instrument_selector_dropdown.setCurrentIndex(rand_idx)
 
-        # Intensive module patch bay and script randomization
         for name in self.instrument_names_48:
             rnd_factor = np.random.randint(1, 48)
             self.instrument_scripts[name] = f"# Intensively Randomized Script for {name}\ndef evaluate_wave(x, y, z):\n    return np.sin(x * {rnd_factor}.0) * np.cos(y * {np.random.randint(2,8)}.0) + np.tan(z / {rnd_factor})"
@@ -6105,7 +6082,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         print(f"[System] Intensive module patch bay and 48-operator script randomizations successfully generated.")
 
     def export_mixdown_dialog(self):
-        """Opens native file dialog to name and save high-bitrate .wav file."""
         try:
             if wavfile is None:
                 print("[System Error] Scipy is not available. Run `pip install scipy`.")
@@ -6117,7 +6093,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             if not file_path:
                 return
 
-            sample_rate = 44100  # High bitrate PCM audio sampling rate
+            sample_rate = 44100
             rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 32
             row_duration = 4.0
             total_duration = rows * row_duration
@@ -6149,16 +6125,13 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
                 for op_idx in active_cluster:
                     op_name = self.instrument_names_48[op_idx]
-                    seq_mem = self.instrument_sequencer_memory[op_name]
 
                     base_freq = 44.0 * (1.05946) ** (op_idx % 36)
                     mod_freq = base_freq * (1.0 + (op_idx % 4) * 0.5)
 
-                    # Apply fractalizer core modulation
                     carrier = np.sin(2 * np.pi * mod_freq * local_t)
                     oscillator = np.sin(2 * np.pi * base_freq * local_t + carrier * (eqr_val * 5.0 * fractalizer_val))
 
-                    # PKP Self-modulation & amplitude/pitch gating from sequencer memory
                     mod_decay = pkp_decay * (1.5 if pkp_auto else 1.0)
                     pkp_trigger = np.exp(-local_t / max(mod_decay, 0.015)) * np.sin(2 * np.pi * (base_freq * 2.0) * local_t)
 
@@ -6171,7 +6144,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
             if max_val > 0:
                 master_mixdown = (master_mixdown / max_val) * 0.98
 
-            # Export 16-bit PCM high-bitrate audio file
             wavfile.write(file_path, sample_rate, (master_mixdown * 32767).astype(np.int16))
             print(f"[System] Success: High-bitrate audio exported to {file_path}")
             self.export_counter += 1
@@ -6316,7 +6288,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         window.show()
         window.raise_()
         window.activateWindow()
-
 if __name__ == "__main__":
     import sys
     app = QApplication(sys.argv)
