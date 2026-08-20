@@ -13,7 +13,7 @@ from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QLinearGradient, Q
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
-    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial
+    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea
 )
 import random
 
@@ -1853,6 +1853,61 @@ class StandardWaveSynthNode:
             val = math.sin(self.phase) * self.amp * y
             buf.append(val)
         return buf
+class ModularTabManager(QTabWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setTabsClosable(True)
+        self.tabCloseRequested.connect(self.close_tab)
+
+        # Add initial control tab workspace
+        self.add_new_module_tab("Core Synthesizer Matrix")
+
+    def add_new_module_tab(self, title_prefix="Node Module"):
+        tab_count = self.count()
+        tab_title = f"{title_prefix} {tab_count + 1}"
+
+        container = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+
+        inner_widget = QWidget()
+        layout = QVBoxLayout(inner_widget)
+
+        # Populate workspace with expanded DSP control and patch routing panels
+        layout.addWidget(QLabel(f"--- {tab_title} Workspace ---"))
+        layout.addWidget(self.create_dsp_control_panel())
+        layout.addWidget(self.create_patch_bay_panel())
+
+        scroll.setWidget(inner_widget)
+
+        tab_layout = QVBoxLayout(container)
+        tab_layout.addWidget(scroll)
+        container.setLayout(tab_layout)
+
+        self.addTab(container, tab_title)
+        self.setCurrentWidget(container)
+
+    def close_tab(self, index):
+        if self.count() > 1:
+            widget = self.widget(index)
+            self.removeTab(index)
+            widget.deleteLater()
+
+    def create_dsp_control_panel(self):
+        panel = QWidget()
+        layout = QHBoxLayout()
+        layout.addWidget(QPushButton("Bypass FX"))
+        layout.addWidget(QPushButton("Sync LFO"))
+        layout.addWidget(QPushButton("Resonant Feedback"))
+        panel.setLayout(layout)
+        return panel
+
+    def create_patch_bay_panel(self):
+        panel = QWidget()
+        layout = QHBoxLayout()
+        layout.addWidget(QLabel("Patch Matrix: [X -> Cutoff] [Y -> Resonance] [Z -> Delay Time]"))
+        panel.setLayout(layout)
+        return panel
 class ModularTabController:
     """Manages active tabs and links user interface adjustments to synth modulation."""
     def __init__(self):
@@ -1873,6 +1928,50 @@ class ModularTabController:
             return z * 1.2 # Stochastic noise scatter focus
         else:
             return (x + y + z) / 3.0 # Master blend
+class AdvancedDSPEngine:
+    def __init__(self, sample_rate=44100):
+        self.sample_rate = sample_rate
+        self.delay_buffer_left = np.zeros(sample_rate * 2)  # Max 2 seconds delay memory
+        self.delay_buffer_right = np.zeros(sample_rate * 2)
+        self.delay_index = 0
+
+        # Filter states for State-Variable Filter (SVF)
+        self.ic1eq = 0.0
+        self.ic2eq = 0.0
+
+    def process_state_variable_filter(self, audio_in, cutoff, resonance):
+        """State-variable filter (SVF) for harmonic sweeps driven by x, y, z coordinates."""
+        g = np.tan(np.pi * max(20.0, min(cutoff, self.sample_rate * 0.49)) / self.sample_rate)
+        k = 1.0 / max(0.1, resonance)
+
+        v3 = audio_in - self.ic2eq
+        v1 = 1.0 / (1.0 + g * (g + k)) * (self.ic1eq + g * v3)
+        v2 = self.ic2eq + g * v1
+        self.ic1eq = 2.0 * v1 - self.ic1eq
+        self.ic2eq = 2.0 * v2 - self.ic2eq
+
+        # Returns Lowpass output path by default
+        return v2
+
+    def process_waveshaper(self, audio_in, drive_amount):
+        """Non-linear saturation waveshaper to add warmth or grit to the mix."""
+        drive = max(0.0, drive_amount)
+        return np.tanh(audio_in * (1.0 + drive * 5.0)) / np.tanh(1.0 + drive * 5.0)
+
+    def process_feedback_delay(self, audio_in, delay_time_sec, feedback_gain):
+        """Stereo-capable delay line with feedback path routing."""
+        delay_samples = int(delay_time_sec * self.sample_rate)
+        delay_samples = max(1, min(delay_samples, len(self.delay_buffer_left) - 1))
+
+        read_idx = (self.delay_index - delay_samples) % len(self.delay_buffer_left)
+        delayed_signal = self.delay_buffer_left[read_idx]
+
+        # Write back input + feedback loop mixture
+        out_signal = audio_in + delayed_signal
+        self.delay_buffer_left[self.delay_index] = audio_in + (delayed_signal * max(0.0, min(feedback_gain, 0.95)))
+        self.delay_index = (self.delay_index + 1) % len(self.delay_buffer_left)
+
+        return out_signal
 class GrooveboxSerializationManager:
     """Handles saving and loading of sequencer patterns and active synth configurations."""
 
@@ -1944,7 +2043,28 @@ class FormantSynthNode(StandardWaveSynthNode):
             val = carrier * modulator * self.amp * z
             buf.append(val)
         return buf
+class VirtualPatchCable:
+    def __init__(self, source_node, target_param, attenuation=1.0):
+        self.source_node = source_node
+        self.target_param = target_param
+        self.attenuation = attenuation
+        self.is_connected = True
 
+    def route(self, x_val, y_val, z_val):
+        """Routes coordinate outputs or LFO signals into target DSP parameters."""
+        if not self.is_connected:
+            return 0.0
+
+        # Select coordinate source based on mapping string
+        val = 0.0
+        if self.source_node == 'X':
+            val = x_val
+        elif self.source_node == 'Y':
+            val = y_val
+        elif self.source_node == 'Z':
+            val = z_val
+
+        return val * self.attenuation
 class NoiseBurstNode(StandardWaveSynthNode):
     """Stochastic rhythmic noise burst generator for percussion/texture tabs."""
     def generate_block(self, num_samples, x, y, z):
