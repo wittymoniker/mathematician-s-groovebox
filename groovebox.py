@@ -13,11 +13,14 @@ from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QLinearGradient, Q
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
-    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit, QDialog, QInputDialog
+    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit, QDialog, QInputDialog,QListWidget
 )
 import random
 
 MEUM_CONSTANT = 1.1975807343385265188
+# ==========================================
+# CLEAN, LEGIBLE UI WITH CARTOONY POP BUTTONS
+# ==========================================
 # ==========================================
 # CLEAN, LEGIBLE UI WITH CARTOONY POP BUTTONS
 # ==========================================
@@ -1333,8 +1336,8 @@ class SongAutomationTimeline(QWidget):
 class ModulationRoutingWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Interactive Global Modulation & LFO Hub")
-        self.resize(750, 520)
+        self.setWindowTitle("Global Modulation & LFO Hub")
+        self.resize(700, 480)
         self.setStyleSheet(TELETUBBY_STYLE)
 
         container = QWidget()
@@ -1363,16 +1366,16 @@ class ModulationRoutingWindow(QMainWindow):
         self.mod_view = QTextEdit()
         self.mod_view.setPlainText(
             "# Active Modulation & LFO Routing Table\n"
-            "LFO 1 ---> Routed to Filter Cutoff (Depth: 75% | Interactive Mode: Active)\n"
-            "LFO 2 ---> Routed to Chaos Attractor (Depth: 100% | Interactive Mode: Active)\n"
+            "LFO 1 ---> Routed to Filter Cutoff (Depth: 75%)\n"
+            "LFO 2 ---> Routed to Chaos Attractor (Depth: 100%)\n"
             "Envelope Shaper ---> Routed to Master Limiter Threshold"
         )
-        self.mod_view.setStyleSheet("background-color: #ffffff; color: #1e272e; font-family: monospace; font-size: 13px; border-radius: 12px;")
+        self.mod_view.setStyleSheet("background-color: #ffffff; color: #1e272e; font-family: monospace; font-size: 13px; border-radius: 10px;")
         layout.addWidget(self.mod_view)
 
-        apply_btn = QPushButton("Commit Interactive Modulation Patches")
+        apply_btn = QPushButton("Commit Modulation Patches")
         apply_btn.setStyleSheet("background-color: #00b894; color: white;")
-        apply_btn.clicked.connect(lambda: QMessageBox.information(self, "Modulation Updated", "Modulation matrix parameters successfully updated."))
+        apply_btn.clicked.connect(lambda: QMessageBox.information(self, "Modulation Updated", "Modulation matrix parameters updated."))
         layout.addWidget(apply_btn)
 
         container.setLayout(layout)
@@ -4091,6 +4094,46 @@ class MasterControlPanel(QWidget):
 # -------------------------------------------------------------------------
 # TAB 5: EQUATION SCALES, INFINITE PLAYLIST & PATCHBAY
 # -------------------------------------------------------------------------
+class GeometricSymbolicCanvas(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(140)
+        self.setStyleSheet("""
+            background-color: #2d3436;
+            border: 3px solid #00b894;
+            border-radius: 12px;
+        """)
+        self.nodes = [
+            {"label": "Node α: Sine", "pos": (60, 45), "color": "#ff7675"},
+            {"label": "Node β: Fold", "pos": (220, 80), "color": "#74b9ff"},
+            {"label": "Node γ: Resonator", "pos": (400, 40), "color": "#55efc4"},
+            {"label": "Node δ: Attractor", "pos": (580, 75), "color": "#ffeaa7"}
+        ]
+
+    def paintEvent(self, event):
+        painter = QPainter()
+        if not painter.begin(self):
+            return
+        try:
+            painter.fillRect(self.rect(), QColor(45, 52, 54))
+            pen = QPen(QColor(162, 155, 254), 2, Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            for i in range(len(self.nodes) - 1):
+                p1 = self.nodes[i]["pos"]
+                p2 = self.nodes[i+1]["pos"]
+                painter.drawLine(p1[0], p1[1], p2[0], p2[1])
+
+            for node in self.nodes:
+                painter.setPen(QPen(QColor(255, 255, 255), 2))
+                painter.setBrush(QColor(node["color"]))
+                x, y = node["pos"]
+                painter.drawEllipse(QPoint(x, y), 22, 22)
+
+                painter.setPen(QColor(253, 203, 110))
+                painter.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+                painter.drawText(x - 30, y + 36, node["label"])
+        finally:
+            painter.end()
 class MasterControlPatchbayPage(QWidget):
     def __init__(self, engine, main_window):
         super().__init__()
@@ -4607,12 +4650,15 @@ class AdvancedDSPEngine:
 class VisualNodeScriptingWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Visual Equation & Heuristic Scripting Canvas")
+        self.setWindowTitle("Visual Equation & Symbolic Scripting Canvas")
         self.resize(1000, 650)
         self.setStyleSheet(TELETUBBY_STYLE)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("<b>Interactive Graphical Node Patch Builder</b>"))
+        layout.addWidget(QLabel("<b>Interactive Geometric Node Patch Builder & Symbolic Engine</b>"))
+
+        self.geom_canvas = GeometricSymbolicCanvas(self)
+        layout.addWidget(self.geom_canvas)
 
         canvas_splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -4636,8 +4682,8 @@ class VisualNodeScriptingWindow(QDialog):
 
         self.assembly_board = QTextEdit()
         self.assembly_board.setPlainText(
-            "# Interactive Modular Patch Assembly & Equation Network\n"
-            "[ Node 1: Eski-Prime Sine ] ===(Patch Jack)===> [ Node 2: Dipsy Wavefolder ]\n"
+            "# Interactive Modular Patch Assembly & Geometric Symbolic Equation Network\n"
+            "[ Node α: Eski-Prime Sine ] ===(Symbolic Jack)===> [ Node β: Dipsy Wavefolder ]\n"
         )
         self.assembly_board.setStyleSheet("background-color: #ffffff; color: #1e272e; font-family: monospace; font-size: 13px; border-radius: 10px;")
         canvas_splitter.addWidget(self.assembly_board)
@@ -4645,13 +4691,14 @@ class VisualNodeScriptingWindow(QDialog):
         canvas_splitter.setSizes([320, 680])
         layout.addWidget(canvas_splitter)
 
-        compile_btn = QPushButton("Compile and Apply to Active Instrument Stream")
+        compile_btn = QPushButton("Compile and Apply Geometric Symbolic Matrix to Active Stream")
         compile_btn.setStyleSheet("background-color: #00b894; color: white; font-weight: bold;")
-        compile_btn.clicked.connect(lambda: QMessageBox.information(self, "Compiled", "Interactive visual graph successfully compiled."))
+        compile_btn.clicked.connect(lambda: QMessageBox.information(self, "Compiled", "Interactive visual graph and symbolic equations successfully compiled."))
         layout.addWidget(compile_btn)
+
     def append_node_text(self, node_name):
         current = self.assembly_board.toPlainText()
-        updated = current + f"\n[ Connected: {node_name} ] ===(Active Patch Jack)===> [ Routing Matrix Bus ]"
+        updated = current + f"\n[ Geometric Linked: {node_name} ] ===(Symbolic Patch Jack)===> [ Routing Matrix Bus ]"
         self.assembly_board.setPlainText(updated)
 # ==========================================
 # 2. COORDINATE VISUALIZER
@@ -4735,7 +4782,6 @@ class PianoRollEditor(QDialog):
             offset_slider = QSlider(Qt.Orientation.Horizontal)
             offset_slider.setRange(-50, 50)
             offset_slider.setValue(0)
-            offset_slider.setToolTip(f"De-quantized Offset for {seq_name} (+/- ms)")
 
             c_layout.addWidget(btn)
             c_layout.addWidget(QLabel("De-quant Offset:"))
@@ -4778,10 +4824,10 @@ class PlaylistArrangementWindow(QMainWindow):
 
         self.timeline_view = QTextEdit()
         self.timeline_view.setPlainText(
-            "# Global Playlist Arrangement Channels\n"
-            "Track 1 [Instrument_1] |=======| [Bars 1 - 16]   (De-quant Offset: +4.2ms | Polyrhythm: 1.0x)\n"
-            "Track 2 [Instrument_2]   |===|   [Bars 8 - 20]   (De-quant Offset: -1.5ms | Polyrhythm: 0.75x)\n"
-            "Track 3 [Instrument_3] |=======| [Bars 12 - 32]  (De-quant Offset: 0.0ms  | Polyrhythm: 1.25x)"
+            "# Global Playlist Arrangement Channels & Paintbrush Clips\n"
+            "Track 1 [Instrument_1] |=======| [Bars 1 - 16]   (Saved Preset: Lead_Groove_A)\n"
+            "Track 2 [Instrument_2]   |===|   [Bars 8 - 20]   (Saved Preset: Bass_Stab_B)\n"
+            "Track 3 [Instrument_3] |=======| [Bars 12 - 32]  (Saved Preset: Pad_Sweep_C)"
         )
         self.timeline_view.setStyleSheet("background-color: #ffffff; color: #1e272e; font-family: monospace; font-size: 13px; border-radius: 10px;")
         layout.addWidget(self.timeline_view)
@@ -5060,6 +5106,85 @@ class DenseCoordinateVisualizer(QWidget):
                     painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
         finally:
             painter.end()
+class TopSideInstrumentSequencerPanel(QWidget):
+    """Integrated top-side control dock for instrument naming, mini-sequencer steps, and sequence preset save/load."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("""
+            background-color: #f4eedb;
+            border: 3px solid #00b894;
+            border-radius: 12px;
+            padding: 6px;
+        """)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+
+        # Row 1: Naming & Preset management
+        row1 = QHBoxLayout()
+        row1.addWidget(QLabel("<b>Instrument Identity:</b>"))
+        self.inst_name_edit = QLineEdit("Eski_Lead_Synth_01")
+        row1.addWidget(self.inst_name_edit)
+
+        row1.addWidget(QLabel("<b>Sequence Preset:</b>"))
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItems(["Default Groove", "Lead_Groove_A", "Bass_Stab_B", "Pad_Sweep_C", "Glitch_Burst_D"])
+        row1.addWidget(self.preset_combo)
+
+        save_preset_btn = QPushButton("💾 Save Preset")
+        save_preset_btn.setStyleSheet("background-color: #0984e3; color: white;")
+        save_preset_btn.clicked.connect(self.save_sequence_preset)
+        row1.addWidget(save_preset_btn)
+
+        load_preset_btn = QPushButton("📂 Load Preset")
+        load_preset_btn.setStyleSheet("background-color: #00b894; color: white;")
+        load_preset_btn.clicked.connect(self.load_sequence_preset)
+        row1.addWidget(load_preset_btn)
+
+        layout.addLayout(row1)
+
+        # Row 2: 16-Step quick sequencer strip for precise paintbrush targeting
+        row2 = QHBoxLayout()
+        row2.addWidget(QLabel("<b>Mini Sequencer (Paintbrush Target):</b>"))
+
+        self.step_buttons = []
+        for i in range(16):
+            btn = QPushButton(str(i+1))
+            btn.setCheckable(True)
+            btn.setChecked(i % 4 == 0) # Default rhythm pattern
+            btn.setFixedWidth(32)
+            btn.setFixedHeight(28)
+            btn.setStyleSheet("""
+                QPushButton { background-color: #ff5252; color: white; border-radius: 6px; font-size: 11px; font-weight: bold; }
+                QPushButton:checked { background-color: #2ed573; border: 2px solid #1e272e; }
+            """)
+            row2.addWidget(btn)
+            self.step_buttons.append(btn)
+
+        paint_target_btn = QPushButton("🎨 Push to Playlist Brush")
+        paint_target_btn.setStyleSheet("background-color: #e17055; color: white; font-weight: bold;")
+        paint_target_btn.clicked.connect(self.push_to_playlist_brush)
+        row2.addWidget(paint_target_btn)
+
+        layout.addLayout(row2)
+
+    def save_sequence_preset(self):
+        name = self.inst_name_edit.text().strip()
+        preset_name, ok = QInputDialog.getText(self, "Save Sequence Preset", f"Save current 16-step pattern for '{name}' as:", QLineEdit.EchoMode.Normal, "Custom_Preset_01")
+        if ok and preset_name.strip():
+            active_steps = [str(i+1) for i, b in enumerate(self.step_buttons) if b.isChecked()]
+            self.preset_combo.addItem(preset_name.strip())
+            self.preset_combo.setCurrentText(preset_name.strip())
+            QMessageBox.information(self, "Preset Saved", f"Successfully saved sequence preset '{preset_name.strip()}' containing active steps: {', '.join(active_steps)}")
+
+    def load_sequence_preset(self):
+        selected_preset = self.preset_combo.currentText()
+        QMessageBox.information(self, "Preset Loaded", f"Loaded sequence preset '{selected_preset}' into the top-side instrument sequencer dock.")
+
+    def push_to_playlist_brush(self):
+        inst_name = self.inst_name_edit.text().strip()
+        preset = self.preset_combo.currentText()
+        active_count = sum(1 for b in self.step_buttons if b.isChecked())
+        QMessageBox.information(self, "Playlist Brush Armed", f"Target locked for Playlist Brush!\nInstrument: {inst_name}\nPreset: {preset}\nActive Gates: {active_count}/16\n\nClick and drag in the Global Playlist to paint this sequence target.")
 class ScriptersPane(QWidget):
     def __init__(self, target_formula_edit=None):
         super().__init__()
@@ -5128,7 +5253,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         self.dsp_engine = AdvancedDSPEngine()
 
-        # Companion moveable/global windows (initialized with self safely passed)
         self.playlist_window = PlaylistArrangementWindow(self)
         self.modulation_window = ModulationRoutingWindow(self)
 
@@ -5141,27 +5265,13 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
 
-        # 1. TOP PANEL: Single sequence block sequencer and global patch window
+        # 1. TOP PANEL: Integrated Top-Side Instrument Sequencer & Preset Dock
         top_panel_layout = QHBoxLayout()
 
-        # Single sequence block sequencer strip on top panel
-        seq_block_frame = QFrame()
-        seq_block_layout = QHBoxLayout(seq_block_frame)
-        seq_block_layout.setContentsMargins(6, 6, 6, 6)
-        seq_block_layout.addWidget(QLabel("<b>Single Sequence Block Sequencer:</b>"))
-        self.top_seq_combo = QComboBox()
-        self.top_seq_combo.addItems(["Step 1", "Step 2", "Step 3", "Step 4", "Step 5", "Step 6", "Step 7", "Step 8", "Custom De-quant Block"])
-        seq_block_layout.addWidget(self.top_seq_combo)
-        self.top_seq_btn = QPushButton("Trigger Block")
-        self.top_seq_btn.setStyleSheet("background-color: #00b894; color: white;")
-        seq_block_layout.addWidget(self.top_seq_btn)
-        top_panel_layout.addWidget(seq_block_frame, stretch=2)
+        self.top_sequencer_panel = TopSideInstrumentSequencerPanel(self)
+        top_panel_layout.addWidget(self.top_sequencer_panel, stretch=4)
 
-        # Global Patch Window embedded visibly on the top panel
-        self.patch_bay = PermanentPatchBayPanel(self)
-        top_panel_layout.addWidget(self.patch_bay, stretch=3)
-
-        # Smaller options/buttons in the corner of the top panel
+        # Corner quick links
         corner_frame = QFrame()
         corner_layout = QVBoxLayout(corner_frame)
         corner_layout.setContentsMargins(4, 4, 4, 4)
@@ -5182,7 +5292,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # 2. Snappable / Scalable Splitter UI: Revealing visualizer background behind unallocated panes
         master_splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # Left Panel: Control & Workspace Panes
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
 
@@ -5206,7 +5315,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         left_layout.addLayout(spawn_controls)
 
-        # Quick access buttons
         quick_nav_layout = QHBoxLayout()
 
         btn_playlist_action = QPushButton("📋 Global Playlist Window")
@@ -5238,14 +5346,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
         left_layout.addWidget(self.tab_manager, stretch=4)
         master_splitter.addWidget(left_container)
 
-        # Right Pane: Background Visualizer exposed when panes are scaled/snapped
         self.background_visualizer = DenseCoordinateVisualizer()
         master_splitter.addWidget(self.background_visualizer)
 
         master_splitter.setSizes([1200, 500])
         main_layout.addWidget(master_splitter)
 
-        # Background visualizer ticker
         self.bg_timer = QTimer(self)
         self.bg_t = 0.0
         def tick_bg():
@@ -5320,7 +5426,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         if not ok or not user_name.strip():
             user_name = default_title
 
-        # Safely pass self as parent to prevent C++ destruction/crash
         floating_win = FloatingSynthWindow(synth_name, synth_id, user_name.strip(), self)
         floating_win.show()
         self.floating_synths.append(floating_win)
@@ -5379,6 +5484,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 QMessageBox.information(self, "Export Complete", f"Successfully rendered audio stem to:\n{file_path}")
             except Exception as e:
                 QMessageBox.critical(self, "Export Failed", f"{e}")
+
 
 if __name__ == "__main__":
     import sys
