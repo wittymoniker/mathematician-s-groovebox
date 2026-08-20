@@ -17,11 +17,21 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPainterPath
 from math_engine import MathEngine
+
+
+class PortWidget(QWidget):
+    """Represents an input or output jack on a synth node for cable patching."""
+    def __init__(self, port_type, parent=None):
+        super().__init__(parent)
+        self.port_type = port_type  # 'in' or 'out'
+        self.setFixedSize(14, 14)
+        color = "#00ffc8" if port_type == 'out' else "#ff6400"
+        self.setStyleSheet(f"background-color: {color}; border-radius: 7px; border: 1px solid #ffffff;")
 class FlexibleSequencer:
     """Holds subsequence memory within intervals with non-destructive quantization."""
     def __init__(self):
-        self.sequence_buffer = []  # Contains raw note events: {'time': float, 'pitch': float, 'duration': float}
-        self.quantize_grid = None  # None = free timing, otherwise float fraction (e.g., 0.25 for 16th)
+        self.sequence_buffer = []
+        self.quantize_grid = None
 
     def add_note(self, time, pitch, duration):
         self.sequence_buffer.append({'time': time, 'pitch': pitch, 'duration': duration})
@@ -32,24 +42,23 @@ class FlexibleSequencer:
             quantized = []
             for note in sub:
                 q_note = note.copy()
-                # Non-locking shift: soft snap suggestion calculation leaving natural variance intact optionally
                 q_note['time'] = round(note['time'] / self.quantize_grid) * self.quantize_grid
                 quantized.append(q_note)
             return quantized
         return sub
 class CablePatchPanel(QWidget):
-    """Fixes cable patching by maintaining clean drag-and-drop connection states."""
+    """Interactive workspace for nodes and cable patching via ports."""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setCaching = False
-        self.cables = [] # List of tuples: (start_widget, end_widget, color)
+        self.cables = []  # List of tuples: (start_port, end_port, color)
         self.active_cable_start = None
         self.current_mouse_pos = QPoint(0, 0)
         self.setMouseTracking(True)
+        self.setStyleSheet("background-color: #121212; border: 1px solid #333;")
 
     def mousePressEvent(self, event):
         clicked_widget = self.childAt(event.pos())
-        if clicked_widget and clicked_widget != self:
+        if isinstance(clicked_widget, PortWidget):
             self.active_cable_start = clicked_widget
             self.current_mouse_pos = event.pos()
             self.update()
@@ -64,9 +73,10 @@ class CablePatchPanel(QWidget):
     def mouseReleaseEvent(self, event):
         if self.active_cable_start:
             target_widget = self.childAt(event.pos())
-            if target_widget and target_widget != self and target_widget != self.active_cable_start:
-                # Patch successful
-                self.cables.append((self.active_cable_start, target_widget, QColor(0, 255, 200)))
+            if isinstance(target_widget, PortWidget) and target_widget != self.active_cable_start:
+                # Only allow connection from Output to Input (or vice-versa)
+                if self.active_cable_start.port_type != target_widget.port_type:
+                    self.cables.append((self.active_cable_start, target_widget, QColor(0, 255, 200)))
             self.active_cable_start = None
             self.update()
         super().mouseReleaseEvent(event)
@@ -500,16 +510,55 @@ class SongAutomationTimeline(QWidget):
         self.setLayout(layout)
 # --- Modular Synthesizer/Sequencer Node ---
 class SynthNodeWidget(QFrame):
-    """Modular node frame with QFrame correctly inherited and memory banks removed."""
-    def __init__(self, name, parent=None):
+    """Modular node frame containing title, inputs, and outputs."""
+    def __init__(self, name, x, y, parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setLineWidth(2)
-        self.setStyleSheet("background-color: #1e1e1e; color: #ffffff; border: 1px solid #444; border-radius: 4px;")
+        self.resize(180, 120)
+        self.move(x, y)
+        self.setStyleSheet("background-color: #1e1e1e; color: #ffffff; border: 1px solid #555; border-radius: 6px;")
 
         layout = QVBoxLayout(self)
         self.title_label = QLabel(name)
         layout.addWidget(self.title_label)
+
+        # Add a couple of ports for patching demonstration
+        ports_layout = QHBoxLayout()
+
+        in_container = QVBoxLayout()
+        in_container.addWidget(QLabel("In"))
+        self.in_port = PortWidget('in', self)
+        in_container.addWidget(self.in_port)
+
+        out_container = QVBoxLayout()
+        out_container.addWidget(QLabel("Out"))
+        self.out_port = PortWidget('out', self)
+        out_container.addWidget(self.out_port)
+
+        ports_layout.addLayout(in_container)
+        ports_layout.addLayout(out_container)
+        layout.addLayout(ports_layout)
+
+class ArrangementTrackWidget(QWidget):
+    """Arrangement timeline track for placing sequence blocks."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(80)
+        self.setStyleSheet("background-color: #181818; border: 1px solid #444; border-radius: 4px;")
+        layout = QHBoxLayout(self)
+
+        self.track_label = QLabel("Arrangement Track 1")
+        self.add_block_btn = QPushButton("+ Add Subsequence")
+        self.add_block_btn.clicked.connect(self.on_add_block)
+
+        layout.addWidget(self.track_label)
+        layout.addStretch()
+        layout.addWidget(self.add_block_btn)
+
+    def on_add_block(self):
+        # Placeholder action for appending arrangement clips
+        pass
 class FitToFrameContainer(QWidget):
     """A responsive container that scales its inner child widget to fit window bounds."""
     def __init__(self, inner_widget, base_width=1200, base_height=800):
@@ -2535,7 +2584,7 @@ class MasterPatchCanvas(QWidget):
             p.drawText(self.width() - 217, y_pos + 4, f"{tgt} [{pol}, {gain}x]")
 
 class MasterControlPanel(QWidget):
-    """Global parameters featuring the requested Master Tempo Slider."""
+    """Global parameters featuring the Master Tempo Slider and Quantization options."""
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
@@ -2546,8 +2595,15 @@ class MasterControlPanel(QWidget):
         self.tempo_slider.setValue(120)
         self.tempo_slider.valueChanged.connect(self.update_tempo_display)
 
+        self.quant_label = QLabel("Quantize:")
+        self.quant_combo = QComboBox()
+        self.quant_combo.addItems(["Off (Free Timing)", "1/4 Note", "1/8 Note", "1/16 Note"])
+
         layout.addWidget(self.tempo_label)
         layout.addWidget(self.tempo_slider)
+        layout.addSpacing(20)
+        layout.addWidget(self.quant_label)
+        layout.addWidget(self.quant_combo)
 
     def update_tempo_display(self, value):
         self.tempo_label.setText(f"Master Tempo: {value} BPM")
@@ -2820,31 +2876,37 @@ class MasterControlPatchbayPage(QWidget):
 # MAIN WINDOW FRAMEWORK
 # -------------------------------------------------------------------------
 
+
 class GrooveboxMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("EQR Groovebox Ultimate Modular")
-        self.resize(1200, 800)
+        self.resize(1200, 850)
 
-        main_layout = QVBoxLayout(self)
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
 
-        # Master controls (including Tempo)
+        # 1. Master controls (Tempo & Quantization)
         self.master_panel = MasterControlPanel()
         main_layout.addWidget(self.master_panel)
 
-        # Cable patching workspace area (Arrangement / Patch canvas)
-        self.patch_panel = CablePatchPanel()
-        patch_layout = QHBoxLayout(self.patch_panel)
+        # 2. Arrangement Track Panel
+        self.arrangement_track = ArrangementTrackWidget()
+        main_layout.addWidget(self.arrangement_track)
 
-        # Example nodes replacing deprecated memory banks
-        self.node_a = SynthNodeWidget("Oscillator Node")
-        self.node_b = SynthNodeWidget("Filter Node")
-        patch_layout.addWidget(self.node_a)
-        patch_layout.addWidget(self.node_b)
+        # 3. Cable patching workspace area (Nodes with Ports)
+        self.patch_panel = CablePatchPanel(self)
+        self.patch_panel.setMinimumHeight(550)
+
+        self.node_a = SynthNodeWidget("Oscillator Node", 50, 40, self.patch_panel)
+        self.node_b = SynthNodeWidget("Filter Node", 260, 40, self.patch_panel)
+        self.node_c = SynthNodeWidget("Sequencer Node", 470, 40, self.patch_panel)
 
         main_layout.addWidget(self.patch_panel)
 
         self.sequencer = FlexibleSequencer()
+
 
 if __name__ == '__main__':
     import sys
