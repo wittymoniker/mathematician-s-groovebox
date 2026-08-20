@@ -5450,15 +5450,12 @@ class SequencerPane(QWidget):
 class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Mathematician's DAW - 48-Instrument Studio Ecosystem")
+        self.setWindowTitle("Mathematician's DAW - Ultimate Studio Ecosystem")
         self.resize(1600, 950)
         self.setStyleSheet(DAW_STYLE)
 
         self.dsp_engine = AdvancedDSPEngine()
-
         self.playlist_window = DAWPlaylistGrid(self)
-        self.modulation_window = ModulationRoutingWindow(self)
-        self.floating_synths = []
 
         self.init_menu_bar()
 
@@ -5475,13 +5472,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         btn_playlist = QPushButton("📋 Open 48-Track Playlist Roll")
         btn_playlist.setStyleSheet("background-color: #ff6b00; color: white;")
         btn_playlist.clicked.connect(lambda: (self.playlist_window.show(), self.playlist_window.raise_(), self.playlist_window.activateWindow()))
-
-        btn_mod = QPushButton("🎛️ Open Modulation Rack")
-        btn_mod.setStyleSheet("background-color: #007acc; color: white;")
-        btn_mod.clicked.connect(lambda: (self.modulation_window.show(), self.modulation_window.raise_(), self.modulation_window.activateWindow()))
-
         nav_layout.addWidget(btn_playlist)
-        nav_layout.addWidget(btn_mod)
         top_layout.addWidget(nav_frame, stretch=1)
 
         main_layout.addLayout(top_layout)
@@ -5490,36 +5481,22 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
+        left_layout.addWidget(QLabel("<b>🌌 EQRVisualizerCanvas (Equation of Reality Phase-Space Operator):</b>"))
+        self.eqr_visualizer = EQRVisualizerCanvas(self)
+        left_layout.addWidget(self.eqr_visualizer)
 
-        spawn_row = QHBoxLayout()
-        spawn_row.addWidget(QLabel("<b>Plugin Instruments (48 Units):</b>"))
-        self.synth_selector = QComboBox()
-        self.synth_selector.addItems(ESKI_INSTRUMENT_LIST)
-        spawn_row.addWidget(self.synth_selector)
-
-        spawn_btn = QPushButton("Spawn Modular Plugin Device")
-        spawn_btn.setStyleSheet("background-color: #ff6b00; color: white;")
-        spawn_btn.clicked.connect(self.spawn_plugin_synth)
-        spawn_row.addWidget(spawn_btn)
-        left_layout.addLayout(spawn_row)
-
-        hint = QLabel("💡 <b>Live Performance Mode:</b> Press QWERTY keys [A, S, D, F, G, H, J, K] to trigger polyphonic real-time DSP voices!")
+        hint = QLabel("💡 <b>Live Integration:</b> Fully adjustable sequence steps, playlist length, and interval lengths are fully active.")
         hint.setStyleSheet("background-color: #181818; border: 1px solid #333333; padding: 6px;")
         left_layout.addWidget(hint)
 
-        self.tab_manager = QTabWidget()
-        self.tab_manager.setTabsClosable(True)
-        self.tab_manager.tabCloseRequested.connect(self.close_tab)
-        self.add_workspace_tab("Session View / Master Rack")
-
-        left_layout.addWidget(self.tab_manager, stretch=4)
         master_splitter.addWidget(left_container)
 
-        self.master_visualizer = RealtimeOscilloscope()
+        self.master_visualizer = EQRVisualizerCanvas()
         master_splitter.addWidget(self.master_visualizer)
-        master_splitter.setSizes([1150, 450])
+        master_splitter.setSizes([900, 700])
 
-        main_layout.addLayout(master_splitter)
+        # Corrected from addLayout to addWidget
+        main_layout.addWidget(master_splitter)
 
     def keyPressEvent(self, event: QKeyEvent):
         key_map = {
