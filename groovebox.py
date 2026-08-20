@@ -5723,35 +5723,35 @@ class MathematiciansGrooveboxApp(QMainWindow):
         file_menu.addAction(export_wav)
 
     def sync_ui_to_current_channel(self, index):
-    if 0 <= index < len(self.channel_states):
-        state = self.channel_states[index]
+        if 0 <= index < len(self.channel_states):
+            state = self.channel_states[index]
 
-        # Block signals to prevent recursive loops
-        self.spin_tuning.blockSignals(True)
-        self.slider_amplitude.blockSignals(True)
-        self.slider_duration.blockSignals(True)
-        self.slider_fractalizer.blockSignals(True)
-        self.slider_eqr.blockSignals(True)
+            # Block signals to prevent recursive loops
+            self.spin_tuning.blockSignals(True)
+            self.slider_amplitude.blockSignals(True)
+            self.slider_duration.blockSignals(True)
+            self.slider_fractalizer.blockSignals(True)
+            self.slider_eqr.blockSignals(True)
 
-        # 1. Tuning
-        self.spin_tuning.setValue(state["tuning"])
-        # 2. Amplitude
-        self.slider_amplitude.setValue(int(state["amplitude"] * 100))
-        # 3. Duration (percussive-keylike-padded)
-        self.slider_duration.setValue(int(state["duration"] * 50)) # scaled appropriately
-        # 4. Fractalizer Effect
-        self.slider_fractalizer.setValue(int(state["fractalizer"] * 100))
-        # 5. EQR Effect
-        self.slider_eqr.setValue(int(state["eqr_effect"] * 100))
+            # 1. Tuning
+            self.spin_tuning.setValue(state["tuning"])
+            # 2. Amplitude
+            self.slider_amplitude.setValue(int(state["amplitude"] * 100))
+            # 3. Duration (percussive-keylike-padded)
+            self.slider_duration.setValue(int(state["duration"] * 50)) # scaled appropriately
+            # 4. Fractalizer Effect
+            self.slider_fractalizer.setValue(int(state["fractalizer"] * 100))
+            # 5. EQR Effect
+            self.slider_eqr.setValue(int(state["eqr_effect"] * 100))
 
-        self.top_sequencer.curvature_eq_input.setText(state["curvature_eq"])
+            self.top_sequencer.curvature_eq_input.setText(state["curvature_eq"])
 
-        # Unblock signals
-        self.spin_tuning.blockSignals(False)
-        self.slider_amplitude.blockSignals(False)
-        self.slider_duration.blockSignals(False)
-        self.slider_fractalizer.blockSignals(False)
-        self.slider_eqr.blockSignals(False)
+            # Unblock signals
+            self.spin_tuning.blockSignals(False)
+            self.slider_amplitude.blockSignals(False)
+            self.slider_duration.blockSignals(False)
+            self.slider_fractalizer.blockSignals(False)
+            self.slider_eqr.blockSignals(False)
 
     def on_knob_changed(self):
         curr_idx = self.top_sequencer.instance_combo.currentIndex()
