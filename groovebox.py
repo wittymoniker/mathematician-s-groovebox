@@ -5685,13 +5685,39 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.top_layout.addWidget(QLabel("EQR:"))
         self.top_layout.addWidget(self.slider_eqr)
         self.top_layout.addWidget(self.preset_combo)
+        self.workflow_toolbar = QHBoxLayout()
 
+        self.btn_edit_synth = QPushButton("🛠 Edit Synthesizer")
+        self.btn_randomize_node = QPushButton("🎲 Randomize Active Node")
+        self.btn_view_playlist = QPushButton("📜 View Playlist")
+        self.btn_view_patchbay = QPushButton("🔌 View Patch Bay")
+        self.btn_new_instr = QPushButton("➕ New Instrument")
+        self.btn_load_instr = QPushButton("📂 Load Instrument")
+
+        # Style or connect buttons to your app functions
+        self.workflow_toolbar.addWidget(self.btn_edit_synth)
+        self.workflow_toolbar.addWidget(self.btn_randomize_node)
+        self.workflow_toolbar.addWidget(self.btn_view_playlist)
+        self.workflow_toolbar.addWidget(self.btn_view_patchbay)
+        self.workflow_toolbar.addWidget(self.btn_load_instr)
+        self.workflow_toolbar.addWidget(self.btn_new_instr)
+
+        master_container.addLayout(self.workflow_toolbar)
         master_container.addLayout(self.top_layout)
 
         # -------------------------------------------------------------
         # 3. WORKSPACE SPLITTER & TABBED PANELS
         # -------------------------------------------------------------
         workspace_splitter = QSplitter(Qt.Orientation.Vertical)
+
+        if hasattr(self, 'playlist_window') and self.playlist_window:
+            workspace_splitter.addWidget(self.playlist_window)
+
+        if hasattr(self, 'patch_bay_dialog') and self.patch_bay_dialog:
+            workspace_splitter.addWidget(self.patch_bay_dialog)
+
+        workspace_splitter.setSizes([350, 350])
+        master_container.addWidget(workspace_splitter)
 
         # Tab 1: Sequencer & Playlist Grid
         self.tabs = QTabWidget()
