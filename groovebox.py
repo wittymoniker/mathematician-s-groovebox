@@ -5632,14 +5632,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.btn_randomize_all = QPushButton("🎲 Randomize Instrument")
         self.btn_export = QPushButton("💾 Export Mixdown")
 
-        # Add widgets to Transport Bar
         self.transport_layout.addWidget(self.btn_play)
         self.transport_layout.addWidget(self.btn_stop)
         self.transport_layout.addWidget(self.btn_record)
         self.transport_layout.addWidget(self.lbl_bpm)
         self.transport_layout.addWidget(self.spin_bpm)
 
-        # Embed Memory Bank Selector if class exists in script
         if hasattr(self, 'memory_bank_selector') and self.memory_bank_selector:
             self.transport_layout.addWidget(self.memory_bank_selector)
 
@@ -5685,65 +5683,59 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.top_layout.addWidget(QLabel("EQR:"))
         self.top_layout.addWidget(self.slider_eqr)
         self.top_layout.addWidget(self.preset_combo)
-        self.workflow_toolbar = QHBoxLayout()
 
-        self.btn_edit_synth = QPushButton("🛠 Edit Synthesizer")
-        self.btn_randomize_node = QPushButton("🎲 Randomize Active Node")
-        self.btn_view_playlist = QPushButton("📜 View Playlist")
-        self.btn_view_patchbay = QPushButton("🔌 View Patch Bay")
-        self.btn_new_instr = QPushButton("➕ New Instrument")
-        self.btn_load_instr = QPushButton("📂 Load Instrument")
-
-        # Style or connect buttons to your app functions
-        self.workflow_toolbar.addWidget(self.btn_edit_synth)
-        self.workflow_toolbar.addWidget(self.btn_randomize_node)
-        self.workflow_toolbar.addWidget(self.btn_view_playlist)
-        self.workflow_toolbar.addWidget(self.btn_view_patchbay)
-        self.workflow_toolbar.addWidget(self.btn_load_instr)
-        self.workflow_toolbar.addWidget(self.btn_new_instr)
-
-        master_container.addLayout(self.workflow_toolbar)
         master_container.addLayout(self.top_layout)
 
         # -------------------------------------------------------------
-        # 3. WORKSPACE SPLITTER & TABBED PANELS
+        # 3. OPERATIONS & WORKFLOW TOOLBAR (Views, Script Editor, Mode)
+        # -------------------------------------------------------------
+        self.workflow_toolbar = QHBoxLayout()
+
+        self.btn_edit_synth = QPushButton("🛠 Edit Synthesizer")
+        self.btn_view_playlist = QPushButton("📜 Sequencer & Playlist")
+        self.btn_view_patchbay = QPushButton("🔌 Modular Patch Bay")
+        self.btn_script_editor = QPushButton("📝 Script Editor")
+
+        # Mode Toggle (Global vs Single Instrument)
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["Mode: Single Instrument", "Mode: Global Ecosystem"])
+
+        self.workflow_toolbar.addWidget(self.btn_edit_synth)
+        self.workflow_toolbar.addWidget(self.btn_view_playlist)
+        self.workflow_toolbar.addWidget(self.btn_view_patchbay)
+        self.workflow_toolbar.addWidget(self.btn_script_editor)
+        self.workflow_toolbar.addWidget(self.mode_combo)
+
+        master_container.addLayout(self.workflow_toolbar)
+
+        # -------------------------------------------------------------
+        # 4. CENTRAL WORKSPACE SPLITTER (Sequencer + Canvas + Visualizer)
         # -------------------------------------------------------------
         workspace_splitter = QSplitter(Qt.Orientation.Vertical)
 
+        # Primary Workspace Container for Sequencer & Patchbay
+        sub_splitter = QSplitter(Qt.Orientation.Horizontal)
         if hasattr(self, 'playlist_window') and self.playlist_window:
-            workspace_splitter.addWidget(self.playlist_window)
-
+            sub_splitter.addWidget(self.playlist_window)
         if hasattr(self, 'patch_bay_dialog') and self.patch_bay_dialog:
-            workspace_splitter.addWidget(self.patch_bay_dialog)
+            sub_splitter.addWidget(self.patch_bay_dialog)
 
-        workspace_splitter.setSizes([350, 350])
-        master_container.addWidget(workspace_splitter)
+        workspace_splitter.addWidget(sub_splitter)
 
-        # Tab 1: Sequencer & Playlist Grid
-        self.tabs = QTabWidget()
-
-        if hasattr(self, 'playlist_window') and self.playlist_window:
-            self.tabs.addTab(self.playlist_window, "Sequencer & Playlist Matrix")
-
-        if hasattr(self, 'patch_bay_dialog') and self.patch_bay_dialog:
-            self.tabs.addTab(self.patch_bay_dialog, "Node Patchbay Canvas")
-
-        if hasattr(self, 'formula_modulator') and self.formula_modulator:
-            self.tabs.addTab(self.formula_modulator, "Formula Modulator (x, y, z)")
-
-        if hasattr(self, 'modulation_matrix') and self.modulation_matrix:
-            self.tabs.addTab(self.modulation_matrix, "Modulation Matrix")
-
-        workspace_splitter.addWidget(self.tabs)
-
-        # Dock Visual Oscilloscope Canvas at the bottom of the workspace
+        # Dedicated Visualizer Oscilloscope Canvas at the Bottom
         if hasattr(self, 'visual_oscilloscope') and self.visual_oscilloscope:
             workspace_splitter.addWidget(self.visual_oscilloscope)
+        else:
+            # Fallback visualizer container if attribute isn't pre-initialized
+            self.visual_oscilloscope = QWidget()
+            vis_layout = QVBoxLayout(self.visual_oscilloscope)
+            vis_layout.addWidget(QLabel("Visual Oscilloscope / Phase-Space Trace Canvas"))
+            workspace_splitter.addWidget(self.visual_oscilloscope)
 
-        workspace_splitter.setSizes([500, 200])
+        workspace_splitter.setSizes([450, 150])
         master_container.addWidget(workspace_splitter)
 
-        # Apply to main central layout
+        # Apply to main window layout
         self.main_layout.addLayout(master_container)
 
     def sync_ui_to_current_channel(self, index):
