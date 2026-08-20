@@ -5574,7 +5574,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # 2. Initialize your workspace modules FIRST so they exist when the layout builds
         # (Uncomment or match these to whatever your actual class variables are named)
         self.playlist_window = PlaylistArrangerWidget(self)
-        self.patch_bay_dialog = PatchBayCanvas(self)
+        self.patch_bay_dialog = PatchbayCanvas(self)
 
         # 3. UI Layout Initialization (Runs second so it can find the widgets above)
         self.main_widget = QWidget(self)
