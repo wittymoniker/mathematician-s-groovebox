@@ -2794,6 +2794,12 @@ class DAWPlaylistGrid(QMainWindow):
         self.tempo_spin.setValue(120)
         toolbar.addWidget(self.tempo_spin)
 
+        # Randomize Song button relocated here
+        random_song_btn = QPushButton("🎲 Randomize Song")
+        random_song_btn.setStyleSheet("background-color: #9900cc; color: white; font-weight: bold;")
+        random_song_btn.clicked.connect(self.randomize_entire_song_from_playlist)
+        toolbar.addWidget(random_song_btn)
+
         clear_grid_btn = QPushButton("Clear Global Playlist")
         clear_grid_btn.clicked.connect(self.clear_grid)
         toolbar.addWidget(clear_grid_btn)
@@ -2836,6 +2842,10 @@ class DAWPlaylistGrid(QMainWindow):
     def clear_grid(self):
         self.grid_table.clearContents()
         self.status_bar.setText("Status: Global playlist cleared.")
+
+    def randomize_entire_song_from_playlist(self):
+        if self.app_ref and hasattr(self.app_ref, 'randomize_entire_song'):
+            self.app_ref.randomize_entire_song()
 
     def get_grid_data(self):
         rows = self.grid_table.rowCount()
@@ -5456,13 +5466,10 @@ class TopSideInstrumentSequencerPanel(QWidget):
         self.inst_combo.addItems(DEFAULT_INSTRUMENT_LIST)
         row1.addWidget(self.inst_combo, stretch=3)
 
-        row1.addWidget(QLabel("Tonal Curvature Mode:"))
-        self.scale_mode_combo = QComboBox()
-        self.scale_mode_combo.addItems([
-            "Exponential (12-TET)", "Linear Scaling", "Logarithmic",
-            "Sinusoidal (sin/arcsin)", "Fibonacci / Meum Curve"
-        ])
-        row1.addWidget(self.scale_mode_combo, stretch=2)
+        row1.addWidget(QLabel("Tonal Curvature Eq (x, y, z / Meum):"))
+        self.curvature_eq_input = QLineEdit("x * 1.618033 + y - z")
+        self.curvature_eq_input.setToolTip("Enter mathematical curvature equation using x, y, z variables.")
+        row1.addWidget(self.curvature_eq_input, stretch=3)
 
         # Local Sequencer Play / Loop Button
         self.local_play_btn = QPushButton("▶ Loop")
@@ -5499,6 +5506,8 @@ class TopSideInstrumentSequencerPanel(QWidget):
             box.deleteLater()
         self.step_boxes = []
 
+        default_intervals = ["0(432Hz)", "1", "2", "-1", "-3", "3", "0", "2", "1", "-1", "0(432Hz)", "3", "-2", "1", "0", "2"]
+
         for i in range(count):
             step_frame = QFrame()
             step_frame.setStyleSheet("background-color: #222222; border: 1px solid #383838; border-radius: 2px;")
@@ -5509,7 +5518,7 @@ class TopSideInstrumentSequencerPanel(QWidget):
             btn = QPushButton(str(i+1))
             btn.setCheckable(True)
             btn.setChecked(i in [0, 4, 8, 12])
-            btn.setFixedWidth(36)
+            btn.setFixedWidth(42)
             btn.setFixedHeight(20)
             btn.setStyleSheet("""
                 QPushButton { background-color: #2b2b2b; color: #888888; border-radius: 2px; font-size: 8px; font-weight: bold; border: 1px solid #3a3a3a; }
@@ -5517,13 +5526,14 @@ class TopSideInstrumentSequencerPanel(QWidget):
             """)
             step_layout.addWidget(btn)
 
-            chord_input = QLineEdit("C4")
-            chord_input.setFixedWidth(36)
-            chord_input.setStyleSheet("font-size: 8px; padding: 1px; background-color: #121212;")
-            step_layout.addWidget(chord_input)
+            default_val = default_intervals[i % len(default_intervals)]
+            interval_input = QLineEdit(default_val)
+            interval_input.setFixedWidth(42)
+            interval_input.setStyleSheet("font-size: 8px; padding: 1px; background-color: #121212; color: #00ffcc;")
+            step_layout.addWidget(interval_input)
 
             self.step_buttons_layout.addWidget(step_frame)
-            self.step_boxes.append((btn, chord_input))
+            self.step_boxes.append((btn, interval_input))
 
     def audition_sequence(self):
         QMessageBox.information(self, "Sequence Audition", "Looping active instrument sequence in memory buffer.")
@@ -5572,7 +5582,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             self.channel_states.append({
                 "tuning": 432.0, "volume": 0.8, "duration": 1.0,
                 "realism": 0.5, "fractallized": 0.5, "percussive": 0.5,
-                "scale_mode": "Exponential (12-TET)"
+                "curvature_eq": "x * 1.618033 + y - z"
             })
 
         self.init_menu_bar()
@@ -5585,7 +5595,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.top_sequencer = TopSideInstrumentSequencerPanel(self, self)
         top_layout.addWidget(self.top_sequencer, stretch=4)
 
-        # Studio Launch Hub
+        # Studio Launch Hub & Control Buttons
         nav_frame = QFrame()
         nav_layout = QVBoxLayout(nav_frame)
 
@@ -5599,14 +5609,25 @@ class MathematiciansGrooveboxApp(QMainWindow):
         btn_add_inst.clicked.connect(self.add_new_instrument)
         nav_layout.addWidget(btn_add_inst)
 
+        btn_edit_inst = QPushButton("✏️ Edit Current Instrument")
+        btn_edit_inst.clicked.connect(self.edit_current_instrument)
+        nav_layout.addWidget(btn_edit_inst)
+
+        btn_randomize_inst = QPushButton("🎲 Randomize Instrument")
+        btn_randomize_inst.clicked.connect(self.randomize_single_instrument)
+        nav_layout.addWidget(btn_randomize_inst)
+
         btn_patch = QPushButton("🔌 Modulation Bay")
         btn_patch.clicked.connect(lambda: (self.patch_bay_dialog.show(), self.patch_bay_dialog.raise_()))
         nav_layout.addWidget(btn_patch)
 
-        btn_randomize_all = QPushButton("🎲 Randomize Song")
-        btn_randomize_all.setStyleSheet("background-color: #9900cc; color: white; font-weight: bold;")
-        btn_randomize_all.clicked.connect(self.randomize_entire_song)
-        nav_layout.addWidget(btn_randomize_all)
+        btn_script_inst = QPushButton("📜 Script Instrument")
+        btn_script_inst.clicked.connect(lambda: QMessageBox.information(self, "Script Instrument", "Instrument symbol execution hook ready."))
+        nav_layout.addWidget(btn_script_inst)
+
+        btn_script_global = QPushButton("📜 Script Global")
+        btn_script_global.clicked.connect(lambda: QMessageBox.information(self, "Script Global", "Global EQR phase-space script execution hook ready."))
+        nav_layout.addWidget(btn_script_global)
 
         top_layout.addWidget(nav_frame, stretch=1)
         main_layout.addLayout(top_layout)
@@ -5679,11 +5700,33 @@ class MathematiciansGrooveboxApp(QMainWindow):
             self.channel_states.append({
                 "tuning": round(random.uniform(420.0, 445.0), 2), "volume": 0.8, "duration": 1.0,
                 "realism": random.random(), "fractallized": random.random(), "percussive": random.random(),
-                "scale_mode": "Exponential (12-TET)"
+                "curvature_eq": "x * 1.618033 + y - z"
             })
             self.top_sequencer.update_instance_list()
             self.playlist_window.update_vertical_headers()
             QMessageBox.information(self, "Instrument Added", f"Successfully added '{full_name}' to ensemble.")
+
+    def edit_current_instrument(self):
+        curr_idx = self.top_sequencer.instance_combo.currentIndex()
+        if curr_idx < 0 or curr_idx >= len(self.instrument_names):
+            return
+        curr_name = self.instrument_names[curr_idx]
+        text, ok = QInputDialog.getText(self, "Edit Instrument", "Rename instrument:", text=curr_name)
+        if ok and text:
+            self.instrument_names[curr_idx] = text
+            self.top_sequencer.update_instance_list()
+            self.playlist_window.update_vertical_headers()
+            QMessageBox.information(self, "Instrument Updated", f"Instrument renamed to '{text}'.")
+
+    def randomize_single_instrument(self):
+        curr_idx = self.top_sequencer.instance_combo.currentIndex()
+        if curr_idx >= 0 and curr_idx < len(self.channel_states):
+            state = self.channel_states[curr_idx]
+            state["tuning"] = round(random.uniform(415.0, 450.0), 2)
+            state["realism"] = random.random()
+            state["fractallized"] = random.random()
+            self.spin_tuning.setValue(state["tuning"])
+            QMessageBox.information(self, "Instrument Randomized", f"Randomized parameters for active instrument instance.")
 
     def randomize_entire_song(self):
         self.playlist_window.tempo_spin.setValue(random.randint(80, 160))
@@ -5693,7 +5736,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
             state["fractallized"] = random.random()
         self.patch_bay_dialog.randomize_matrix()
 
-        # Populate random clips across playlist grid for all active instruments
         grid = self.playlist_window.grid_table
         grid.clearContents()
         for r in range(grid.rowCount()):
