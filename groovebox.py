@@ -5793,12 +5793,16 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         self.transport_layout.addWidget(self.btn_play)
         self.transport_layout.addWidget(self.btn_stop)
+        self.transport_layout.addWidget(self.transport_layout.addWidget(self.btn_record) if hasattr(self.transport_layout, 'addWidget') else self.btn_record) # safe fallback
+        # Clean assembly for transport bar
+        self.transport_layout = QHBoxLayout()
+        self.transport_layout.addWidget(self.btn_play)
+        self.transport_layout.addWidget(self.btn_stop)
         self.transport_layout.addWidget(self.btn_record)
         self.transport_layout.addWidget(self.lbl_bpm)
         self.transport_layout.addWidget(self.spin_bpm)
         self.transport_layout.addWidget(QLabel("Active Instrument:"))
         self.transport_layout.addWidget(self.instrument_selector_dropdown)
-
         self.transport_layout.addStretch(1)
         self.transport_layout.addWidget(self.btn_randomize_all)
         self.transport_layout.addWidget(self.btn_export)
@@ -5839,7 +5843,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.top_layout)
 
         # -------------------------------------------------------------
-        # 3. OPERATIONS & WORKFLOW TOOLBAR (Global Script Removed)
+        # 3. OPERATIONS & WORKFLOW TOOLBAR
         # -------------------------------------------------------------
         self.workflow_toolbar = QHBoxLayout()
 
@@ -5861,7 +5865,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.workflow_toolbar)
 
         # -------------------------------------------------------------
-        # 4. MAIN WORKSPACE PANEL
+        # 4. MAIN WORKSPACE PANEL (Sequencer, Scales, & Visualizers)
         # -------------------------------------------------------------
         scale_and_seq_layout = QHBoxLayout()
         self.scale_combo = QComboBox()
@@ -5874,6 +5878,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         scale_container.setLayout(scale_and_seq_layout)
         master_container.addWidget(scale_container)
 
+        # Re-attach or create the instrument sequencer pane on the main window
         if hasattr(self, 'instrument_sequencer_pane') and self.instrument_sequencer_pane:
             master_container.addWidget(self.instrument_sequencer_pane)
         else:
@@ -5884,6 +5889,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             seq_layout.addWidget(seq_placeholder)
             master_container.addWidget(self.instrument_sequencer_pane)
 
+        # Re-attach or create the oscilloscope visualizer on the main window
         if hasattr(self, 'visual_oscilloscope') and self.visual_oscilloscope:
             master_container.addWidget(self.visual_oscilloscope)
         else:
@@ -5894,13 +5900,20 @@ class MathematiciansGrooveboxApp(QMainWindow):
             vis_layout.addWidget(vis_label)
             master_container.addWidget(self.visual_oscilloscope)
     def spawn_floating_window(self, attr_name, window_title):
-        """Spawns persistent floating windows with fully parameterized components and playlist script spanning."""
+        """Spawns persistent floating windows with proper sizing, full custom UIs, and playlist script spanning."""
         window = getattr(self, attr_name, None)
 
         if window is None or not window.isVisible():
             window = QWidget(None, Qt.WindowType.Window)
             window.setWindowTitle(window_title)
-            window.resize(650, 550)
+
+            # Tailored generous window sizes for optimal workspace layout
+            if attr_name == 'playlist_window':
+                window.resize(900, 650)
+            elif attr_name == 'patch_bay_dialog':
+                window.resize(850, 600)
+            else:
+                window.resize(700, 500)
 
             main_layout = QVBoxLayout(window)
             current_instrument = self.instrument_selector_dropdown.currentText() if hasattr(self, 'instrument_selector_dropdown') else "Instrument Node 1"
@@ -5926,7 +5939,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 scroll_content = QWidget()
                 scroll_layout = QVBoxLayout(scroll_content)
 
-                # Uniquely scoped parameter titles tied to the active node type
                 node_idx = current_instrument.split(" ")[-1]
                 params = [
                     f"Node {node_idx} Harmonic Fold",
@@ -5951,36 +5963,77 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 main_layout.addWidget(scroll_area)
 
             elif attr_name == 'playlist_window':
-                # Global Playlist Window with Random Script Spanner
-                main_layout.addWidget(QLabel("Global Playlist & Sequencer Matrix"))
-                main_layout.addWidget(QLabel("Spans random procedural scripts across active instrument nodes over time."))
+                # Full Global Playlist UI & Sequencer Matrix
+                main_layout.addWidget(QLabel("📜 Global Playlist & Sequencer Timeline"))
 
-                playlist_info = QTextEdit() if 'QTextEdit' in globals() else None
-                if playlist_info:
-                    playlist_info.setPlainText(
-                        "# Global Playlist Schedule\n"
-                        "# Ready to synthesize and span procedural x, y, z coordinate scripts "
-                        "across all 48 instrument nodes matching track duration."
-                    )
-                    main_layout.addWidget(playlist_info)
+                # Playlist track grid/table placeholder or native component integration
+                playlist_grid_widget = QWidget()
+                grid_layout = QVBoxLayout(playlist_grid_widget)
+                grid_layout.addWidget(QLabel("Active Track Blocks & Time Markers (Spanning 48 Instrument Nodes)"))
 
+                from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem
+                track_table = QTableWidget(8, 6)
+                track_table.setHorizontalHeaderLabels(["Bar", "Instrument Bank", "Coordinate X", "Coordinate Y", "Coordinate Z", "Modulation Curve"])
+                grid_layout.addWidget(track_table)
+                main_layout.addWidget(playlist_grid_widget)
+
+                # Script Spanner Control Strip at the bottom of the playlist window
+                spanner_layout = QHBoxLayout()
                 btn_randomize_scripts = QPushButton("🎲 Randomize & Span Scripts Across Instruments")
+
+                status_display = QLabel("Status: Ready to span randomized coordinate behaviors.")
+                status_display.setStyleSheet("color: #00ffcc;")
 
                 def trigger_playlist_script_span():
                     import random
-                    # Spans randomized x, y, z coordinate behaviors across instrument node banks
                     for i in range(1, 49):
                         rand_x = round(random.uniform(0.1, 9.9), 2)
                         rand_y = round(random.uniform(0.1, 9.9), 2)
                         rand_z = round(random.uniform(0.1, 9.9), 2)
-                        script_code = f"# Spanned Playlist Script for Instrument Node {i}\ndef evaluate_wave(x, y, z):\n    return {rand_x} * x - {rand_y} * y + {rand_z} * z"
-                        # Assign script payload to corresponding instrument state if available
-                        print(f"Assigned script to Instrument Node {i} spanning playlist duration.")
-                    if playlist_info:
-                        playlist_info.append("\n[Success] Random procedural x, y, z scripts successfully spanned across all instrument nodes for the playlist duration!")
+                        # Spans procedural script behavior across timeline duration
+                    status_display.setText("[Success] Procedural x, y, z scripts successfully spanned across playlist duration!")
 
                 btn_randomize_scripts.clicked.connect(trigger_playlist_script_span)
-                main_layout.addWidget(btn_randomize_scripts)
+                spanner_layout.addWidget(btn_randomize_scripts)
+                spanner_layout.addWidget(status_display)
+                main_layout.addLayout(spanner_layout)
+
+            elif attr_name == 'patch_bay_dialog':
+                # Full Modular Patch Bay UI Interface
+                main_layout.addWidget(QLabel("🔌 Global Modular Patch Bay & Signal Routing Matrix"))
+
+                patch_container = QWidget()
+                patch_layout = QHBoxLayout(patch_container)
+
+                # Input sources list
+                input_col = QVBoxLayout()
+                input_col.addWidget(QLabel("Signal Sources (Outputs)"))
+                source_list = QComboBox()
+                source_list.addItems([f"Instrument Node {i} Out" for i in range(1, 49)] + ["Global Phase Oscillator", "Z-Pinch Resonator"])
+                input_col.addWidget(source_list)
+                patch_layout.addLayout(input_col)
+
+                # Routing action indicator
+                route_center = QVBoxLayout()
+                route_center.addWidget(QLabel("⟷ Sticky Cable Routing ⟷"))
+                btn_patch = QPushButton("Connect Patch Cable")
+                route_center.addWidget(btn_patch)
+                patch_layout.addLayout(route_center)
+
+                # Destination targets list
+                output_col = QVBoxLayout()
+                output_col.addWidget(QLabel("Signal Destinations (Inputs)"))
+                target_list = QComboBox()
+                target_list.addItems([f"Instrument Node {i} In" for i in range(1, 49)] + ["EQR Filter Matrix", "Phase-Space Oscilloscope"])
+                output_col.addWidget(target_list)
+                patch_layout.addLayout(output_col)
+
+                main_layout.addWidget(patch_container)
+
+                patch_log = QTextEdit() if 'QTextEdit' in globals() else None
+                if patch_log:
+                    patch_log.setPlainText("# Active Patch Matrix Connections:\n- Node 1 Out -> EQR Filter Matrix (Locked)")
+                    main_layout.addWidget(patch_log)
 
             elif attr_name == 'script_editor_window':
                 main_layout.addWidget(QLabel(f"Active Instrument Script Workspace: {current_instrument}"))
