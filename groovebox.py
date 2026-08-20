@@ -5814,7 +5814,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             "curvature_eq": "x * 1.5 + y - z"
         }
 
-    # When initializing channel states list:
+# Now line 5818 will work correctly:
     self.channel_states = [create_new_channel_state() for _ in range(48)]
     def execute_script_instrument(self):
         curr_idx = self.top_sequencer.instance_combo.currentIndex()
