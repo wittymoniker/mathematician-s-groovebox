@@ -9,7 +9,7 @@ import sys
 import math
 import json
 import numpy as np
-from PyQt6.QtCore import Qt, QPointF, QRectF, QTimer
+from PyQt6.QtCore import Qt, QPoint, QPointF, QRectF, QTimer
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QGridLayout, QLabel, QPushButton, QScrollArea, QTabWidget,
