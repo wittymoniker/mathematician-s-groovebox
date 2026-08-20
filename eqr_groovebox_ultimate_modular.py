@@ -5,7 +5,6 @@
 
 
 import random
-import sys
 import math
 import json
 import numpy as np
@@ -17,10 +16,9 @@ from PyQt6.QtWidgets import (
     QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial
 )
 import random
-from math_engine import MathEngine
 
 MEUM_CONSTANT = 1.1975807343385265188
-from math_engine import MathEngine
+
 class VisualOscilloscope(QFrame):
     """Real-time signal output oscilloscope and vector scope."""
     def __init__(self, parent=None):
@@ -778,7 +776,6 @@ class MathEngine:
     def eskitable(x, y, z):
         return np.clip((x + y) * 0.5, -1.0, 1.0) * MathEngine.ics(z)
 
-from math_engine import MathEngine
 class OperatorNode:
     def __init__(self, op_type):
         self.op_type = op_type  # e.g., 'isn', 'ics', 'eskivector', 'eskitable'
@@ -821,8 +818,6 @@ class InstrumentSpawner:
             return table_val * np.cos(z)
 
         return table_val
-from synth_spawners import InstrumentSpawner
-import numpy as np
 
 class EQRMasterController:
     def __init__(self):
@@ -1204,7 +1199,7 @@ class FitToFrameContainer(QWidget):
 
 # Import Reality Synth and Music Fractallizer from synth_engine (with fallback stubs)
 try:
-    from synth_engine import RealitySynthEngine, MusicFractallizer
+
 except ImportError:
     class MusicFractallizer:
         def __init__(self, dimensions=('x', 'y', 'z'), survival_mode=True):
@@ -2566,7 +2561,7 @@ class SynthModulePage(QWidget):
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setStyleSheet("background-color: #070b10; border: none;")
-        self.container = QWidget()
+        self.container = QWidget(self)
         self.container.setStyleSheet("background-color: #070b10;")
         self.container_layout = QGridLayout(self.container)
 
@@ -2660,8 +2655,8 @@ class SynthModulePage(QWidget):
         QMessageBox.information(self, "Randomizer Instrument Spawned", f"Successfully spawned randomizer instrument '{instr_name}' with differentiated tempo interval parameters and cross-mod heuristic routing.")
 
     def _add_panel_to_grid(self, title, is_synth=False, is_audio_in=False, is_polynomial=False, row=0, col=0):
-        content_widget = QWidget()
-        content_widget.setStyleSheet("background-color: #0d1117;")
+        self.content_widget = QWidget(self)
+        self.content_widget.setStyleSheet("background-color: #0d1117;")
         c_layout = QVBoxLayout(content_widget)
         c_layout.setContentsMargins(4, 4, 4, 4)
 
@@ -2818,7 +2813,7 @@ class DrumMatrixPage(QWidget):
 
         self.scroll = QScrollArea(); self.scroll.setWidgetResizable(True)
         self.scroll.setStyleSheet("background-color: #070b10; border: none;")
-        self.container = QWidget(); self.container.setStyleSheet("background-color: #070b10;")
+        self.container = QWidget(self); self.container.setStyleSheet("background-color: #070b10;")
         self.grid = QGridLayout(self.container)
 
         self.refresh_drum_grid()
@@ -2834,7 +2829,7 @@ class DrumMatrixPage(QWidget):
                 item.widget().deleteLater()
 
         for idx, kit_name in enumerate(self.engine.active_drum_kits):
-            w = QWidget(); w.setStyleSheet("background-color: #0d1117;")
+            self.w = QWidget(self); w.setStyleSheet("background-color: #0d1117;")
             l = QVBoxLayout(w)
 
             kit_header = QHBoxLayout()
@@ -2918,7 +2913,7 @@ class GranularFXPage(QWidget):
 
         self.scroll = QScrollArea(); self.scroll.setWidgetResizable(True)
         self.scroll.setStyleSheet("background-color: #070b10; border: none;")
-        self.container = QWidget(); self.container.setStyleSheet("background-color: #070b10;")
+        self.container = QWidget(self); self.container.setStyleSheet("background-color: #070b10;")
         self.grid = QGridLayout(self.container)
 
         self.refresh_fx_grid()
@@ -2933,7 +2928,7 @@ class GranularFXPage(QWidget):
                 item.widget().deleteLater()
 
         for idx, fx_name in enumerate(self.engine.active_fx_modules):
-            w = QWidget(); w.setStyleSheet("background-color: #0d1117;")
+            self.w = QWidget(self); w.setStyleSheet("background-color: #0d1117;")
             l = QVBoxLayout(w)
 
             sub_header = QHBoxLayout()
@@ -3063,7 +3058,7 @@ class AutomationPatternPage(QWidget):
 
         self.scroll = QScrollArea(); self.scroll.setWidgetResizable(True)
         self.scroll.setStyleSheet("background-color: #070b10; border: none;")
-        self.container = QWidget(); self.container.setStyleSheet("background-color: #070b10;")
+        self.container = QWidget(self); self.container.setStyleSheet("background-color: #070b10;")
         self.grid = QGridLayout(self.container)
 
         self._refresh_automation_panels()
@@ -3079,7 +3074,7 @@ class AutomationPatternPage(QWidget):
 
         total_idx = 0
         for pat_name, points in self.engine.automation_patterns.items():
-            w = QWidget(); w.setStyleSheet("background-color: #0d1117;")
+            self.w = QWidget(self); w.setStyleSheet("background-color: #0d1117;")
             l = QVBoxLayout(w)
 
             lbl = QLabel(f"Automation & Step Sequencer Lane: '{pat_name}' (Active Automation Curve)")
@@ -3095,7 +3090,7 @@ class AutomationPatternPage(QWidget):
             total_idx += 1
 
         for seq_mod_name in self.engine.active_sequencer_modules:
-            w = QWidget(); w.setStyleSheet("background-color: #0d1117;")
+            self.w = QWidget(self); w.setStyleSheet("background-color: #0d1117;")
             l = QVBoxLayout(w)
 
             seq_header = QHBoxLayout()
@@ -3516,7 +3511,7 @@ class MasterControlPatchbayPage(QWidget):
         self.patch_canvas = MasterPatchCanvas(self)
         patch_layout.addWidget(self.patch_canvas)
 
-        manual_patch_panel = QWidget()
+        self.manual_patch_panel = QWidget(self)
         manual_patch_layout = QHBoxLayout(manual_patch_panel)
         manual_patch_layout.setContentsMargins(0, 0, 0, 0)
         manual_patch_layout.addWidget(QLabel("Manual Target Override Route:"))
@@ -3785,7 +3780,7 @@ class ScientificDAWWindow(QMainWindow):
 
         self.apply_stylesheet()
 
-        central_widget = QWidget()
+        central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
         main_layout = QHBoxLayout(central_widget)
 
@@ -3793,7 +3788,7 @@ class ScientificDAWWindow(QMainWindow):
         main_layout.addWidget(main_splitter)
 
         # --- LEFT PANEL: The 13 Workflow-Centric Tabs ---
-        left_container = QWidget()
+        left_container = QWidget(self)
         left_layout = QVBoxLayout(left_container)
         self.setCentralWidget(builder_widget)
         self.builder_widget = EquationBuilderWidget(self)
@@ -3841,7 +3836,7 @@ class ScientificDAWWindow(QMainWindow):
         main_splitter.addWidget(left_container)
 
         # --- RIGHT PANEL: Global Master Scope, Terminal & Controls ---
-        right_container = QWidget()
+        right_container = QWidget(self)
         right_layout = QVBoxLayout(right_container)
 
         right_layout.addWidget(QLabel("<h3>Global Master Signal & Diagnostic Monitor</h3>"))
@@ -3860,7 +3855,7 @@ class ScientificDAWWindow(QMainWindow):
 
     # --- 13 Workflow-Centric Tabs ---
     def create_instruments_rack_tab(self):
-        panel = QWidget()
+        panel = QWidget(self)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>Instruments & Sound Rack Spawner</b>"))
         layout.addWidget(QPushButton("Spawn Eskivector Synth Node"))
@@ -3872,7 +3867,7 @@ class ScientificDAWWindow(QMainWindow):
         return panel
 
     def create_virtualization_scripting_tab(self):
-        panel = QWidget()
+        panel = QWidget(self)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>Virtualization & Music Scripting Field</b>"))
         self.script_editor = QTextEdit("# Algorithmic Music Scripting\nfor x in range(16):\n    note = x * isn(Meum)")
@@ -3883,7 +3878,7 @@ class ScientificDAWWindow(QMainWindow):
         return panel
 
     def create_sequencer_playlist_tab(self):
-        panel = QWidget()
+        panel = QWidget(self)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>Sequencer & Playlist Arrangement</b>"))
         seq_grid = QGridLayout()
@@ -3905,7 +3900,7 @@ class ScientificDAWWindow(QMainWindow):
         return panel
 
     def create_effects_automation_tab(self):
-        panel = QWidget()
+        panel = QWidget(self)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>Effects Rack & Automation Curves</b>"))
         layout.addWidget(QPushButton("Add Resonant Filter Effect"))
@@ -3922,7 +3917,7 @@ class ScientificDAWWindow(QMainWindow):
         return panel
 
     def create_modular_patchbay_tab(self):
-        panel = QWidget()
+        panel = QWidget(self)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>Modular Patch Bay Canvas Tracker</b>"))
         canvas = QFrame()
@@ -3934,7 +3929,7 @@ class ScientificDAWWindow(QMainWindow):
         return panel
 
     def create_waveshell_editor_tab(self):
-        panel = QWidget()
+        panel = QWidget(self)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>Master Waveshell Editor (Geometric Representation)</b>"))
         layout.addWidget(QLabel("Active Geometric Mode: Hyperbolic Matrix"))
@@ -3944,7 +3939,7 @@ class ScientificDAWWindow(QMainWindow):
         return panel
 
     def create_mixer_channel_strip_tab(self):
-        panel = QWidget()
+        panel = QWidget(self)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>Mixer & Channel Summing Strip</b>"))
         layout.addWidget(QLabel("Master Volume Fader"))
@@ -3953,7 +3948,7 @@ class ScientificDAWWindow(QMainWindow):
         return panel
 
     def create_modulation_matrix_tab(self):
-        panel = QWidget()
+        panel = QWidget(self)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>Modulation Matrix Cross-Router</b>"))
         layout.addWidget(QComboBox())
@@ -3962,7 +3957,7 @@ class ScientificDAWWindow(QMainWindow):
         return panel
 
     def create_analysis_scope_tab(self):
-        panel = QWidget()
+        panel = QWidget(self)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>Real-time Frequency Spectrum Analyzer</b>"))
         layout.addWidget(QPushButton("Trigger FFT Scan"))
@@ -3970,7 +3965,7 @@ class ScientificDAWWindow(QMainWindow):
         return panel
 
     def create_acoustic_lab_tab(self):
-        panel = QWidget()
+        panel = QWidget(self)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>Acoustic & Physical Resonance Sandbox</b>"))
         layout.addWidget(QPushButton("Test Resonant Feedback Loop"))
@@ -3978,7 +3973,7 @@ class ScientificDAWWindow(QMainWindow):
         return panel
 
     def create_preset_browser_tab(self):
-        panel = QWidget()
+        panel = QWidget(self)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>Presets & Sound Library Browser</b>"))
         layout.addWidget(QComboBox())
@@ -3987,7 +3982,7 @@ class ScientificDAWWindow(QMainWindow):
         return panel
 
     def create_midi_hardware_tab(self):
-        panel = QWidget()
+        panel = QWidget(self)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>MIDI Controller & Hardware Routing</b>"))
         layout.addWidget(QComboBox())
@@ -3996,7 +3991,7 @@ class ScientificDAWWindow(QMainWindow):
         return panel
 
     def create_project_manager_tab(self):
-        panel = QWidget()
+        panel = QWidget(self)
         layout = QVBoxLayout(panel)
         layout.addWidget(QLabel("<b>Project Manager (Import / Export / Memory Banks)</b>"))
         bank_combo = QComboBox()
@@ -4032,6 +4027,7 @@ class ScientificDAWWindow(QMainWindow):
 
 
 if __name__ == "__main__":
+    import sys
     app = QApplication(sys.argv)
     window = ScientificDAWWindow()
     window.show()
