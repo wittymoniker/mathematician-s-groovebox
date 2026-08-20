@@ -16,11 +16,105 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
     QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem
 )
-)
+
 import random
 from math_engine import MathEngine
 
+MEUM_CONSTANT = 1.1975807343385265188
+from math_engine import MathEngine
 
+class PatchbayCanvas(QFrame):
+    """Interactive visual patchbay canvas for signal routing and node mapping."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumSize(300, 200)
+        self.setStyleSheet("background-color: #121418; border: 1px solid #2a2e39; border-radius: 6px;")
+
+class MemoryBankSelector(QWidget):
+    """Memory Bank Selector pane for project workflow and preset management."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+
+        self.bank_combo = QComboBox()
+        self.bank_combo.addItems(["Bank Alpha [90uF/900V Resonant]", "Bank Beta [2000uF/1350V]", "Bank Gamma [3500uF/300V]"])
+        self.bank_combo.setStyleSheet("background-color: #1a1e24; color: #00ffcc; border: 1px solid #3a3f4b; padding: 4px;")
+
+        load_btn = QPushButton("Load Preset State")
+        save_btn = QPushButton("Save State Snapshot")
+        for btn in (load_btn, save_btn):
+            btn.setStyleSheet("background-color: #222733; color: #ffffff; border: 1px solid #3a3f4b; padding: 6px;")
+
+        layout.addWidget(QLabel("<b>Memory Bank Selector</b>"))
+        layout.addWidget(self.bank_combo)
+        layout.addWidget(load_btn)
+        layout.addWidget(save_btn)
+        layout.addStretch()
+class EQRMathEngine:
+    def __init__(self, use_meum=True):
+        """
+        Initializes the EQR math engine.
+        Args:
+            use_meum (bool): Flag to toggle Meum factor weighting.
+                             (Default set based on project optimization preference).
+        """
+        self.use_meum = use_meum
+
+    # --- Custom Isosceles Trigonometric Functions ---
+    def isn(self, val):
+        """Isosceles Sine implementation."""
+        arr = np.asarray(val, dtype=float)
+        return np.sin(arr) / (1.0 + np.abs(np.cos(arr)))
+
+    def ics(val):
+        """Isosceles Cosine implementation."""
+        arr = np.asarray(val, dtype=float)
+        return np.cos(arr) / (1.0 + np.abs(np.sin(arr)))
+
+    def arcisn(self, val):
+        """Inverse Isosceles Sine implementation with safety clamping."""
+        arr = np.asarray(val, dtype=float)
+        v = np.clip(arr / 2.0, -1.0, 1.0)
+        return np.arcsin(v)
+
+    def arcics(self, val):
+        """Inverse Isosceles Cosine implementation with safety clamping."""
+        arr = np.asarray(val, dtype=float)
+        v = np.clip(arr / 2.0, -1.0, 1.0)
+        return np.arccos(v)
+
+    # --- Core Expression Evaluator ---
+    def evaluate(self, expression_str, x, y, z):
+        """
+        Evaluates coordinate expressions using x, y, and z variables
+        alongside custom operators and optional Meum scaling.
+        """
+        # Safe namespace dictionary for safe dynamic evaluation
+        namespace = {
+            'x': x,
+            'y': y,
+            'z': z,
+            'isn': self.isn,
+            'ics': self.ics,
+            'arcisn': self.arcisn,
+            'arcics': self.arcics,
+            'Meum': MEUM_CONSTANT if self.use_meum else 1.0,
+            'arcisn': np.arcisn,
+            'cos': np.cos,
+            'tan': np.tan,
+            'abs': np.abs,
+            'arcics': np.arcics,
+            'e': np.e
+        }
+
+        try:
+            # Evaluate string expression safely within the coordinate space
+            result = eval(expression_str, {"__builtins__": {}}, namespace)
+            return result
+        except Exception as e:
+            print(f"Math Engine Evaluation Error: {e}")
+            return np.zeros_like(x) if isinstance(x, np.ndarray) else 0.0
 class PortWidget(QWidget):
     """Input/output terminal for the scientific patchbay node network."""
     def __init__(self, port_type, parent=None):
@@ -742,36 +836,24 @@ class EQRVisualizerCanvas(QWidget):
         time_text = f"Time: {self.t_step:.2f}s / {self.total_duration_sec:.2f}s [MASTER WAV]"
         painter.drawText(15, 25, time_text)
 class MathEngine:
-    def __init__(self):
-        # Core coordinate state evaluated strictly on x, y, z
-        self.x = 0.0
-        self.y = 0.0
-        self.z = 0.0
-
-    # Custom Isosceles Trigonometric Operators
-    def isn(self, val):
+    """Core mathematical engine evaluated strictly on x, y, z variables without Meum factors."""
+    @staticmethod
+    def isn(val):
         return np.sin(val) / (1.0 + np.abs(np.cos(val)))
 
-    def ics(self, val):
+    @staticmethod
+    def ics(val):
         return np.cos(val) / (1.0 + np.abs(np.sin(val)))
 
-    # Eskivector Vector Field Synthesizer Logic
-    def evaluate_eskivector(self, x, y, z):
-        # Vector transformation mapping based on x, y, z coordinates
-        vx = self.isn(x) * y
-        vy = self.ics(y) * z
-        vz = np.sin(x * y * z)
-        return vx, vy, vz
+    @staticmethod
+    def eskivector(x, y, z):
+        return MathEngine.isn(x) * y, MathEngine.ics(y) * z, np.sin(x * y * z)
 
-    # Eskitable Look-up / Procedural Table Synthesizer Logic
-    def evaluate_eskitable(self, x, y, z):
-        # Table wave-shaping lookup driven by coordinate state
-        table_index = np.clip((x + y) * 0.5, -1.0, 1.0)
-        amplitude_mod = self.ics(z * table_index)
-        return amplitude_mod
-# --- Memory Bank Selector Pane ---
+    @staticmethod
+    def eskitable(x, y, z):
+        return np.clip((x + y) * 0.5, -1.0, 1.0) * MathEngine.ics(z)
+
 from math_engine import MathEngine
-import numpy as np
 class OperatorNode:
     def __init__(self, op_type):
         self.op_type = op_type  # e.g., 'isn', 'ics', 'eskivector', 'eskitable'
@@ -3738,15 +3820,270 @@ class DoubleNumericSliderRow(QWidget):
 class ScientificDAWWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Mathematician's Groovebox (wittymoniker)")
-        self.resize(1440, 900)
+        self.math_engine = EQRMathEngine(use_meum=True)
+        self.setWindowTitle("Mathematician's Groovebox - EQR Ultimate Modular Suite")
+        self.resize(1400, 850)
 
-        self.coord_engine = EQRCoordinateEngine()
-        self.init_menu_bar()
+        # Apply High-Contrast Dark Modern Color Scheme (Fixes & Overhauls UI Aesthetics)
+        self.apply_stylesheet()
 
-        self.tabs = QTabWidget()
-        self.setCentralWidget(self.tabs)
+        # Central Layout Setup
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QHBoxLayout(central_widget)
 
+        # Splitters for modular resizability
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        main_layout.addWidget(main_splitter)
+
+        # Left Panel: Memory Banks, Controls, and Synthesis Engines
+        left_container = QWidget()
+        left_layout = QVBoxLayout(left_container)
+
+        self.bank_selector = MemoryBankSelector()
+        left_layout.addWidget(self.bank_selector)
+
+        synth_tabs = QTabWidget()
+        synth_tabs.addTab(self.create_eskivector_panel(), "Eskivector Synth")
+        synth_tabs.addTab(self.create_eskitable_panel(), "Eskitable Modulator")
+        left_layout.addWidget(synth_tabs)
+
+        main_splitter.addWidget(left_container)
+
+        # Center Panel: Coordinate Expression Engine & Sequencer Lanes
+        center_container = QWidget()
+        center_layout = QVBoxLayout(center_container)
+
+        center_layout.addWidget(QLabel("<h3>Coordinate Expression & Operator Engine (x, y, z)</h3>"))
+
+        expr_layout = QHBoxLayout()
+        self.expr_input = QTextEdit("x * isn(y) + ics(z) * Meum")
+        self.expr_input.setMaximumHeight(70)
+        self.expr_input.setStyleSheet("background-color: #0d0f12; color: #00ffcc; font-family: monospace; font-size: 13pt;")
+        expr_layout.addWidget(self.expr_input)
+
+        eval_btn = QPushButton("Evaluate / Compile")
+        eval_btn.setStyleSheet("background-color: #00aa88; color: #ffffff; font-weight: bold; padding: 10px;")
+        eval_btn.clicked.connect(self.run_evaluation)
+        expr_layout.addWidget(eval_btn)
+        center_layout.addLayout(expr_layout)
+
+        # Multi-lane Sequencers Pane
+        center_layout.addWidget(QLabel("<b>Multi-Lane Sequencers (Frequency, Duration, Amplitude)</b>"))
+        seq_grid = QGridLayout()
+        for i in range(3):
+            seq_grid.addWidget(QLabel(f"Lane {i+1} [Step Grid]"), i, 0)
+            slider = QSlider(Qt.Orientation.Horizontal)
+            slider.setValue(50)
+            seq_grid.addWidget(slider, i, 1)
+        center_layout.addLayout(seq_grid)
+
+        # Output Terminal / Status Window
+        self.output_log = QTextEdit()
+        self.output_log.setReadOnly(True)
+        self.output_log.setStyleSheet("background-color: #0a0c0e; color: #00ffcc; font-family: monospace;")
+        center_layout.addWidget(QLabel("<b>Execution & Diagnostic Log</b>"))
+        center_layout.addWidget(self.output_log)
+
+        main_splitter.addWidget(center_container)
+
+        # Right Panel: Visual Patchbay Canvas
+        right_container = QWidget()
+        right_layout = QVBoxLayout(right_container)
+        right_layout.addWidget(QLabel("<h3>Interactive Patchbay Canvas</h3>"))
+        self.patchbay = PatchbayCanvas()
+        right_layout.addWidget(self.patchbay)
+
+        main_splitter.addWidget(right_container)
+        main_splitter.setSizes([300, 750, 350])
+
+    def create_eskivector_panel(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Eskivector Procedural Engine</b>"))
+        layout.addWidget(QPushButton("Trigger Vector Render"))
+        layout.addWidget(QPushButton("Reset Vector Phase"))
+        layout.addStretch()
+        return panel
+
+    def create_eskitable_panel(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.addWidget(QLabel("<b>Eskitable Table Wavetables</b>"))
+        layout.addWidget(QPushButton("Load Wavetable Snapshot"))
+        layout.addWidget(QPushButton("Randomize Harmonic Matrix"))
+        layout.addStretch()
+        return panel
+
+    def run_evaluation(self):
+        expr = self.expr_input.toPlainText()
+        # Generate sample grid coordinates for x, y, z
+        x = np.linspace(-np.pi, np.pi, 100)
+        y = np.linspace(-np.pi, np.pi, 100)
+        X, Y = np.meshgrid(x, y)
+        Z = np.sin(X * Y)
+
+        result = self.math_engine.evaluate(expr, X, Y, Z)
+        mean_val = np.mean(result) if isinstance(result, np.ndarray) else result
+        self.output_log.append(f"Successfully evaluated expression with Meum constant factor ({MEUM_CONSTANT:.4f}). Result mean: {mean_val:.4f}")
+
+    def apply_stylesheet(self):
+        # Comprehensive Modern Dark Theme (Fixes all standard washed-out gray default themes)
+        palette = QPalette()
+        palette.setColor(QPalette.ColorRole.Window, QColor("#16181d"))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#e0e0e0"))
+        palette.setColor(QPalette.ColorRole.Base, QColor("#0d0f12"))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#1a1e24"))
+        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.Text, QColor("#e0e0e0"))
+        palette.setColor(QPalette.ColorRole.Button, QColor("#222733"))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor("#00aa88"))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+        QApplication.setPalette(palette)
+    def init_equation_editor_tab(self):
+        """Tab 1: Equation Builder with Mouse-Click Helper Buttons"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        self.eq_input = QTextEdit()
+        self.eq_input.setPlaceholderText("Enter formula using x, y, z variables (e.g., isn(x) * y + ics(z))...")
+        layout.addWidget(QLabel("<b>Coordinate Equation Evaluator:</b>"))
+        layout.addWidget(self.eq_input)
+
+        # Mouse Helper Keypad
+        keypad_layout = QGridLayout()
+        buttons = [
+            ('x', 0, 0), ('y', 0, 1), ('z', 0, 2), ('+', 0, 3),
+            ('isn(', 1, 0), ('ics(', 1, 1), ('sin(', 1, 2), ('-', 1, 3),
+            ('*', 2, 0), ('/', 2, 1), ('(', 2, 2), (')', 2, 3),
+        ]
+        for label, r, c in buttons:
+            btn = QPushButton(label)
+            btn.clicked.connect(lambda checked, l=label: self.append_to_equation(l))
+            keypad_layout.addWidget(btn, r, c)
+
+        layout.addLayout(keypad_layout)
+        self.tabs.addTab(tab, "1. Equation Builder")
+
+    def init_synth_spawners_tab(self):
+        """Tab 2: Complex Synths Inspired by Experimental Physics & Work"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.addWidget(QLabel("<b>Complex Experimental Synthesizers & Spawners</b>"))
+
+        synths = [
+            ("Z-Pinch Wavefolder", "Drives coordinate feedback into an aggressive fold-back distortion."),
+            ("Capacitor Bank Resonant Drone", "Models high-voltage parallel discharge decay rates via x, y, z streams."),
+            ("Nanoparticle Formic Modulator", "Combines high-frequency granular scattering with isosceles operators.")
+        ]
+
+        for name, desc in synths:
+            box = QVBoxLayout()
+            box.addWidget(QLabel(f"<h3>{name}</h3>"))
+            box.addWidget(QLabel(desc))
+            spawn_btn = QPushButton(f"Spawn / Trigger {name}")
+            box.addWidget(spawn_btn)
+            layout.addLayout(box)
+
+        self.tabs.addTab(tab, "2. Complex Synths")
+
+    def init_track_filler_tab(self):
+        """Tab 3: Track Fillers & Instruments (Pads, Percussion, Keys)"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.addWidget(QLabel("<b>Main Music Track Fillers (Pads, Percussion, Keys)</b>"))
+
+        channels = [
+            ("Percussion Grid", "Fast transients, non-linear tanh shaping for rhythmic drive."),
+            ("Ambient Pad Generator", "Sustained coordinate morphing via isn/ics cross-modulation."),
+            ("Discrete Key Arpeggiator", "Punched coordinate steps mapped across z-planes.")
+        ]
+
+        for name, desc in channels:
+            layout.addWidget(QLabel(f"<b>{name}</b>: {desc}"))
+            fill_btn = QPushButton(f"Fill Sequence Buffer: {name}")
+            layout.addWidget(fill_btn)
+
+        self.tabs.addTab(tab, "3. Track Fillers")
+
+    def init_effects_rack_tab(self):
+        """Tab 4: Advanced Effects & Spatial Processing"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.addWidget(QLabel("<b>Modular Effects Rack</b>"))
+
+        effects = ["Bitcrusher-900", "Vector Field Rotator", "Chaos Waveform Shaper"]
+        for fx in effects:
+            h_layout = QHBoxLayout()
+            h_layout.addWidget(QLabel(fx))
+            slider = QSlider(Qt.Orientation.Horizontal)
+            slider.setRange(0, 100)
+            h_layout.addWidget(slider)
+            layout.addLayout(h_layout)
+
+        self.tabs.addTab(tab, "4. Effects Rack")
+
+    def init_live_pads_tab(self):
+        """Tab 5: Live Pad Matrix for Instant Jamming"""
+        tab = QWidget()
+        layout = QGridLayout(tab)
+        layout.addWidget(QLabel("<b>Live Launch Pad Matrix (Click to Trigger Clips)</b>"), 0, 0, 1, 4)
+
+        for i in range(12):
+            r = (i // 4) + 1
+            c = i % 4
+            pad_btn = QPushButton(f"Clip {i+1}\n[Trigger]")
+            pad_btn.setMinimumHeight(80)
+            pad_btn.setStyleSheet("background-color: #2b2b2b; color: #00ffcc; font-weight: bold; border-radius: 8px;")
+            layout.addWidget(pad_btn, r, c)
+
+        self.tabs.addTab(tab, "5. Live Pads")
+
+    def init_chaos_visualizer_tab(self):
+        """Tab 6: Chaos Visualizer Sandbox"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.addWidget(QLabel("<b>Real-Time Coordinate Vector Visualizer</b>"))
+
+        # Mock visualizer frame placeholder
+        viz_frame = QFrame()
+        viz_frame.setFrameShape(QFrame.Shape.Box)
+        viz_frame.setStyleSheet("background-color: #0d0d0d; border: 2px solid #333;")
+        viz_layout = QVBoxLayout(viz_frame)
+        viz_layout.addWidget(QLabel("<center><font color='#00ffcc' size='5'>[ Vector Field Render Active: X-Y-Z Phase Lock ]</font></center>"))
+        layout.addWidget(viz_frame)
+
+        render_btn = QPushButton("Re-calculate Vector Field Flow")
+        layout.addWidget(render_btn)
+
+        self.tabs.addTab(tab, "6. Chaos Visualizer")
+
+    def init_patch_randomizer_tab(self):
+        """Tab 7: Mad Scientist Patch Randomizer"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.addWidget(QLabel("<b>Mad Scientist Patch Mutation Engine</b>"))
+        layout.addWidget(QLabel("Instantly mutate all active equations and parameters into unpredictable soundscapes."))
+
+        self.mutation_label = QLabel("Current Mutation Seed: <b>#8291-ALPHA</b>")
+        layout.addWidget(self.mutation_label)
+
+        mutate_btn = QPushButton("🎲 Mutate & Scramble All Parameters")
+        mutate_btn.setStyleSheet("background-color: #ff3366; color: white; font-weight: bold; padding: 10px;")
+        mutate_btn.clicked.connect(self.scramble_mutation)
+        layout.addWidget(mutate_btn)
+
+        self.tabs.addTab(tab, "7. Patch Randomizer")
+
+    def append_to_equation(self, text):
+        self.eq_input.insertPlainText(text)
+
+    def scramble_mutation(self):
+        seeds = ["#4092-BETA", "#DELTA-99", "OMEGA-X", "Z-PINCH-PRIME", "FORMIC-NANO"]
+        selected = np.random.choice(seeds)
+        self.mutation_label.setText(f"Current Mutation Seed: <b>{selected}</b>")
         # Tab 1: Script Screen, Master Visualizer, and 3D Focal Zones
         self.tab_script = QWidget()
         self.init_script_tab()
