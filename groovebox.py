@@ -5734,6 +5734,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 padding: 3px;
             }
         """
+
         if QApplication.instance():
             QApplication.instance().setStyleSheet(dark_stylesheet)
         self.setStyleSheet(dark_stylesheet)
@@ -5896,23 +5897,39 @@ class MathematiciansGrooveboxApp(QMainWindow):
         seq_header_layout.addWidget(QLabel("Target:"))
         seq_header_layout.addWidget(self.top_sequencer.instance_combo)
 
+        # Numeric integer/decimal input for precise step frequency/value tuning
+        seq_header_layout.addWidget(QLabel("Step Val:"))
+        self.seq_step_value_spin = QDoubleSpinBox()
+        self.seq_step_value_spin.setRange(-1000.0, 1000.0)
+        self.seq_step_value_spin.setValue(1.0)
+        self.seq_step_value_spin.setSingleStep(0.1)
+        seq_header_layout.addWidget(self.seq_step_value_spin)
+
         btn_trigger_seq = QPushButton("▶ Trigger Sequence Step")
         seq_header_layout.addWidget(btn_trigger_seq)
         seq_inner.addLayout(seq_header_layout)
 
-        # Sequencer step buttons grid (16 steps)
+        # Interactive sequencer step buttons grid (16 steps with active toggle styling)
         steps_layout = QHBoxLayout()
         self.seq_step_buttons = []
+
+        def make_step_toggle_handler(btn):
+            def on_toggle(checked):
+                if checked:
+                    btn.setStyleSheet("background-color: #00ffcc; color: #121212; border: 1px solid #00ffcc; font-weight: bold;")
+                else:
+                    btn.setStyleSheet("background-color: #1a1a1a; color: #888888; border: 1px solid #333333;")
+            return on_toggle
+
         for s in range(16):
             step_btn = QPushButton(str(s + 1))
             step_btn.setCheckable(True)
             step_btn.setStyleSheet("background-color: #1a1a1a; color: #888888; border: 1px solid #333333;")
-            if s % 4 == 0:
-                step_btn.setStyleSheet("background-color: #252535; color: #00ffcc; border: 1px solid #00ffcc;")
+            step_btn.toggled.connect(make_step_toggle_handler(step_btn))
             steps_layout.addWidget(step_btn)
             self.seq_step_buttons.append(step_btn)
-        seq_inner.addLayout(steps_layout)
 
+        seq_inner.addLayout(steps_layout)
         master_container.addWidget(self.top_sequencer)
 
         # Re-attach native visualizer panel safely
