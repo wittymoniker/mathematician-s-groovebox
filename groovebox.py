@@ -5869,13 +5869,23 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # -------------------------------------------------------------
         scale_and_seq_layout = QHBoxLayout()
 
-        # Ensure scale_combo matches your required native items format
-        if not hasattr(self, 'scale_combo'):
-            self.scale_combo = QComboBox()
-            self.scale_combo.addItems(["Microtonal Matrix", "Pythagorean Tuning", "Z-Pinch Harmonic Scale"])
+        scale_and_seq_layout.addWidget(QLabel("Tonal Scale Base Expression / Formula:"))
 
-        scale_and_seq_layout.addWidget(QLabel("Instrument Tonal Scale:"))
-        scale_and_seq_layout.addWidget(self.scale_combo)
+        # Text input for custom mathematical base expression indexing x
+        self.scale_expression_input = QLineEdit()
+        self.scale_expression_input.setText("x / 2.0")
+        self.scale_expression_input.setPlaceholderText("e.g. x / 4.0 or x * 1.618")
+        scale_and_seq_layout.addWidget(self.scale_expression_input)
+
+        scale_and_seq_layout.addWidget(QLabel("Division Constant:"))
+
+        # User-provided constant divisor spinner
+        self.scale_divisor_spin = QDoubleSpinBox()
+        self.scale_divisor_spin.setRange(0.001, 1000.0)
+        self.scale_divisor_spin.setValue(1.0)
+        self.scale_divisor_spin.setSingleStep(0.25)
+        scale_and_seq_layout.addWidget(self.scale_divisor_spin)
+
         scale_and_seq_layout.addStretch(1)
 
         scale_container = QWidget()
