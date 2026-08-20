@@ -10,7 +10,7 @@ import wave
 import json
 import numpy as np
 from PyQt6.QtCore import Qt, QPoint,QPointF, QRectF, QTimer
-from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont,QAction, QPalette, QAction, QKeyEvent,QBrush
+from PyQt6.QtGui import (QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont,QAction, QPalette, QAction, QKeyEvent,QBrush
 )
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
