@@ -5650,19 +5650,28 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         content_layout.addLayout(self.top_layout)
 
-        # 2. Central Splitter for Sequencer Grid & Workspace
+        # 2. Central Splitter for the Sequencer Grid & Workspace Canvas
         workspace_splitter = QSplitter(Qt.Orientation.Vertical)
 
-        # Pull in your actual project modules if they exist, or initialize them here
-        if hasattr(self, 'playlist_window') and self.playlist_window:
-            workspace_splitter.addWidget(self.playlist_window)
+        # If your script initializes these elsewhere, make sure they are safely added.
+        # If they haven't been created yet at this point in __init__, we fallback to
+        # a primary workspace widget container so the window doesn't collapse.
+        added_widgets = False
 
-        if hasattr(self, 'patch_bay_dialog') and self.patch_bay_dialog:
-            workspace_splitter.addWidget(self.patch_bay_dialog)
+        for attr_name in ['playlist_window', 'top_sequencer', 'patch_bay_dialog']:
+            if hasattr(self, attr_name) and getattr(self, attr_name) is not None:
+                widget = getattr(self, attr_name)
+                # If it's a standalone window, extract its central widget or add it if it's a QWidget
+                if isinstance(widget, QWidget):
+                    workspace_splitter.addWidget(widget)
+                    added_widgets = True
 
-        # If your main sequencer or visualizer is stored in another attribute (like top_sequencer), add it:
-        if hasattr(self, 'top_sequencer') and self.top_sequencer:
-            workspace_splitter.addWidget(self.top_sequencer)
+        if not added_widgets:
+            # Fallback container to ensure the splitter has a visible node while your scripts load
+            fallback_container = QWidget()
+            fallback_layout = QVBoxLayout(fallback_container)
+            fallback_layout.addWidget(QLabel("Workspace Initialized - Sequencer / Matrix Ready"))
+            workspace_splitter.addWidget(fallback_container)
 
         content_layout.addWidget(workspace_splitter)
         self.main_layout.addLayout(content_layout)
