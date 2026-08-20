@@ -6197,11 +6197,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
                                 s_local = local_t[s_mask] - s_start
                                 amp = mem["amplitudes"][s_idx]
                                 step_trigger_envelope[s_mask] += amp * np.exp(-s_local / max(step_duration * 0.5, 0.01))
-    def export_mixdown_dialog(self):
-        try:
-            if wavfile is None:
-                print("[System Error] Scipy is not available. Run `pip install scipy`.")
-                return
+        def export_mixdown_dialog(self):
+            try:
+                if wavfile is None:
+                    print("[System Error] Scipy is not available. Run `pip install scipy`.")
+                    return
 
             default_filename = f"groovebox_mixdown_{self.export_counter:03d}.wav"
             file_path, _ = QFileDialog.getSaveFileName(self, "Save Mixdown Audio", default_filename, "WAV Audio Files (*.wav)")
