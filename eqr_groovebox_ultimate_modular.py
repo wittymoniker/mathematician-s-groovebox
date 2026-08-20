@@ -13,7 +13,7 @@ from PyQt6.QtCore import Qt, QPoint, QPointF, QRectF, QTimer
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QGridLayout, QLabel, QPushButton, QScrollArea, QTabWidget,
-    QSizePolicy, QComboBox, QSlider, QLineEdit, QSplitter, QApplication, QWidget, QFrame, QVBoxLayout
+    QSizePolicy, QComboBox, QSlider, QLineEdit, QSplitter, QApplication, QWidget, QFrame, QVBoxLayout, QFrame, QScrollArea
 )
 from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPainterPath
 from math_engine import MathEngine
@@ -32,7 +32,10 @@ class FlexibleSequencer:
     def __init__(self):
         self.sequence_buffer = []
         self.quantize_grid = None
-
+    def mousePressEvent(self, event):
+        if self.parent() and hasattr(self.parent(), 'start_cable_drag'):
+            self.parent().start_cable_drag(self)
+        event.accept()
     def add_note(self, time, pitch, duration):
         self.sequence_buffer.append({'time': time, 'pitch': pitch, 'duration': duration})
 
@@ -47,22 +50,20 @@ class FlexibleSequencer:
             return quantized
         return sub
 class CablePatchPanel(QWidget):
-    """Interactive workspace for nodes and cable patching via ports."""
+    """Interactive canvas workspace for nodes and cable patching via ports."""
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setFixedSize(2000, 1500)
         self.cables = []  # List of tuples: (start_port, end_port, color)
         self.active_cable_start = None
         self.current_mouse_pos = QPoint(0, 0)
         self.setMouseTracking(True)
         self.setStyleSheet("background-color: #121212; border: 1px solid #333;")
 
-    def mousePressEvent(self, event):
-        clicked_widget = self.childAt(event.pos())
-        if isinstance(clicked_widget, PortWidget):
-            self.active_cable_start = clicked_widget
-            self.current_mouse_pos = event.pos()
-            self.update()
-        super().mousePressEvent(event)
+    def start_cable_drag(self, port_widget):
+        self.active_cable_start = port_widget
+        self.current_mouse_pos = port_widget.mapTo(self, port_widget.rect().center())
+        self.update()
 
     def mouseMoveEvent(self, event):
         if self.active_cable_start:
@@ -74,7 +75,7 @@ class CablePatchPanel(QWidget):
         if self.active_cable_start:
             target_widget = self.childAt(event.pos())
             if isinstance(target_widget, PortWidget) and target_widget != self.active_cable_start:
-                # Only allow connection from Output to Input (or vice-versa)
+                # Ensure we are connecting an Output to an Input (or vice versa)
                 if self.active_cable_start.port_type != target_widget.port_type:
                     self.cables.append((self.active_cable_start, target_widget, QColor(0, 255, 200)))
             self.active_cable_start = None
@@ -85,19 +86,19 @@ class CablePatchPanel(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Draw existing patched cables
+        # Draw all established patch cables
         for start, end, color in self.cables:
             if start and end:
                 p1 = start.mapTo(self, start.rect().center())
                 p2 = end.mapTo(self, end.rect().center())
-                pen = QPen(color, 2.5, Qt.PenStyle.SolidLine)
+                pen = QPen(color, 3.0, Qt.PenStyle.SolidLine)
                 painter.setPen(pen)
                 painter.drawLine(p1, p2)
 
-        # Draw active dragging cable
+        # Draw the live preview cable while dragging the mouse
         if self.active_cable_start:
             p1 = self.active_cable_start.mapTo(self, self.active_cable_start.rect().center())
-            pen = QPen(QColor(255, 100, 0, 200), 2, Qt.PenStyle.DashLine)
+            pen = QPen(QColor(255, 100, 0, 220), 2.5, Qt.PenStyle.DashLine)
             painter.setPen(pen)
             painter.drawLine(p1, self.current_mouse_pos)
 class MathEngine:
@@ -510,7 +511,7 @@ class SongAutomationTimeline(QWidget):
         self.setLayout(layout)
 # --- Modular Synthesizer/Sequencer Node ---
 class SynthNodeWidget(QFrame):
-    """Modular node frame containing title, inputs, and outputs."""
+    """Modular node frame that can be clicked and dragged around the canvas workspace."""
     def __init__(self, name, x, y, parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
@@ -520,19 +521,25 @@ class SynthNodeWidget(QFrame):
         self.setStyleSheet("background-color: #1e1e1e; color: #ffffff; border: 1px solid #555; border-radius: 6px;")
 
         layout = QVBoxLayout(self)
-        self.title_label = QLabel(name)
+        self.title_input = QLineEdit(name)
+        self.title_input.setStyleSheet("background-color: #2a2a2a; color: #ffffff; border: 1px solid #666; padding: 2px;")
+        layout.addWidget(self.title_input)
+        self.title_label.setStyleSheet("color: #ffffff; font-weight: bold; border: none;")
         layout.addWidget(self.title_label)
 
-        # Add a couple of ports for patching demonstration
         ports_layout = QHBoxLayout()
 
         in_container = QVBoxLayout()
-        in_container.addWidget(QLabel("In"))
+        lbl_in = QLabel("In")
+        lbl_in.setStyleSheet("color: #aaa; border: none; font-size: 10px;")
+        in_container.addWidget(lbl_in)
         self.in_port = PortWidget('in', self)
         in_container.addWidget(self.in_port)
 
         out_container = QVBoxLayout()
-        out_container.addWidget(QLabel("Out"))
+        lbl_out = QLabel("Out")
+        lbl_out.setStyleSheet("color: #aaa; border: none; font-size: 10px;")
+        out_container.addWidget(lbl_out)
         self.out_port = PortWidget('out', self)
         out_container.addWidget(self.out_port)
 
@@ -540,25 +547,49 @@ class SynthNodeWidget(QFrame):
         ports_layout.addLayout(out_container)
         layout.addLayout(ports_layout)
 
+        # Variables for dragging the node around the canvas
+        self.dragging = False
+        self.drag_position = QPoint()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.dragging = True
+            self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.MouseButton.LeftButton and self.dragging:
+            self.move(event.globalPosition().toPoint() - self.drag_position)
+            # Update parent patch panel to redraw cables connected to this node
+            if self.parent():
+                self.parent().update()
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        self.dragging = False
+
 class ArrangementTrackWidget(QWidget):
-    """Arrangement timeline track for placing sequence blocks."""
+    """Arrangement timeline track for placing sequence blocks with clear styling."""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(80)
-        self.setStyleSheet("background-color: #181818; border: 1px solid #444; border-radius: 4px;")
+        self.setFixedHeight(60)
+        self.setStyleSheet("background-color: #1a1a1a; border: 1px solid #444; border-radius: 4px;")
         layout = QHBoxLayout(self)
 
-        self.track_label = QLabel("Arrangement Track 1")
-        self.add_block_btn = QPushButton("+ Add Subsequence")
-        self.add_block_btn.clicked.connect(self.on_add_block)
+        self.track_label = QLabel("Arrangement Track")
+        self.track_label.setStyleSheet("color: #ffffff; font-weight: bold;")
 
+        self.add_block_btn = QPushButton("+ Add Subsequence")
+        self.add_block_btn.setStyleSheet("background-color: #333; color: #fff; border: 1px solid #555; padding: 4px 10px; border-radius: 3px;")
+        self.add_block_btn.clicked.connect(self.on_add_subsequence)
+
+    def on_add_subsequence(self):
+        block = QPushButton("Subsequence Clip")
+        block.setStyleSheet("background-color: #005555; color: #ffffff; border: 1px solid #00ffc8; padding: 6px; border-radius: 3px;")
+        self.blocks_layout.addWidget(block)
         layout.addWidget(self.track_label)
         layout.addStretch()
         layout.addWidget(self.add_block_btn)
-
-    def on_add_block(self):
-        # Placeholder action for appending arrangement clips
-        pass
 class FitToFrameContainer(QWidget):
     """A responsive container that scales its inner child widget to fit window bounds."""
     def __init__(self, inner_widget, base_width=1200, base_height=800):
@@ -2587,6 +2618,7 @@ class MasterControlPanel(QWidget):
     """Global parameters featuring the Master Tempo Slider and Quantization options."""
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setStyleSheet("color: #ffffff;")
         layout = QHBoxLayout(self)
 
         self.tempo_label = QLabel("Master Tempo: 120 BPM")
@@ -2598,6 +2630,7 @@ class MasterControlPanel(QWidget):
         self.quant_label = QLabel("Quantize:")
         self.quant_combo = QComboBox()
         self.quant_combo.addItems(["Off (Free Timing)", "1/4 Note", "1/8 Note", "1/16 Note"])
+        self.quant_combo.setStyleSheet("background-color: #222; color: #fff; border: 1px solid #444;")
 
         layout.addWidget(self.tempo_label)
         layout.addWidget(self.tempo_slider)
@@ -2882,6 +2915,7 @@ class GrooveboxMainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("EQR Groovebox Ultimate Modular")
         self.resize(1200, 850)
+        self.setStyleSheet("background-color: #121212;")
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -2895,18 +2929,24 @@ class GrooveboxMainWindow(QMainWindow):
         self.arrangement_track = ArrangementTrackWidget()
         main_layout.addWidget(self.arrangement_track)
 
-        # 3. Cable patching workspace area (Nodes with Ports)
-        self.patch_panel = CablePatchPanel(self)
-        self.patch_panel.setMinimumHeight(550)
+        # 3. Scrollable Cable Patching Workspace
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("border: none;")
 
-        self.node_a = SynthNodeWidget("Oscillator Node", 50, 40, self.patch_panel)
-        self.node_b = SynthNodeWidget("Filter Node", 260, 40, self.patch_panel)
-        self.node_c = SynthNodeWidget("Sequencer Node", 470, 40, self.patch_panel)
+        self.patch_panel = CablePatchPanel()
 
-        main_layout.addWidget(self.patch_panel)
+        # Instantiate draggable nodes on the canvas
+        self.node_a = SynthNodeWidget("Oscillator Node", 50, 50, self.patch_panel)
+        self.node_b = SynthNodeWidget("Filter Node", 260, 50, self.patch_panel)
+        self.node_c = SynthNodeWidget("Sequencer Node", 470, 50, self.patch_panel)
 
-        self.sequencer = FlexibleSequencer()
-
+        self.scroll_area.setWidget(self.patch_panel)
+        main_layout.addWidget(self.scroll_area)
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self.scroll_area, "Patchbay Canvas")
+        self.tabs.addTab(seq_editor, "Sequencer Editor")
+        main_layout.addWidget(self.tabs)
 
 if __name__ == '__main__':
     import sys
