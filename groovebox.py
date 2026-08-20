@@ -5568,6 +5568,29 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         # Initialize channel states
         self.channel_states = []
+        def create_new_channel_state():
+            return {
+                # 5 External Panel Controls
+                "tuning": 440.0,
+                "amplitude": 0.8,
+                "duration": 0.5,
+                "fractalizer": 0.5,
+                "eqr_effect": 0.5,
+                "preset_idx": 0,
+
+                # 6 Internal Synth Sliding Scale Parameters (0.0 to 1.0)
+                "internal_p1": 0.5,
+                "internal_p2": 0.5,
+                "internal_p3": 0.5,
+                "internal_p4": 0.5,
+                "internal_p5": 0.5,
+                "internal_p6": 0.5,
+
+                "curvature_eq": "x * 1.5 + y - z"
+            }
+
+        # Now line 5818 will work correctly:
+        self.channel_states = [create_new_channel_state() for _ in range(48)]
         for i in range(len(self.instrument_names)):
    # Inside initialization loops (__init__ and add_new_instrument):
             self.channel_states.append({
