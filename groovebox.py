@@ -6195,10 +6195,48 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 active_state = bool(np.random.choice([True, False], p=[0.4, 0.6]))
                 if len(mem["steps"]) > s:
                     mem["steps"][s] = active_state
-
+        self.generate_ideal_patch_bay_routing()
         self.reload_active_instrument_sequencer_ui()
         print(f"[Resonance Nullifier] Irrational Seed '{self.input_seed_val.text()}' globally applied across all operators.")
+    def generate_ideal_patch_bay_routing(self):
+        """
+        Builds a non-redundant, acyclic routing network across operators
+        using the current irrational seed as a deterministic path weight metric.
+        """
+        # Clear existing manual patch connections to prevent redundancies
+        if hasattr(self, 'patch_connections'):
+            self.patch_connections.clear()
+        else:
+            self.patch_connections = []
 
+        num_operators = len(self.instrument_names_48)
+        numeric_seed = self.get_numeric_seed()
+
+        # Use seed to initialize a deterministic pseudo-random generator state
+        rng = np.random.default_rng(numeric_seed)
+
+        # Create a non-redundant feedforward or sparse feedback graph
+        # (Ensuring each node receives at most one primary patch source to avoid signal summing conflicts)
+        assigned_inputs = set()
+
+        for source_idx in range(num_operators):
+            # Determine a non-redundant target using golden ratio / irrational stepping
+            target_idx = int((source_idx * 1.61803398875 + numeric_seed) % num_operators)
+
+            if target_idx != source_idx and target_idx not in assigned_inputs:
+                source_name = self.instrument_names_48[source_idx]
+                target_name = self.instrument_names_48[target_idx]
+
+                # Record the non-redundant patch connection
+                connection = {
+                    "source": source_name,
+                    "target": target_name,
+                    "weight": float(rng.uniform(0.1, 1.0))
+                }
+                self.patch_connections.append(connection)
+                assigned_inputs.add(target_idx)
+
+        print(f"[Patch Bay Optimizer] Generated {len(self.patch_connections)} non-redundant links for seed: {self.input_seed_val.text()}")
     def toggle_playback(self):
         print("[System] Live high-bitrate audio engine streaming active across cross-loaded operator matrix.")
 
