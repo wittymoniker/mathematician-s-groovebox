@@ -6127,13 +6127,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
     def stop_playback(self):
         print("[System] Live audio playback stopped.")
-
     def export_mixdown_dialog(self):
-        try:
-            if wavfile is None:
-                print("[System Error] Scipy is not available. Run `pip install scipy`.")
-                return
-def export_mixdown_dialog(self):
         try:
             if wavfile is None:
                 print("[System Error] Scipy is not available. Run `pip install scipy`.")
