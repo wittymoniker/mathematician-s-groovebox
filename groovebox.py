@@ -5975,32 +5975,32 @@ class MathematiciansGrooveboxApp(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Export Failed", str(e))
             def render_full_mixdown(self, filename, channel_states, grid_data, instrument_names, tempo_bpm=120):
-        seconds_per_beat = 60.0 / float(tempo_bpm)
-        total_cols = len(grid_data[0]) if grid_data else 128
-        total_duration = total_cols * seconds_per_beat * 0.25
+                seconds_per_beat = 60.0 / float(tempo_bpm)
+                total_cols = len(grid_data[0]) if grid_data else 128
+                total_duration = total_cols * seconds_per_beat * 0.25
 
-        num_samples = int(self.sample_rate * total_duration)
+                num_samples = int(self.sample_rate * total_duration)
 
-        # --- INITIALIZE MASTER BUFFER HERE ---
-        master_buffer = np.zeros(num_samples, dtype=np.float32)
-        t = np.linspace(0, total_duration, num_samples, endpoint=False)
+                # --- INITIALIZE MASTER BUFFER HERE ---
+                master_buffer = np.zeros(num_samples, dtype=np.float32)
+                t = np.linspace(0, total_duration, num_samples, endpoint=False)
 
         # Loop through tracks and grid data to populate buffer...
-        for track_idx, row in enumerate(grid_data):
-            # Your rendering logic adding to master_buffer goes here...
-            pass
+                for track_idx, row in enumerate(grid_data):
+                # Your rendering logic adding to master_buffer goes here...
+                    pass
 
         # Normalization and writing out to file
-        max_val = np.max(np.abs(master_buffer))
-        if max_val > 0:
-            master_buffer = master_buffer / max_val * 0.95
+                max_val = np.max(np.abs(master_buffer))
+                if max_val > 0:
+                    master_buffer = master_buffer / max_val * 0.95
 
-        scaled = np.int16(master_buffer * 32767)
-        with wave.open(filename, 'w') as wav_file:
-            wav_file.setnchannels(1)
-            wav_file.setsampwidth(2)
-            wav_file.setframerate(self.sample_rate)
-            wav_file.writeframes(scaled.tobytes())
+                    scaled = np.int16(master_buffer * 32767)
+            with wave.open(filename, 'w') as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(self.sample_rate)
+                wav_file.writeframes(scaled.tobytes())
 class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -6030,12 +6030,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
             "curvature_eq": "x * 1.5 + y - z"
         }
-    scaled = np.int16(master_buffer * 32767)
-    with wave.open(filename, 'w') as wav_file:
-        wav_file.setnchannels(1)
-        wav_file.setsampwidth(2)
-        wav_file.setframerate(self.sample_rate)
-        wav_file.writeframes(scaled.tobytes())
+
 if __name__ == "__main__":
     import sys
     app = QApplication(sys.argv)
