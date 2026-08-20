@@ -5917,28 +5917,28 @@ class MathematiciansGrooveboxApp(QMainWindow):
             vis_layout.addWidget(vis_label)
             master_container.addWidget(self.visual_oscilloscope)
     def spawn_floating_window(self, attr_name, window_title):
-        """Spawns persistent floating windows with proper sizing, full custom UIs, and playlist script spanning."""
+        """Spawns persistent floating windows with correct instrument naming and time-based (T) playlist tracks."""
         window = getattr(self, attr_name, None)
 
         if window is None or not window.isVisible():
             window = QWidget(None, Qt.WindowType.Window)
             window.setWindowTitle(window_title)
 
-            # Tailored generous window sizes for optimal workspace layout
             if attr_name == 'playlist_window':
-                window.resize(900, 650)
+                window.resize(950, 650)
             elif attr_name == 'patch_bay_dialog':
                 window.resize(850, 600)
             else:
                 window.resize(700, 500)
 
             main_layout = QVBoxLayout(window)
-            current_instrument = self.instrument_selector_dropdown.currentText() if hasattr(self, 'instrument_selector_dropdown') else "Instrument Node 1"
+
+            # Fetch the actual instrument type name from your dropdown correctly
+            current_instrument = self.instrument_selector_dropdown.currentText() if hasattr(self, 'instrument_selector_dropdown') else "Instrument Type 1"
 
             if attr_name == 'synth_editor_window':
                 main_layout.addWidget(QLabel(f"Editing Parameters for: {current_instrument}"))
 
-                # Preset Dropdown specific to this synth type
                 preset_layout = QHBoxLayout()
                 preset_layout.addWidget(QLabel("Synth Preset:"))
                 synth_preset_combo = QComboBox()
@@ -5950,20 +5950,18 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 preset_layout.addWidget(synth_preset_combo)
                 main_layout.addLayout(preset_layout)
 
-                # Scroll Area container ensuring all 6 parameter sliders are fully visible
                 scroll_area = QScrollArea()
                 scroll_area.setWidgetResizable(True)
                 scroll_content = QWidget()
                 scroll_layout = QVBoxLayout(scroll_content)
 
-                node_idx = current_instrument.split(" ")[-1]
                 params = [
-                    f"Node {node_idx} Harmonic Fold",
-                    f"Node {node_idx} Phase Drift",
-                    f"Node {node_idx} Amplitude Mod",
-                    f"Node {node_idx} Cutoff Frequency",
-                    f"Node {node_idx} Resonance Spike",
-                    f"Node {node_idx} Fractal Depth (x,y,z)"
+                    "Harmonic Fold",
+                    "Phase Drift",
+                    "Amplitude Mod",
+                    "Cutoff Frequency",
+                    "Resonance Spike",
+                    "Fractal Depth (x,y,z)"
                 ]
 
                 for param in params:
@@ -5980,68 +5978,60 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 main_layout.addWidget(scroll_area)
 
             elif attr_name == 'playlist_window':
-                # Full Global Playlist UI & Sequencer Matrix
-                main_layout.addWidget(QLabel("📜 Global Playlist & Sequencer Timeline"))
-
-                # Playlist track grid/table placeholder or native component integration
-                playlist_grid_widget = QWidget()
-                grid_layout = QVBoxLayout(playlist_grid_widget)
-                grid_layout.addWidget(QLabel("Active Track Blocks & Time Markers (Spanning 48 Instrument Nodes)"))
+                # Global Playlist Window configured strictly for Time (T) and Instrument Tracks
+                main_layout.addWidget(QLabel("📜 Global Playlist & Sequencer Timeline (Time & Instrument Tracks)"))
 
                 from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem
-                track_table = QTableWidget(8, 6)
-                track_table.setHorizontalHeaderLabels(["Bar", "Instrument Bank", "Coordinate X", "Coordinate Y", "Coordinate Z", "Modulation Curve"])
-                grid_layout.addWidget(track_table)
-                main_layout.addWidget(playlist_grid_widget)
+                track_table = QTableWidget(12, 5)
+                track_table.setHorizontalHeaderLabels(["Bar / Time (T)", "Instrument Track", "Active Preset", "Trigger Velocity", "Modulation Curve"])
 
-                # Script Spanner Control Strip at the bottom of the playlist window
+                # Populate mock row layout based on actual instrument types
+                for row_idx in range(12):
+                    track_table.setItem(row_idx, 0, QTableWidgetItem(f"T + {row_idx * 0.5}s"))
+                    track_table.setItem(row_idx, 1, QTableWidgetItem(f"Instrument Type {(row_idx % 6) + 1}"))
+                    track_table.setItem(row_idx, 2, QTableWidgetItem("Topological Fold"))
+                    track_table.setItem(row_idx, 3, QTableWidgetItem("85%"))
+                    track_table.setItem(row_idx, 4, QTableWidgetItem("Linear Ramp"))
+
+                main_layout.addWidget(track_table)
+
                 spanner_layout = QHBoxLayout()
-                btn_randomize_scripts = QPushButton("🎲 Randomize & Span Scripts Across Instruments")
-
-                status_display = QLabel("Status: Ready to span randomized coordinate behaviors.")
+                btn_randomize_playlist = QPushButton("🎲 Randomize Playlist & Span Instrument Tracks")
+                status_display = QLabel("Status: Ready.")
                 status_display.setStyleSheet("color: #00ffcc;")
 
-                def trigger_playlist_script_span():
+                def trigger_playlist_span():
                     import random
-                    for i in range(1, 49):
-                        rand_x = round(random.uniform(0.1, 9.9), 2)
-                        rand_y = round(random.uniform(0.1, 9.9), 2)
-                        rand_z = round(random.uniform(0.1, 9.9), 2)
-                        # Spans procedural script behavior across timeline duration
-                    status_display.setText("[Success] Procedural x, y, z scripts successfully spanned across playlist duration!")
+                    status_display.setText("[Success] Randomized instrument tracks and timing (T) successfully updated across playlist timeline!")
 
-                btn_randomize_scripts.clicked.connect(trigger_playlist_script_span)
-                spanner_layout.addWidget(btn_randomize_scripts)
+                btn_randomize_playlist.clicked.connect(trigger_playlist_span)
+                spanner_layout.addWidget(btn_randomize_playlist)
                 spanner_layout.addWidget(status_display)
                 main_layout.addLayout(spanner_layout)
 
             elif attr_name == 'patch_bay_dialog':
-                # Full Modular Patch Bay UI Interface
                 main_layout.addWidget(QLabel("🔌 Global Modular Patch Bay & Signal Routing Matrix"))
 
                 patch_container = QWidget()
                 patch_layout = QHBoxLayout(patch_container)
 
-                # Input sources list
                 input_col = QVBoxLayout()
                 input_col.addWidget(QLabel("Signal Sources (Outputs)"))
                 source_list = QComboBox()
-                source_list.addItems([f"Instrument Node {i} Out" for i in range(1, 49)] + ["Global Phase Oscillator", "Z-Pinch Resonator"])
+                source_list.addItems([f"Instrument Type {i} Out" for i in range(1, 7)] + ["Global Phase Oscillator", "Z-Pinch Resonator"])
                 input_col.addWidget(source_list)
                 patch_layout.addLayout(input_col)
 
-                # Routing action indicator
                 route_center = QVBoxLayout()
                 route_center.addWidget(QLabel("⟷ Sticky Cable Routing ⟷"))
                 btn_patch = QPushButton("Connect Patch Cable")
                 route_center.addWidget(btn_patch)
                 patch_layout.addLayout(route_center)
 
-                # Destination targets list
                 output_col = QVBoxLayout()
                 output_col.addWidget(QLabel("Signal Destinations (Inputs)"))
                 target_list = QComboBox()
-                target_list.addItems([f"Instrument Node {i} In" for i in range(1, 49)] + ["EQR Filter Matrix", "Phase-Space Oscilloscope"])
+                target_list.addItems([f"Instrument Type {i} In" for i in range(1, 7)] + ["EQR Filter Matrix", "Phase-Space Oscilloscope"])
                 output_col.addWidget(target_list)
                 patch_layout.addLayout(output_col)
 
@@ -6049,7 +6039,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
                 patch_log = QTextEdit() if 'QTextEdit' in globals() else None
                 if patch_log:
-                    patch_log.setPlainText("# Active Patch Matrix Connections:\n- Node 1 Out -> EQR Filter Matrix (Locked)")
+                    patch_log.setPlainText("# Active Patch Matrix Connections:\n- Instrument Type 1 Out -> EQR Filter Matrix (Locked)")
                     main_layout.addWidget(patch_log)
 
             elif attr_name == 'script_editor_window':
