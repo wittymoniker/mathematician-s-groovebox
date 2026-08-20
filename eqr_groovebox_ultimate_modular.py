@@ -14,7 +14,7 @@ from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QLinearGradient, Q
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
-    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox
+    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit
 )
 import random
 from math_engine import MathEngine
@@ -524,31 +524,127 @@ class GlobalPatchBus:
 global_patch_bus = GlobalPatchBus()
 class EQRCoordinateEngine:
     def __init__(self):
-        # Initializing the coordinate framework for x, y, and z variables
-        self.x = 0.0
-        self.y = 0.0
-        self.z = 0.0
+        self.x = np.linspace(-1.0, 1.0, 512)
+        self.y = np.linspace(-1.0, 1.0, 512)
+        self.z = np.zeros(512)
 
-    def isn(self, value):
-        # Isosceles sine implementation
-        return np.sin(value) / (1.0 + abs(np.cos(value)))
+    def evaluate_composition_script(self, script_text: str, t: float):
+        """Evaluates compositional scripting with support for hardcoded sequence, static parameters, and conditions."""
+        x, y, z = self.x, self.y, self.z + t
+        namespace = {"np": np, "x": x, "y": y, "z": z, "isn": np.sin, "ics": np.cos, "result": np.zeros_like(x)}
 
-    def ics(self, value):
-        # Isosceles cosine implementation
-        return np.cos(value) / (1.0 + abs(np.sin(value)))
+        try:
+            # Executes the compositional script blocks line by line
+            exec(script_text, namespace)
+            output = namespace.get("result", np.zeros_like(x))
+            return self.apply_heuristic_envelope(output)
+        except Exception as e:
+            print(f"Script Execution Error: {e}")
+            return np.zeros_like(x)
 
-    def evaluate_reality(self, x, y, z):
-        """
-        Evaluates the system state based strictly on x, y, and z coordinates.
-        Maintains realistic output by omitting Meum scaling factors.
-        """
-        term_x = self.isn(x)
-        term_y = self.ics(y)
-        term_z = z ** 2 - term_x * term_y
+    def apply_heuristic_envelope(self, signal_vector):
+        envelope = np.exp(-np.abs(self.x) * 2.5)
+        return signal_vector * envelope
 
-        # Combined spatial output
-        result = (term_x + term_y) / (1.0 + abs(term_z))
-        return result
+
+class FocusZone3DWidget(QWidget):
+    """3D zone widget featuring adjustable focal points, right-click insert/delete, and XYZ dragbars."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(250)
+        self.focal_points = [{'x': 0.0, 'y': 0.0, 'z': 0.0}]
+        self.selected_point_idx = 0
+        self.setMouseTracking(True)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.RightButton:
+            # Right-click to insert a new focal point at normalized coordinates
+            nx = (event.position().x() / self.width()) * 2.0 - 1.0
+            ny = 1.0 - (event.position().y() / self.height()) * 2.0
+            self.focal_points.append({'x': nx, 'y': ny, 'z': 0.0})
+            self.selected_point_idx = len(self.focal_points) - 1
+            self.update()
+        elif event.button() == Qt.MouseButton.LeftButton:
+            # Left-click to select closest point or delete if shift held
+            if len(self.focal_points) > 1 and event.modifiers() == Qt.KeyboardModifier.ShiftModifier:
+                if len(self.focal_points) > 1:
+                    self.focal_points.pop(self.selected_point_idx)
+                    self.selected_point_idx = max(0, self.selected_point_idx - 1)
+                    self.update()
+
+    def update_coordinate_axis(self, axis: str, val: float):
+        """Updates current focal point using XYZ dragbars."""
+        if self.focal_points:
+            self.focal_points[self.selected_point_idx][axis] = val
+            self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.fillRect(self.rect(), QColor(20, 20, 28))
+
+        # Draw 3D projection grid lines
+        painter.setPen(QPen(QColor(50, 50, 70), 1, Qt.PenStyle.DashLine))
+        w, h = self.width(), self.height()
+        painter.drawLine(0, h // 2, w, h // 2)
+        painter.drawLine(w // 2, 0, w // 2, h)
+
+        # Draw focal points
+        for idx, pt in enumerate(self.focal_points):
+            px = int((pt['x'] + 1.0) * (w / 2.0))
+            py = int((1.0 - pt['y']) * (h / 2.0))
+
+            color = QColor(255, 100, 100) if idx == self.selected_point_idx else QColor(0, 220, 180)
+            painter.setBrush(color)
+            painter.setPen(QPen(Qt.GlobalColor.white, 2))
+            painter.drawEllipse(px - 6, py - 6, 12, 12)
+
+            painter.setPen(QPen(Qt.GlobalColor.white, 1))
+            painter.setFont(QFont("Arial", 8))
+            painter.drawText(px + 10, py - 5, f"P{idx}({pt['x']:.2f},{pt['y']:.2f},{pt['z']:.2f})")
+
+
+class EQRVisualizerCanvas(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(200)
+        self.t_step = 0.0
+        self.total_duration_sec = 12.0 # Master track duration
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_canvas)
+        self.timer.start(30)
+
+    def update_canvas(self):
+        self.t_step += 0.05
+        if self.t_step > self.total_duration_sec:
+            self.t_step = 0.0
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.fillRect(self.rect(), QColor(15, 15, 20))
+
+        # Render master wave profile
+        pen = QPen(QColor(0, 220, 180), 2)
+        painter.setPen(pen)
+
+        width, height = self.width(), self.height()
+        points = []
+        for i in range(width):
+            nx = (i / width) * 4.0 - 2.0
+            ny = np.sin(nx + self.t_step) * np.cos(nx * 0.5)
+            py = int(height / 2 - ny * (height / 4))
+            points.append(QPoint(i, py))
+
+        if len(points) > 1:
+            painter.drawPolyline(points)
+
+        # Include the time in seconds on the master track wave visualizer
+        painter.setPen(QPen(Qt.GlobalColor.white, 1))
+        painter.setFont(QFont("Courier", 10, QFont.Weight.Bold))
+        time_text = f"Time: {self.t_step:.2f}s / {self.total_duration_sec:.2f}s [MASTER WAV]"
+        painter.drawText(15, 25, time_text)
 
 class MathEngine:
     """Core mathematical engine supporting x, y, z, t coordinates, tempo-derived time shifts,
@@ -2994,7 +3090,42 @@ class InfinitePlaylistCanvas(QScrollArea):
         self.canvas_inner = InfinitePlaylistInnerWidget(self.engine, self.parent_page)
         self.setWidget(self.canvas_inner)
 
+class EQRVisualizerCanvas(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(400)
+        self.t_step = 0.0
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_canvas)
+        self.timer.start(30) # ~33 FPS refresh rate
 
+    def update_canvas(self):
+        self.t_step += 0.05
+        self.update()
+
+    def spawn_operator_node(self):
+        # Placeholder for dynamic node instantiation on the canvas
+        pass
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.fillRect(self.rect(), QColor(15, 15, 20))
+
+        # Render coordinate wave profile
+        pen = QPen(QColor(0, 220, 180), 2)
+        painter.setPen(pen)
+
+        width, height = self.width(), self.height()
+        points = []
+        for i in range(width):
+            nx = (i / width) * 4.0 - 2.0
+            ny = np.sin(nx + self.t_step) * np.cos(nx * 0.5)
+            py = int(height / 2 - ny * (height / 4))
+            points.append(QPoint(i, py))
+
+        if len(points) > 1:
+            painter.drawPolyline(points)
 # -------------------------------------------------------------------------
 # MASTER PATCH CANVAS (Visual Wires & Dedicated Synth Jacks)
 # -------------------------------------------------------------------------
@@ -3474,8 +3605,97 @@ class DoubleNumericSliderRow(QWidget):
 class ScientificDAWWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("EQR Scientific Mathematical DAW & Generative Studio")
-        self.resize(1700, 1050)
+        self.setWindowTitle("Mathematician's Groovebox (wittymoniker)")
+        self.resize(1440, 900)
+
+        self.coord_engine = EQRCoordinateEngine()
+
+        self.tabs = QTabWidget()
+        self.setCentralWidget(self.tabs)
+
+        # Tab 1: Script Screen & Composition Guide + Visualizer & 3D Focus Zones
+        self.tab_script = QWidget()
+        self.init_script_tab()
+        self.tabs.addTab(self.tab_script, "Composition Script & Master Canvas")
+
+        self.tab_sequencer = QWidget()
+        self.tabs.addTab(self.tab_sequencer, "Multi-Lane Sequencer")
+
+    def init_script_tab(self):
+        layout = QVBoxLayout(self.tab_script)
+
+        # Master Track Wave Visualizer with Embedded Time Display
+        self.visualizer = EQRVisualizerCanvas(self)
+        layout.addWidget(self.visualizer)
+
+        # Written Guide & Script Editor Split
+        script_layout = QHBoxLayout()
+
+        guide_text = (
+            "COMPOSITION SCRIPTING GUIDE:\n"
+            "-----------------------------\n"
+            "Write Python-syntax operations below to build series of events.\n"
+            "Available variables: x, y, z, np, isn, icś.\n"
+            "Conditional declarations & hardcoded patterns are fully supported:\n\n"
+            "Example:\n"
+            "if t < 6.0:\n"
+            "    result = isn(x * 3.0 + z) * ics(y * 2.0)\n"
+            "else:\n"
+            "    result = np.tanh(x * y) * 1.5"
+        )
+        self.lbl_guide = QTextEdit()
+        self.lbl_guide.setReadOnly(True)
+        self.lbl_guide.setText(guide_text)
+        script_layout.addWidget(self.lbl_guide, 1)
+
+        self.txt_script_editor = QTextEdit()
+        self.txt_script_editor.setText(
+            "# Write your composition pattern series here\n"
+            "if t < 6.0:\n"
+            "    result = isn(x * 3.0 + z) * ics(y * 2.0)\n"
+            "else:\n"
+            "    result = np.tanh(x * y) * 1.5"
+        )
+        script_layout.addWidget(self.txt_script_editor, 2)
+
+        layout.addLayout(script_layout)
+
+        # 3D Focal Zone and XYZ Dragbars replacement for percussive pads
+        zone_layout = QHBoxLayout()
+        self.focus_zone_3d = FocusZone3DWidget(self)
+        zone_layout.addWidget(self.focus_zone_3d, 2)
+
+        sliders_layout = QGridLayout()
+        self.slider_x = QSlider(Qt.Orientation.Horizontal)
+        self.slider_y = QSlider(Qt.Orientation.Horizontal)
+        self.slider_z = QSlider(Qt.Orientation.Horizontal)
+
+        for s in (self.slider_x, self.slider_y, self.slider_z):
+            s.setRange(-100, 100)
+            s.setValue(0)
+
+        self.slider_x.valueChanged.connect(lambda v: self.focus_zone_3d.update_coordinate_axis('x', v / 100.0))
+        self.slider_y.valueChanged.connect(lambda v: self.focus_zone_3d.update_coordinate_axis('y', v / 100.0))
+        self.slider_z.valueChanged.connect(lambda v: self.focus_zone_3d.update_coordinate_axis('z', v / 100.0))
+
+        sliders_layout.addWidget(QLabel("Focus X Axis"), 0, 0)
+        sliders_layout.addWidget(self.slider_x, 0, 1)
+        sliders_layout.addWidget(QLabel("Focus Y Axis"), 1, 0)
+        sliders_layout.addWidget(self.slider_y, 1, 1)
+        sliders_layout.addWidget(QLabel("Focus Z Axis"), 2, 0)
+        sliders_layout.addWidget(self.slider_z, 2, 1)
+
+        zone_layout.addLayout(sliders_layout, 1)
+        layout.addLayout(zone_layout)
+
+        self.btn_compile = QPushButton("Compile and Render WAV Composition")
+        self.btn_compile.clicked.connect(self.compile_composition)
+        layout.addWidget(self.btn_compile)
+
+    def compile_composition(self):
+        script_code = self.txt_script_editor.toPlainText()
+        # Evaluates script state across the coordinate engine
+        _ = self.coord_engine.evaluate_composition_script(script_code, self.visualizer.t_step)
         self.setStyleSheet("""
             QMainWindow { background-color: #0d0d12; }
             QLabel { color: #d4d4dc; font-size: 12px; }
@@ -3872,7 +4092,17 @@ class ScientificDAWWindow(QMainWindow):
             layout.addLayout(h_layout)
 
         return widget
+    def init_patchbay_tab(self):
+         layout = QVBoxLayout(self.tab_patchbay)
+         # Unified canvas handling spatial x, y, z routing and real-time waveforms
+         layout.addWidget(self.visualizer)
 
+         self.control_panel = QHBoxLayout()
+         self.btn_spawn_node = QPushButton("Spawn Operator Node")
+         self.btn_spawn_node.clicked.connect(self.visualizer.spawn_operator_node)
+         self.control_panel.addWidget(self.btn_spawn_node)
+
+         layout.addLayout(self.control_panel)
     def _create_synthesizer_tab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
