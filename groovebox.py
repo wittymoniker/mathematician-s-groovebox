@@ -6030,6 +6030,14 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
             "curvature_eq": "x * 1.5 + y - z"
         }
+    self.setWindowTitle("Mathematician's Groovebox")
+    self.resize(1280, 800)  # Sets a clean, large default window size instead of collapsing to minimum
+    self.setMinimumSize(800, 600)
+
+    # Ensure your main layout is applied to a central widget:
+    central_widget = QWidget(self)
+    central_widget.setLayout(self.main_layout) # Replace self.main_layout with your root layout name
+    self.setCentralWidget(central_widget)
 
 if __name__ == "__main__":
     import sys
