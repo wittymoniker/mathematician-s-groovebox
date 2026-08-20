@@ -917,44 +917,70 @@ class FocusZone3DWidget(QWidget):
 
 
 class EQRVisualizerCanvas(QWidget):
+    """
+    Real-time parametric visualizer based on the Equation of Reality (EQR)
+    operator framework, mapping x, y, and z variables to dynamic phase-space renders.
+    """
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumHeight(200)
-        self.t_step = 0.0
-        self.total_duration_sec = 16.0
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_canvas)
-        self.timer.start(30)
+        self.setMinimumHeight(160)
+        self.setStyleSheet("background-color: #0b0b0b; border: 1px solid #ff6b00; border-radius: 4px;")
 
-    def update_canvas(self):
-        self.t_step += 0.05
-        if self.t_step > self.total_duration_sec:
-            self.t_step = 0.0
+        self.phase = 0.0
+        self.scale_factor = 1.0
+        self.x_offset = 0.0
+        self.y_offset = 0.0
+
+        # Timer for real-time mathematical phase updates
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_phase)
+        self.timer.start(30) # ~33 FPS smooth render
+
+    def update_phase(self):
+        self.phase += 0.03
         self.update()
 
     def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self.rect(), QColor(15, 15, 20))
+        painter = QPainter()
+        if not painter.begin(self):
+            return
+        try:
+            painter.fillRect(self.rect(), QColor(11, 11, 11))
+            w, h = self.width(), self.height()
+            cx, cy = w / 2.0, h / 2.0
 
-        pen = QPen(QColor(0, 220, 180), 2)
-        painter.setPen(pen)
+            # Draw coordinate grid / field lines
+            painter.setPen(QPen(QColor(30, 30, 30), 1, Qt.PenStyle.DashLine))
+            painter.drawLine(0, int(cy), w, int(cy))
+            painter.drawLine(int(cx), 0, int(cx), h)
 
-        width, height = self.width(), self.height()
-        points = []
-        for i in range(width):
-            nx = (i / width) * 4.0 - 2.0
-            ny = np.sin(nx + self.t_step) * np.cos(nx * 0.5)
-            py = int(height / 2 - ny * (height / 4))
-            points.append(QPoint(i, py))
+            # EQR Parametric Curve Rendering (x, y, z operator mapping)
+            pen = QPen(QColor(0, 255, 204), 2)
+            painter.setPen(pen)
 
-        if len(points) > 1:
-            painter.drawPolyline(points)
+            points = []
+            num_steps = 300
+            for i in range(num_steps):
+                t = (i / num_steps) * 4 * np.pi + self.phase
 
-        painter.setPen(QPen(Qt.GlobalColor.white, 1))
-        painter.setFont(QFont("Courier", 10, QFont.Weight.Bold))
-        time_text = f"Time: {self.t_step:.2f}s / {self.total_duration_sec:.2f}s [MASTER WAV]"
-        painter.drawText(15, 25, time_text)
+                # EQR Core Equations for x, y, and z variables
+                x_val = np.sin(t * 1.5) * np.cos(t * 0.5 + self.phase * 0.2) * 120.0
+                y_val = np.cos(t * 2.0) * np.sin(t * 1.2) * 80.0
+                z_val = np.sin(t + self.phase) * 50.0 # Operator depth factor
+
+                # Projection mapping onto 2D canvas space
+                px = cx + x_val + (z_val * 0.3)
+                py = cy + y_val + (z_val * 0.2)
+                points.append(QPointF(px, py))
+
+            for i in range(len(points) - 1):
+                # Gradient color transition based on index
+                hue_color = QColor.fromHsvF((i / num_steps + self.phase * 0.1) % 1.0, 0.8, 1.0)
+                painter.setPen(QPen(hue_color, 2))
+                painter.drawLine(points[i], points[i+1])
+
+        finally:
+            painter.end()
     class AdvancedDSPEngine:
         def __init__(self, sample_rate=44100):
             self.sample_rate = sample_rate
