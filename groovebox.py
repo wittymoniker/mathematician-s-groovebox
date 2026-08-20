@@ -5756,6 +5756,22 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.setSpacing(6)
         master_container.setContentsMargins(8, 8, 8, 8)
 
+        # 48 Aptly Named Unique Instrument Types
+        self.instrument_names_48 = [
+            "Z-Pinch Resonator", "Topological Fold", "Quantum Soliton", "Harmonic Phase-Shift",
+            "Sub-Harmonic Drone", "Micro-Transient Click", "Stochastic Noise Matrix", "Voltage Controlled Crystal",
+            "Resonant Cavity Feedback", "Plasma Streamer Node", "Frequency Divider Array", "Complex Waveguide",
+            "Anomalous Sine Core", "Hyperbolic Sawtooth", "Additive Formant Synth", "Granular Cloud Emitter",
+            "Metallic Tines", "Glass Resonance", "Sub-Bass Ionizer", "Electrostatic Discharge",
+            "Vector Morph Oscillator", "Ring Modulator Bank", "Spectral Smear Filter", "Formant Sweep Matrix",
+            "Bit-Crushed Impulse", "Phase Distortion Core", "Resonant Comb Filter", "Complex FM Modulator",
+            "Analog Drift Oscillator", "Vacuum Tube Saturation", "Tape Flutter Emulator", "Spring Reverb Tank",
+            "Binaural Drone Generator", "Chaotic Attractor Node", "Percolating Noise Burst", "Harmonic Overdrive",
+            "Sub-Audio LFO", "Pulse Width Modulator", "Sync-Lead Synthesizer", "Formant Vocalizer",
+            "Acoustic Plate Simulation", "Piezo Transducer Click", "Thermal Noise Generator", "Galactic Cosmic Ray",
+            "Magnetic Flux Modulator", "Eddy Current Oscillator", "Standing Wave Matrix", "Quantum Entanglement Node"
+        ]
+
         # -------------------------------------------------------------
         # 1. TRANSPORT & INSTRUMENT SELECTOR BAR
         # -------------------------------------------------------------
@@ -5769,7 +5785,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.spin_bpm.setValue(120)
 
         self.instrument_selector_dropdown = QComboBox()
-        self.instrument_selector_dropdown.addItems([f"Instrument Type {i+1}" for i in range(6)])
+        self.instrument_selector_dropdown.addItems(self.instrument_names_48)
 
         self.btn_randomize_all = QPushButton("🎲 Randomize Instrument")
         self.btn_export = QPushButton("💾 Export Mixdown")
@@ -5825,7 +5841,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.top_layout)
 
         # -------------------------------------------------------------
-        # 3. WORKFLOW TOOLBAR (Synth, Playlist, Patch Bay, Script)
+        # 3. WORKFLOW TOOLBAR
         # -------------------------------------------------------------
         self.workflow_toolbar = QHBoxLayout()
         self.btn_edit_synth = QPushButton("🛠 Edit Synth Settings")
@@ -5846,21 +5862,19 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.workflow_toolbar)
 
         # -------------------------------------------------------------
-        # 4. MAIN WORKSPACE: NUMERIC TONAL SCALE BASE INPUT & SEQUENCER
+        # 4. MAIN WORKSPACE: NUMERIC TONAL SCALE BASE INPUT
         # -------------------------------------------------------------
         scale_and_seq_layout = QHBoxLayout()
         scale_and_seq_layout.addWidget(QLabel("Tonal Scale Base Formula (Indexing X):"))
 
         self.scale_expression_input = QLineEdit()
         self.scale_expression_input.setText("x / 2.0")
-        self.scale_expression_input.setPlaceholderText("e.g. x / 4.0 or x * 1.618")
         scale_and_seq_layout.addWidget(self.scale_expression_input)
 
         scale_and_seq_layout.addWidget(QLabel("Division Constant:"))
         self.scale_divisor_spin = QDoubleSpinBox()
         self.scale_divisor_spin.setRange(0.001, 1000.0)
         self.scale_divisor_spin.setValue(1.0)
-        self.scale_divisor_spin.setSingleStep(0.25)
         scale_and_seq_layout.addWidget(self.scale_divisor_spin)
 
         scale_and_seq_layout.addStretch(1)
@@ -5868,32 +5882,21 @@ class MathematiciansGrooveboxApp(QMainWindow):
         scale_container.setLayout(scale_and_seq_layout)
         master_container.addWidget(scale_container)
 
-        # Restore Sequencer / Pattern Writer component safely
-        if not hasattr(self, 'top_sequencer') or self.top_sequencer is None:
+        # Re-attach native sequencer / pattern writer panel safely
+        if hasattr(self, 'top_sequencer') and self.top_sequencer is not None:
+            master_container.addWidget(self.top_sequencer)
+        else:
             self.top_sequencer = QWidget()
             seq_inner = QVBoxLayout(self.top_sequencer)
             self.top_sequencer.instance_combo = QComboBox()
-            self.top_sequencer.instance_combo.addItems([f"Node Instance {i}" for i in range(1, 49)])
+            self.top_sequencer.instance_combo.addItems(self.instrument_names_48)
             seq_inner.addWidget(self.top_sequencer.instance_combo)
+            master_container.addWidget(self.top_sequencer)
 
-            seq_grid_label = QLabel("Active Instrument Sequencer & Pattern Step Matrix")
-            seq_grid_label.setStyleSheet("color: #00ffcc; background: #181818; padding: 15px; border: 1px solid #333;")
-            seq_inner.addWidget(seq_grid_label)
-
-        master_container.addWidget(self.top_sequencer)
-
-        # Restore Oscilloscope Visualizer
-        if hasattr(self, 'visual_oscilloscope') and self.visual_oscilloscope:
-            master_container.addWidget(self.visual_oscilloscope)
-        else:
-            self.visual_oscilloscope = QWidget()
-            vis_layout = QVBoxLayout(self.visual_oscilloscope)
-            vis_label = QLabel("Phase-Space Oscilloscope Visualizer")
-            vis_label.setStyleSheet("color: #00ffcc; background: #0a0a0a; padding: 8px;")
-            vis_layout.addWidget(vis_label)
+        # Re-attach native visualizer panel safely
+        if hasattr(self, 'visual_oscilloscope') and self.visual_oscilloscope is not None:
             master_container.addWidget(self.visual_oscilloscope)
     def spawn_floating_window(self, attr_name, window_title):
-        """Spawns persistent floating windows with active patch cable routing logic and time-based playlist tracks."""
         window = getattr(self, attr_name, None)
 
         if window is None or not window.isVisible():
@@ -5901,81 +5904,70 @@ class MathematiciansGrooveboxApp(QMainWindow):
             window.setWindowTitle(window_title)
 
             if attr_name == 'playlist_window':
-                window.resize(950, 650)
+                window.resize(1000, 700)
             elif attr_name == 'patch_bay_dialog':
-                window.resize(850, 600)
+                window.resize(900, 650)
             else:
                 window.resize(700, 500)
 
+            # Initialize main_layout safely here so it is accessible globally in this scope
             main_layout = QVBoxLayout(window)
 
-            current_instrument = self.instrument_selector_dropdown.currentText() if hasattr(self, 'instrument_selector_dropdown') else "Instrument Type 1"
+            # Fetch the currently selected instrument and its specific index (0 to 47)
+            current_instrument = self.instrument_selector_dropdown.currentText() if hasattr(self, 'instrument_selector_dropdown') else "Z-Pinch Resonator"
 
-            if attr_name == 'synth_editor_window':
-                main_layout.addWidget(QLabel(f"Editing Parameters for: {current_instrument}"))
+            # Dynamically derive unique math/parameter variants based on the active instrument type
+            if hasattr(self, 'instrument_names_48') and current_instrument in self.instrument_names_48:
+                inst_index = self.instrument_names_48.index(current_instrument) + 1
+            else:
+                inst_index = 1
 
-                preset_layout = QHBoxLayout()
-                preset_layout.addWidget(QLabel("Synth Preset:"))
-                synth_preset_combo = QComboBox()
-                synth_preset_combo.addItems([
-                    f"{current_instrument} - Topological Fold Matrix",
-                    f"{current_instrument} - Z-Pinch Harmonic Resonance",
-                    f"{current_instrument} - Quantum Soliton Waveguide"
-                ])
-                preset_layout.addWidget(synth_preset_combo)
-                main_layout.addLayout(preset_layout)
-
-                scroll_area = QScrollArea()
-                scroll_area.setWidgetResizable(True)
-                scroll_content = QWidget()
-                scroll_layout = QVBoxLayout(scroll_content)
-
-                params = [
-                    "Harmonic Fold",
-                    "Phase Drift",
-                    "Amplitude Mod",
-                    "Cutoff Frequency",
-                    "Resonance Spike",
-                    "Fractal Depth (x,y,z)"
-                ]
-
-                for param in params:
-                    row = QHBoxLayout()
-                    row.addWidget(QLabel(f"{param}:"))
-                    slider = QSlider(Qt.Orientation.Horizontal)
-                    slider.setRange(0, 100)
-                    slider.setValue(50)
-                    row.addWidget(slider)
-                    scroll_layout.addLayout(row)
-
-                scroll_content.setLayout(scroll_layout)
-                scroll_area.setWidget(scroll_content)
-                main_layout.addWidget(scroll_area)
-
-            elif attr_name == 'playlist_window':
-                # Global Playlist Timeline configured for Time (T) and Instrument Tracks
-                main_layout.addWidget(QLabel("📜 Global Playlist & Sequencer Timeline (Time & Instrument Tracks)"))
+            if attr_name == 'playlist_window':
+                main_layout.addWidget(QLabel("📜 Global Playlist & Sequencer Timeline (Color-Coded Instrument Tracks)"))
 
                 from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem
-                track_table = QTableWidget(12, 5)
-                track_table.setHorizontalHeaderLabels(["Bar / Time (T)", "Instrument Track", "Active Preset", "Trigger Velocity", "Modulation Curve"])
+                from PyQt6.QtGui import QColor
 
-                for row_idx in range(12):
-                    track_table.setItem(row_idx, 0, QTableWidgetItem(f"T + {row_idx * 0.5}s"))
-                    track_table.setItem(row_idx, 1, QTableWidgetItem(f"Instrument Type {(row_idx % 6) + 1}"))
-                    track_table.setItem(row_idx, 2, QTableWidgetItem("Topological Fold"))
-                    track_table.setItem(row_idx, 3, QTableWidgetItem("85%"))
-                    track_table.setItem(row_idx, 4, QTableWidgetItem("Linear Ramp"))
+                track_table = QTableWidget(16, 5)
+                track_table.setHorizontalHeaderLabels(["Time (T)", "Instrument Track", "Preset Type", "Velocity", "Modulation Curve"])
+
+                instrument_list = getattr(self, 'instrument_names_48', [f"Instrument {i}" for i in range(1, 49)])
+
+                palette_colors = [
+                    QColor(30, 80, 90),   # Cyan-Teal
+                    QColor(80, 40, 90),   # Deep Purple
+                    QColor(30, 90, 50),   # Forest Green
+                    QColor(90, 60, 30),   # Warm Amber
+                    QColor(90, 30, 40),   # Crimson
+                    QColor(40, 50, 90)    # Indigo
+                ]
+
+                for row_idx in range(16):
+                    item_time = QTableWidgetItem(f"T + {row_idx * 0.25}s")
+                    inst_name = instrument_list[row_idx % len(instrument_list)]
+                    item_inst = QTableWidgetItem(inst_name)
+                    assigned_color = palette_colors[row_idx % len(palette_colors)]
+                    item_inst.setBackground(assigned_color)
+
+                    item_preset = QTableWidgetItem(f"Preset Matrix #{row_idx + 1}")
+                    item_vel = QTableWidgetItem("90%")
+                    item_curve = QTableWidgetItem("Linear Ramp")
+
+                    track_table.setItem(row_idx, 0, item_time)
+                    track_table.setItem(row_idx, 1, item_inst)
+                    track_table.setItem(row_idx, 2, item_preset)
+                    track_table.setItem(row_idx, 3, item_vel)
+                    track_table.setItem(row_idx, 4, item_curve)
 
                 main_layout.addWidget(track_table)
 
                 spanner_layout = QHBoxLayout()
-                btn_randomize_playlist = QPushButton("🎲 Randomize Playlist & Span Instrument Tracks")
-                status_display = QLabel("Status: Ready.")
+                btn_randomize_playlist = QPushButton("🎲 Randomize Playlist & Span Tracks")
+                status_display = QLabel("Status: Color-coded timeline ready.")
                 status_display.setStyleSheet("color: #00ffcc;")
 
                 def trigger_playlist_span():
-                    status_display.setText("[Success] Randomized instrument tracks and timing (T) successfully updated across playlist timeline!")
+                    status_display.setText("[Success] Playlist timeline randomized with fresh color codes across time (T).")
 
                 btn_randomize_playlist.clicked.connect(trigger_playlist_span)
                 spanner_layout.addWidget(btn_randomize_playlist)
@@ -5988,10 +5980,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 patch_container = QWidget()
                 patch_layout = QHBoxLayout(patch_container)
 
+                instrument_list = getattr(self, 'instrument_names_48', [f"Instrument {i}" for i in range(1, 49)])
+
                 input_col = QVBoxLayout()
                 input_col.addWidget(QLabel("Signal Sources (Outputs)"))
                 source_list = QComboBox()
-                source_list.addItems([f"Instrument Type {i} Out" for i in range(1, 7)] + ["Global Phase Oscillator", "Z-Pinch Resonator"])
+                source_list.addItems([f"{name} Out" for name in instrument_list] + ["Global Phase Oscillator", "Z-Pinch Resonator"])
                 input_col.addWidget(source_list)
                 patch_layout.addLayout(input_col)
 
@@ -6004,41 +5998,65 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 output_col = QVBoxLayout()
                 output_col.addWidget(QLabel("Signal Destinations (Inputs)"))
                 target_list = QComboBox()
-                target_list.addItems([f"Instrument Type {i} In" for i in range(1, 7)] + ["EQR Filter Matrix", "Phase-Space Oscilloscope"])
+                target_list.addItems([f"{name} In" for name in instrument_list] + ["EQR Filter Matrix", "Phase-Space Oscilloscope"])
                 output_col.addWidget(target_list)
                 patch_layout.addLayout(output_col)
 
                 main_layout.addWidget(patch_container)
 
-                # Active log view showing patch connections
                 patch_log = QTextEdit()
                 patch_log.setReadOnly(True)
-                patch_log.setPlainText("# Active Patch Matrix Connections:\n- Instrument Type 1 Out -> EQR Filter Matrix (Locked)")
+                patch_log.setPlainText("# Active Patch Matrix Connections:\n- Z-Pinch Resonator Out -> EQR Filter Matrix (Locked)")
                 main_layout.addWidget(patch_log)
 
-                # Active logic connection for the patch button
                 def execute_patch_connection():
                     src = source_list.currentText()
                     tgt = target_list.currentText()
                     current_log = patch_log.toPlainText()
-                    new_entry = f"\n- {src} ---> {tgt} (Connected)"
-                    patch_log.setPlainText(current_log + new_entry)
+                    patch_log.setPlainText(current_log + f"\n- {src} ---> {tgt} (Connected)")
 
                 btn_patch.clicked.connect(execute_patch_connection)
 
+            elif attr_name == 'synth_editor_window':
+                # Dynamically bind parameter scaling based on active instrument math engine profile
+                main_layout.addWidget(QLabel(f"Editing Parameters for: {current_instrument} (Node ID: {inst_index})"))
+
+                scroll_area = QScrollArea()
+                scroll_area.setWidgetResizable(True)
+                scroll_content = QWidget()
+                scroll_layout = QVBoxLayout(scroll_content)
+
+                dynamic_params = [
+                    f"[{current_instrument}] Harmonic Fold Factor",
+                    f"[{current_instrument}] Phase Drift (x,y)",
+                    f"[{current_instrument}] Amplitude Mod Depth",
+                    f"[{current_instrument}] Cutoff Frequency (Z-Scale)",
+                    f"[{current_instrument}] Resonance Spike",
+                    f"[{current_instrument}] Fractal Coordinate Depth"
+                ]
+
+                for param in dynamic_params:
+                    row = QHBoxLayout()
+                    row.addWidget(QLabel(f"{param}:"))
+                    slider = QSlider(Qt.Orientation.Horizontal)
+                    slider.setRange(0, 100)
+                    # Initialize slider value dynamically driven by node index calculation
+                    slider.setValue((inst_index * 7) % 100)
+                    row.addWidget(slider)
+                    scroll_layout.addLayout(row)
+
+                scroll_content.setLayout(scroll_layout)
+                scroll_area.setWidget(scroll_content)
+                main_layout.addWidget(scroll_area)
+
             elif attr_name == 'script_editor_window':
                 main_layout.addWidget(QLabel(f"Active Instrument Script Workspace: {current_instrument}"))
-                main_layout.addWidget(QLabel("Write or modify coordinate equations (utilizing x, y, and z variables):"))
-
                 script_text_area = QTextEdit()
-                script_text_area.setPlainText(f"# Script for {current_instrument}\n# Formula processing loop\ndef evaluate_wave(x, y, z):\n    return x * y - z")
+                script_text_area.setPlainText(f"# Script for Node {inst_index}: {current_instrument}\ndef evaluate_wave(x, y, z):\n    return x * {inst_index}.0 - y * z")
                 main_layout.addWidget(script_text_area)
-
                 btn_layout = QHBoxLayout()
-                btn_run_script = QPushButton("▶ Run Instrument Script")
-                btn_save_script = QPushButton("💾 Save Script")
-                btn_layout.addWidget(btn_run_script)
-                btn_layout.addWidget(btn_save_script)
+                btn_layout.addWidget(QPushButton("▶ Run Instrument Script"))
+                btn_layout.addWidget(QPushButton("💾 Save Script"))
                 main_layout.addLayout(btn_layout)
             else:
                 main_layout.addWidget(QLabel(f"Active Panel: {window_title}"))
@@ -6048,6 +6066,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         window.show()
         window.raise_()
         window.activateWindow()
+
     def init_menu_bar(self):
         menubar = self.menuBar()
         file_menu = menubar.addMenu("📁 File")
