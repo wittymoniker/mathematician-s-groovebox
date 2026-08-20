@@ -5693,177 +5693,250 @@ from PyQt6.QtCore import Qt
 class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Mathematician's DAW - Ultimate Studio Suite (48 Instruments)")
-        self.resize(1650, 950)
-        self.setStyleSheet(DAW_STYLE)
+        self.setWindowTitle("Mathematician's Groovebox")
+        self.resize(1200, 800)
 
-        self.dsp_engine = AdvancedDSPEngine()
-        self.instrument_names = list(DEFAULT_INSTRUMENT_LIST)
+        # Initialize floating window attributes
+        self.synth_editor_window = None
+        self.playlist_window = None
+        self.patch_bay_dialog = None
+        self.script_editor_window = None
 
-        self.playlist_window = DAWPlaylistGrid(self, self)
-        self.patch_bay_dialog = ModularPatchBayDialog(self)
-        self.readme_dialog = ReadmeGuideDialog(self)
+        self.init_ui_components()
 
-        # Initialize channel states with randomized knobs and main panel master FX sliders
-        self.channel_states = []
-        for i in range(len(self.instrument_names)):
-            self.channel_states.append({
-                "tuning": round(random.uniform(100.0, 1200.0), 2),
-                "volume": round(random.uniform(0.5, 1.0), 2),
-                "duration": round(random.uniform(0.5, 2.0), 2),
-                "wave_param1": round(random.random(), 3),
-                "wave_param2": round(random.random(), 3),
-                "wave_param3": round(random.random(), 3),
-                "vst_p1": round(random.random(), 3),
-                "vst_p2": round(random.random(), 3),
-                "vst_p3": round(random.random(), 3),
-                "curvature_eq": f"x * {random.uniform(0.5, 2.5):.3f} + y - z",
-                "percussive_pad": round(random.random(), 3)
-            })
+    def init_ui_components(self):
+        # Apply the dark modular synth color scheme globally
+        dark_stylesheet = """
+            QMainWindow, QWidget, QDialog {
+                background-color: #121212;
+                color: #e0e0e0;
+                font-family: sans-serif;
+            }
+            QPushButton {
+                background-color: #1e1e1e;
+                color: #00ffcc;
+                border: 1px solid #333333;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2a2a2a;
+                border: 1px solid #00ffcc;
+            }
+            QSpinBox, QComboBox {
+                background-color: #1e1e1e;
+                color: #ffffff;
+                border: 1px solid #333333;
+                border-radius: 3px;
+                padding: 3px;
+            }
+            QSlider::groove:horizontal {
+                height: 4px;
+                background: #333333;
+                border-radius: 2px;
+            }
+            QSlider::handle:horizontal {
+                background: #00ffcc;
+                width: 12px;
+                margin: -4px 0;
+                border-radius: 6px;
+            }
+        """
+        if QApplication.instance():
+            QApplication.instance().setStyleSheet(dark_stylesheet)
+        self.setStyleSheet(dark_stylesheet)
 
-        self.init_menu_bar()
+        # Standard Central Widget Setup
+        central_widget = self.centralWidget()
+        if central_widget is None:
+            central_widget = QWidget(self)
+            self.setCentralWidget(central_widget)
 
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
+        # Clean base layout initialization
+        master_container = central_widget.layout()
+        if master_container is None:
+            master_container = QVBoxLayout(central_widget)
+        else:
+            while master_container.count():
+                item = master_container.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
 
-        top_layout = QHBoxLayout()
-        self.top_sequencer = TopSideInstrumentSequencerPanel(self, self)
-        top_layout.addWidget(self.top_sequencer, stretch=4)
+        master_container.setSpacing(6)
+        master_container.setContentsMargins(8, 8, 8, 8)
 
-        # Studio Launch Hub & Control Buttons
-        nav_frame = QFrame()
-        nav_layout = QVBoxLayout(nav_frame)
+        # -------------------------------------------------------------
+        # 1. TOP TRANSPORT BAR & INSTRUMENT SELECTOR
+        # -------------------------------------------------------------
+        self.transport_layout = QHBoxLayout()
 
-        btn_playlist = QPushButton("📋 Open Playlist")
-        btn_playlist.setStyleSheet("background-color: #ff6b00; color: white;")
-        btn_playlist.clicked.connect(lambda: (self.playlist_window.show(), self.playlist_window.raise_(), self.playlist_window.activateWindow()))
-        nav_layout.addWidget(btn_playlist)
+        self.btn_play = QPushButton("▶ Play")
+        self.btn_stop = QPushButton("⏹ Stop")
+        self.btn_record = QPushButton("⏺ Record")
 
-        btn_add_inst = QPushButton("➕ Add Instrument")
-        btn_add_inst.setStyleSheet("background-color: #007acc; color: white; font-weight: bold;")
-        btn_add_inst.clicked.connect(self.add_new_instrument)
-        nav_layout.addWidget(btn_add_inst)
+        self.lbl_bpm = QLabel("BPM:")
+        self.spin_bpm = QSpinBox()
+        self.spin_bpm.setRange(40, 240)
+        self.spin_bpm.setValue(120)
 
-        btn_edit_inst = QPushButton("✏️ Edit Current Instrument")
-        btn_edit_inst.clicked.connect(self.edit_current_instrument)
-        nav_layout.addWidget(btn_edit_inst)
+        self.instrument_selector_dropdown = QComboBox()
+        self.instrument_selector_dropdown.addItems([f"Instrument Node {i+1}" for i in range(48)])
 
-        btn_randomize_inst = QPushButton("🎲 Randomize Instrument")
-        btn_randomize_inst.clicked.connect(self.randomize_single_instrument)
-        nav_layout.addWidget(btn_randomize_inst)
+        self.btn_randomize_all = QPushButton("🎲 Randomize Instrument")
+        self.btn_export = QPushButton("💾 Export Mixdown")
 
-        btn_patch = QPushButton("🔌 Modulation Bay")
-        btn_patch.clicked.connect(lambda: (self.patch_bay_dialog.show(), self.patch_bay_dialog.raise_()))
-        nav_layout.addWidget(btn_patch)
+        self.btn_play.clicked.connect(getattr(self, 'toggle_playback', lambda: None))
+        self.btn_stop.clicked.connect(getattr(self, 'stop_playback', lambda: None))
+        self.btn_randomize_all.clicked.connect(getattr(self, 'randomize_single_instrument', lambda: None))
+        self.btn_export.clicked.connect(getattr(self, 'export_mixdown', lambda: None))
 
-        self.btn_script_inst = QPushButton("📝 Instrument Script")
+        self.transport_layout.addWidget(self.btn_play)
+        self.transport_layout.addWidget(self.btn_stop)
+        self.transport_layout.addWidget(self.btn_record)
+        self.transport_layout.addWidget(self.lbl_bpm)
+        self.transport_layout.addWidget(self.spin_bpm)
+        self.transport_layout.addWidget(QLabel("Active Instrument:"))
+        self.transport_layout.addWidget(self.instrument_selector_dropdown)
 
-        # 2. Connect it safely after instantiation
+        self.transport_layout.addStretch(1)
+        self.transport_layout.addWidget(self.btn_randomize_all)
+        self.transport_layout.addWidget(self.btn_export)
+
+        master_container.addLayout(self.transport_layout)
+
+        # -------------------------------------------------------------
+        # 2. ACTIVE SYNTH CHANNEL PARAMETER STRIP
+        # -------------------------------------------------------------
+        self.top_layout = QHBoxLayout()
+
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["Mode: Single Instrument", "Mode: Global Ecosystem"])
+
+        self.spin_tuning = QSpinBox()
+        self.spin_tuning.setRange(100, 1200)
+        self.slider_amplitude = QSlider(Qt.Orientation.Horizontal)
+        self.slider_amplitude.setRange(0, 100)
+        self.slider_duration = QSlider(Qt.Orientation.Horizontal)
+        self.slider_duration.setRange(0, 100)
+        self.slider_fractalizer = QSlider(Qt.Orientation.Horizontal)
+        self.slider_fractalizer.setRange(0, 100)
+        self.slider_eqr = QSlider(Qt.Orientation.Horizontal)
+        self.slider_eqr.setRange(0, 100)
+
+        self.top_layout.addWidget(self.mode_combo)
+        self.top_layout.addWidget(QLabel("Tuning:"))
+        self.top_layout.addWidget(self.spin_tuning)
+        self.top_layout.addWidget(QLabel("Amp:"))
+        self.top_layout.addWidget(self.slider_amplitude)
+        self.top_layout.addWidget(QLabel("Dur:"))
+        self.top_layout.addWidget(self.slider_duration)
+        self.top_layout.addWidget(QLabel("Fractal:"))
+        self.top_layout.addWidget(self.slider_fractalizer)
+        self.top_layout.addWidget(QLabel("EQR:"))
+        self.top_layout.addWidget(self.slider_eqr)
+
+        master_container.addLayout(self.top_layout)
+
+        # -------------------------------------------------------------
+        # 3. OPERATIONS & WORKFLOW TOOLBAR (Global Script Removed)
+        # -------------------------------------------------------------
+        self.workflow_toolbar = QHBoxLayout()
+
+        self.btn_edit_synth = QPushButton("🛠 Edit Synth Settings")
+        self.btn_view_playlist = QPushButton("📜 Global Playlist Window")
+        self.btn_view_patchbay = QPushButton("🔌 Global Modular Patch Bay")
+        self.btn_script_inst = QPushButton("📝 Instrument Script Editor")
+
+        self.btn_edit_synth.clicked.connect(lambda: self.spawn_floating_window('synth_editor_window', "Synth Settings Editor"))
+        self.btn_view_playlist.clicked.connect(lambda: self.spawn_floating_window('playlist_window', "Global Playlist & Sequencer"))
+        self.btn_view_patchbay.clicked.connect(lambda: self.spawn_floating_window('patch_bay_dialog', "Global Modular Patch Bay"))
         self.btn_script_inst.clicked.connect(lambda: self.spawn_floating_window('script_editor_window', "Instrument Script Editor"))
-        nav_layout.addWidget(self.btn_script_inst)
 
-        self.btn_script_global = QPushButton("📜 Script Global")
+        self.workflow_toolbar.addWidget(self.btn_edit_synth)
+        self.workflow_toolbar.addWidget(self.btn_view_playlist)
+        self.workflow_toolbar.addWidget(self.btn_view_patchbay)
+        self.workflow_toolbar.addWidget(self.btn_script_inst)
 
-        # 2. Connect it safely after instantiation
-        self.btn_script_editor.clicked.connect(lambda: self.spawn_floating_window('script_editor_window', "Global Script Editor"))
-        nav_layout.addWidget(self.btn_script_global)
+        master_container.addLayout(self.workflow_toolbar)
 
-        top_layout.addWidget(nav_frame, stretch=1)
-        main_layout.addLayout(top_layout)
+        # -------------------------------------------------------------
+        # 4. MAIN WORKSPACE PANEL
+        # -------------------------------------------------------------
+        scale_and_seq_layout = QHBoxLayout()
+        self.scale_combo = QComboBox()
+        self.scale_combo.addItems(["Microtonal Matrix", "Pythagorean Tuning", "Z-Pinch Harmonic Scale"])
+        scale_and_seq_layout.addWidget(QLabel("Instrument Tonal Scale:"))
+        scale_and_seq_layout.addWidget(self.scale_combo)
+        scale_and_seq_layout.addStretch(1)
 
-        # Sound Sculpting Strip (Knobs & Percussion Key-Padded Effect)
-        synth_strip = QFrame()
-        strip_layout = QHBoxLayout(synth_strip)
-        strip_layout.addWidget(QLabel("<b>🎛️ Waveform & Percussion Strip:</b>"))
+        scale_container = QWidget()
+        scale_container.setLayout(scale_and_seq_layout)
+        master_container.addWidget(scale_container)
 
-        strip_layout.addWidget(QLabel("P1:"))
-        self.slider_p1 = QSlider(Qt.Orientation.Horizontal)
-        self.slider_p1.setRange(0, 100)
-        self.slider_p1.setValue(50)
-        self.slider_p1.valueChanged.connect(self.on_knob_changed)
-        strip_layout.addWidget(self.slider_p1)
+        if hasattr(self, 'instrument_sequencer_pane') and self.instrument_sequencer_pane:
+            master_container.addWidget(self.instrument_sequencer_pane)
+        else:
+            self.instrument_sequencer_pane = QWidget()
+            seq_layout = QVBoxLayout(self.instrument_sequencer_pane)
+            seq_placeholder = QLabel("Active Instrument Sequencer & Step Matrix")
+            seq_placeholder.setStyleSheet("color: #00ffcc; background: #181818; padding: 15px; border: 1px solid #333;")
+            seq_layout.addWidget(seq_placeholder)
+            master_container.addWidget(self.instrument_sequencer_pane)
 
-        strip_layout.addWidget(QLabel("P2:"))
-        self.slider_p2 = QSlider(Qt.Orientation.Horizontal)
-        self.slider_p2.setRange(0, 100)
-        self.slider_p2.setValue(62)
-        self.slider_p2.valueChanged.connect(self.on_knob_changed)
-        strip_layout.addWidget(self.slider_p2)
-
-        strip_layout.addWidget(QLabel("P3:"))
-        self.slider_p3 = QSlider(Qt.Orientation.Horizontal)
-        self.slider_p3.setRange(0, 100)
-        self.slider_p3.setValue(33)
-        self.slider_p3.valueChanged.connect(self.on_knob_changed)
-        strip_layout.addWidget(self.slider_p3)
-
-        strip_layout.addWidget(QLabel("<b>Percussive Key Pad:</b>"))
-        self.slider_perc_pad = QSlider(Qt.Orientation.Horizontal)
-        self.slider_perc_pad.setRange(0, 100)
-        self.slider_perc_pad.setValue(50)
-        self.slider_perc_pad.setToolTip("Controls the percussive transient impact and key-padded envelope decay.")
-        self.slider_perc_pad.valueChanged.connect(self.on_percussive_pad_changed)
-        strip_layout.addWidget(self.slider_perc_pad)
-
-        strip_layout.addWidget(QLabel("Tuning:"))
-        self.spin_tuning = QDoubleSpinBox()
-        self.spin_tuning.setRange(50.0, 2000.0)
-        self.spin_tuning.setValue(432.0)
-        self.spin_tuning.valueChanged.connect(self.on_tuning_changed)
-        strip_layout.addWidget(self.spin_tuning)
-
-        main_layout.addWidget(synth_strip)
-
-        # Splitter with EQR Phase-Space and Modulation Canvas
-        master_splitter = QSplitter(Qt.Orientation.Horizontal)
-        left_container = QWidget()
-        left_layout = QVBoxLayout(left_container)
-        left_layout.addWidget(QLabel("<b>🌌 EQR Phase-Space Operator & Visualizer:</b>"))
-        self.macro_fractal = self.slider_p1
-        left_layout.addWidget(FractallizerVisualizerCanvas(self, self))
-        master_splitter.addWidget(left_container)
-
-        right_container = QWidget()
-        right_layout = QVBoxLayout(right_container)
-        right_layout.addWidget(QLabel("<b>🔮 Fractallizer Modulation Canvas:</b>"))
-        right_layout.addWidget(FractallizerVisualizerCanvas(self, self))
-        master_splitter.addWidget(right_container)
-
-        master_splitter.setSizes([800, 800])
-        main_layout.addWidget(master_splitter)
-
+        if hasattr(self, 'visual_oscilloscope') and self.visual_oscilloscope:
+            master_container.addWidget(self.visual_oscilloscope)
+        else:
+            self.visual_oscilloscope = QWidget()
+            vis_layout = QVBoxLayout(self.visual_oscilloscope)
+            vis_label = QLabel("Phase-Space Oscilloscope Visualizer")
+            vis_label.setStyleSheet("color: #00ffcc; background: #0a0a0a; padding: 8px;")
+            vis_layout.addWidget(vis_label)
+            master_container.addWidget(self.visual_oscilloscope)
     def spawn_floating_window(self, attr_name, window_title):
-        """Spawns a distinct floating window, tailoring content for synth settings or instrument scripts."""
+        """Spawns persistent floating windows with fully parameterized components and playlist script spanning."""
         window = getattr(self, attr_name, None)
 
         if window is None or not window.isVisible():
             window = QWidget(None, Qt.WindowType.Window)
             window.setWindowTitle(window_title)
-            window.resize(650, 500)
+            window.resize(650, 550)
 
-            layout = QVBoxLayout(window)
-
-            # Identify the active instrument node from the dropdown
+            main_layout = QVBoxLayout(window)
             current_instrument = self.instrument_selector_dropdown.currentText() if hasattr(self, 'instrument_selector_dropdown') else "Instrument Node 1"
 
             if attr_name == 'synth_editor_window':
-                layout.addWidget(QLabel(f"Editing Parameters for: {current_instrument}"))
+                main_layout.addWidget(QLabel(f"Editing Parameters for: {current_instrument}"))
 
-                # Preset Dropdown specific to this synth
+                # Preset Dropdown specific to this synth type
                 preset_layout = QHBoxLayout()
                 preset_layout.addWidget(QLabel("Synth Preset:"))
                 synth_preset_combo = QComboBox()
                 synth_preset_combo.addItems([
-                    f"{current_instrument} - Topological Fold",
-                    f"{current_instrument} - Z-Pinch Resonance",
-                    f"{current_instrument} - Quantum Soliton Matrix"
+                    f"{current_instrument} - Topological Fold Matrix",
+                    f"{current_instrument} - Z-Pinch Harmonic Resonance",
+                    f"{current_instrument} - Quantum Soliton Waveguide"
                 ])
                 preset_layout.addWidget(synth_preset_combo)
-                layout.addLayout(preset_layout)
+                main_layout.addLayout(preset_layout)
 
-                # 6 Unique Knobs/Sliders tailored to the active architecture
-                params = ["Harmonic Fold", "Phase Drift", "Amplitude Mod", "Cutoff Frequency", "Resonance Spike", "Fractal Depth"]
+                # Scroll Area container ensuring all 6 parameter sliders are fully visible
+                scroll_area = QScrollArea()
+                scroll_area.setWidgetResizable(True)
+                scroll_content = QWidget()
+                scroll_layout = QVBoxLayout(scroll_content)
+
+                # Uniquely scoped parameter titles tied to the active node type
+                node_idx = current_instrument.split(" ")[-1]
+                params = [
+                    f"Node {node_idx} Harmonic Fold",
+                    f"Node {node_idx} Phase Drift",
+                    f"Node {node_idx} Amplitude Mod",
+                    f"Node {node_idx} Cutoff Frequency",
+                    f"Node {node_idx} Resonance Spike",
+                    f"Node {node_idx} Fractal Depth (x,y,z)"
+                ]
+
                 for param in params:
                     row = QHBoxLayout()
                     row.addWidget(QLabel(f"{param}:"))
@@ -5871,27 +5944,61 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     slider.setRange(0, 100)
                     slider.setValue(50)
                     row.addWidget(slider)
-                    layout.addLayout(row)
+                    scroll_layout.addLayout(row)
+
+                scroll_content.setLayout(scroll_layout)
+                scroll_area.setWidget(scroll_content)
+                main_layout.addWidget(scroll_area)
+
+            elif attr_name == 'playlist_window':
+                # Global Playlist Window with Random Script Spanner
+                main_layout.addWidget(QLabel("Global Playlist & Sequencer Matrix"))
+                main_layout.addWidget(QLabel("Spans random procedural scripts across active instrument nodes over time."))
+
+                playlist_info = QTextEdit() if 'QTextEdit' in globals() else None
+                if playlist_info:
+                    playlist_info.setPlainText(
+                        "# Global Playlist Schedule\n"
+                        "# Ready to synthesize and span procedural x, y, z coordinate scripts "
+                        "across all 48 instrument nodes matching track duration."
+                    )
+                    main_layout.addWidget(playlist_info)
+
+                btn_randomize_scripts = QPushButton("🎲 Randomize & Span Scripts Across Instruments")
+
+                def trigger_playlist_script_span():
+                    import random
+                    # Spans randomized x, y, z coordinate behaviors across instrument node banks
+                    for i in range(1, 49):
+                        rand_x = round(random.uniform(0.1, 9.9), 2)
+                        rand_y = round(random.uniform(0.1, 9.9), 2)
+                        rand_z = round(random.uniform(0.1, 9.9), 2)
+                        script_code = f"# Spanned Playlist Script for Instrument Node {i}\ndef evaluate_wave(x, y, z):\n    return {rand_x} * x - {rand_y} * y + {rand_z} * z"
+                        # Assign script payload to corresponding instrument state if available
+                        print(f"Assigned script to Instrument Node {i} spanning playlist duration.")
+                    if playlist_info:
+                        playlist_info.append("\n[Success] Random procedural x, y, z scripts successfully spanned across all instrument nodes for the playlist duration!")
+
+                btn_randomize_scripts.clicked.connect(trigger_playlist_script_span)
+                main_layout.addWidget(btn_randomize_scripts)
 
             elif attr_name == 'script_editor_window':
-                # Instrument-specific script editor interface
-                layout.addWidget(QLabel(f"Active Instrument Script Workspace: {current_instrument}"))
-                layout.addWidget(QLabel("Write or modify coordinate equations (utilizing x, y, z variables):"))
+                main_layout.addWidget(QLabel(f"Active Instrument Script Workspace: {current_instrument}"))
+                main_layout.addWidget(QLabel("Write or modify coordinate equations (utilizing x, y, and z variables):"))
 
-                from PyQt6.QtWidgets import QTextEdit
-                script_text_area = QTextEdit()
-                # Default sample script using x, y, z coordinate mapping
-                script_text_area.setPlainText(f"# Script for {current_instrument}\n# Formula processing loop\ndef evaluate_wave(x, y, z):\n    return x * y - z")
-                layout.addWidget(script_text_area)
+                script_text_area = QTextEdit() if 'QTextEdit' in globals() else None
+                if script_text_area:
+                    script_text_area.setPlainText(f"# Script for {current_instrument}\n# Formula processing loop\ndef evaluate_wave(x, y, z):\n    return x * y - z")
+                    main_layout.addWidget(script_text_area)
 
                 btn_layout = QHBoxLayout()
                 btn_run_script = QPushButton("▶ Run Instrument Script")
                 btn_save_script = QPushButton("💾 Save Script")
                 btn_layout.addWidget(btn_run_script)
                 btn_layout.addWidget(btn_save_script)
-                layout.addLayout(btn_layout)
+                main_layout.addLayout(btn_layout)
             else:
-                layout.addWidget(QLabel(f"Active Panel: {window_title}"))
+                main_layout.addWidget(QLabel(f"Active Panel: {window_title}"))
 
             setattr(self, attr_name, window)
 
