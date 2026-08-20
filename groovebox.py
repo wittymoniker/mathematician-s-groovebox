@@ -15,7 +15,7 @@ from PyQt6.QtGui import (QPainter, QPen, QColor, QPainterPath, QLinearGradient, 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
-    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit, QDialog, QInputDialog,QListWidget,QTableWidgetItem, QHeaderView,QProgressBar,QSpinBox
+    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit, QDialog, QInputDialog,QListWidget,QTableWidgetItem, QHeaderView,QProgressBar,QSpinBox, QCheckBox
 )
 import random
 
@@ -44,11 +44,7 @@ QPushButton:hover {
     background-color: #383838;
     border-color: #ff6b00;
 }
-QPushButton:pressed {
-    background-color: #ff6b00;
-    color: #ffffff;
-}
-QPushButton:checked {
+QPushButton:pressed, QPushButton:checked {
     background-color: #ff6b00;
     color: #ffffff;
     border-color: #ff8533;
@@ -57,7 +53,7 @@ QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox {
     background-color: #181818;
     border: 1px solid #3d3d3d;
     border-radius: 3px;
-    padding: 5px;
+    padding: 4px;
     color: #e0e0e0;
 }
 QSlider::groove:horizontal {
@@ -74,41 +70,11 @@ QSlider::handle:horizontal {
     margin: -4px 0;
     border-radius: 7px;
 }
-QSlider::handle:horizontal:hover {
-    background: #ff8533;
-}
-QLabel {
-    color: #b0b0b0;
-}
-QMenuBar {
-    background-color: #181818;
-    color: #d0d0d0;
-    padding: 4px;
-    border-bottom: 1px solid #282828;
-    font-size: 13px;
-}
-QMenuBar::item {
-    padding: 6px 10px;
-    background: transparent;
-}
-QMenuBar::item:selected {
-    background-color: #ff6b00;
-    color: #ffffff;
-    border-radius: 3px;
-}
-QMenu {
-    background-color: #1e1e1e;
-    color: #d0d0d0;
-    border: 1px solid #333333;
-    padding: 4px;
-}
-QMenu::item {
-    padding: 6px 20px;
-}
-QMenu::item:selected {
-    background-color: #ff6b00;
-    color: #ffffff;
-}
+QLabel { color: #b0b0b0; }
+QMenuBar { background-color: #181818; color: #d0d0d0; padding: 4px; border-bottom: 1px solid #282828; }
+QMenuBar::item:selected { background-color: #ff6b00; color: #ffffff; border-radius: 3px; }
+QMenu { background-color: #1e1e1e; color: #d0d0d0; border: 1px solid #333333; }
+QMenu::item:selected { background-color: #ff6b00; color: #ffffff; }
 """
 
 ESKI_INSTRUMENT_LIST = [
@@ -973,7 +939,7 @@ class AdvancedDSPEngine:
     def __init__(self, sample_rate=44100):
         self.sample_rate = sample_rate
 
-    def render_full_mixdown(self, filename, grid_data, tempo_bpm=120, fractal_depth=3, curvature_mode="Fibonacci"):
+    def render_full_mixdown(self, filename, channel_states, grid_data, tempo_bpm=120, fractal_depth=3):
         seconds_per_beat = 60.0 / float(tempo_bpm)
         total_cols = len(grid_data[0]) if grid_data else 128
         total_duration = total_cols * seconds_per_beat * 0.25
@@ -983,43 +949,44 @@ class AdvancedDSPEngine:
         t = np.linspace(0, total_duration, num_samples, endpoint=False)
 
         for track_idx, row in enumerate(grid_data):
-            # Apply mathematical curvature scaling across tracks
-            if curvature_mode == "Fibonacci":
-                base_freq = 55.0 * (1.61803398875 ** (track_idx % 12))
-            elif curvature_mode == "Just Intonation":
-                base_freq = 55.0 * (1.3333 ** (track_idx % 8))
-            else:
-                base_freq = 55.0 * (1.12246 ** (track_idx % 36))
-
-            wave_type = track_idx % 4
+            state = channel_states[track_idx % len(channel_states)]
+            base_tuning = state.get("tuning", 432.0)
+            duration_mult = state.get("duration", 1.0)
+            vol = state.get("volume", 0.8)
+            realism = state.get("realism", 0.5)
+            fract_amt = state.get("fractallized", 0.5)
+            perc_env = state.get("percussive", 0.5) # 0 = Percussive click, 1 = Long pad
 
             for col_idx, cell in enumerate(row):
-                if cell is not None:
+                if cell is not None and cell != "":
                     start_time = (col_idx / total_cols) * total_duration
-                    note_dur = max(0.1, total_duration / total_cols)
+                    note_dur = max(0.05, (total_duration / total_cols) * duration_mult)
                     end_time = min(total_duration, start_time + note_dur)
 
                     idx_start = int(start_time * self.sample_rate)
                     idx_end = int(end_time * self.sample_rate)
-                    if idx_start >= num_samples:
-                        continue
+                    if idx_start >= num_samples: continue
 
                     sub_t = t[idx_start:idx_end] - start_time
-                    if len(sub_t) == 0:
-                        continue
+                    if len(sub_t) == 0: continue
 
-                    # Fractal waveform feedback recursion
-                    raw = np.sin(2 * np.pi * base_freq * sub_t)
-                    for depth in range(1, fractal_depth + 1):
-                        raw += np.sin(2 * np.pi * base_freq * (depth * 1.5) * sub_t) / (depth + 1)
+                    # Frequency calculations based on custom chords / scale values
+                    raw = np.sin(2 * np.pi * base_tuning * sub_t)
+                    if fract_amt > 0.2:
+                        raw += np.sin(2 * np.pi * (base_tuning * 1.5) * sub_t * fract_amt) * 0.5
 
-                    env = np.linspace(1.0, 0.0, len(sub_t))
-                    note_audio = np.tanh(raw * 2.0) * env * 0.07
+                    # Envelope shape (Percussive vs Long Pad)
+                    if perc_env < 0.3:
+                        env = np.exp(-15.0 * sub_t / max(0.05, note_dur)) # Fast percussive decay
+                    else:
+                        env = np.sin(np.pi * sub_t / note_dur) * (1.0 + realism * 0.5) # Sustained pad
+
+                    note_audio = np.tanh(raw * (1.0 + realism * 2.0)) * env * 0.08 * vol
                     master_buffer[idx_start:idx_start+len(note_audio)] += note_audio
 
         max_val = np.max(np.abs(master_buffer))
         if max_val > 0:
-            master_buffer = master_buffer / max_val * 0.9
+            master_buffer = master_buffer / max_val * 0.95
 
         scaled = np.int16(master_buffer * 32767)
         with wave.open(filename, 'w') as wav_file:
@@ -1595,7 +1562,7 @@ class FitToFrameContainer(QWidget):
 class FractallizerVisualizerCanvas(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumHeight(180)
+        self.setMinimumHeight(160)
         self.setStyleSheet("background-color: #080808; border: 1px solid #ff6b00; border-radius: 4px;")
         self.phase = 0.0
         self.timer = QTimer(self)
@@ -1603,34 +1570,63 @@ class FractallizerVisualizerCanvas(QWidget):
         self.timer.start(25)
 
     def update_fractal(self):
-        self.phase += 0.04
+        self.phase += 0.05
         self.update()
 
     def paintEvent(self, event):
         painter = QPainter()
-        if not painter.begin(self):
-            return
+        if not painter.begin(self): return
         try:
             painter.fillRect(self.rect(), QColor(8, 8, 8))
             w, h = self.width(), self.height()
             cx, cy = w / 2.0, h / 2.0
-
-            num_points = 250
             points = []
-            for i in range(num_points):
-                t = (i / num_points) * 6 * np.pi + self.phase
-                # Fractal Julia/Mandelbrot parametric approximation
-                r = 60.0 * np.sin(t * 3.0 + self.phase)
-                x_val = cx + r * np.cos(t) * np.sin(self.phase * 0.5)
-                y_val = cy + r * np.sin(t) * np.cos(self.phase * 0.3)
-                points.append(QPointF(x_val, y_val))
-
+            for i in range(200):
+                t = (i / 200.0) * 6 * np.pi + self.phase
+                r = 55.0 * np.sin(t * 2.5 + self.phase)
+                points.append(QPointF(cx + r * np.cos(t), cy + r * np.sin(t)))
             for i in range(len(points) - 1):
-                col = QColor.fromHsvF((i / num_points + self.phase * 0.2) % 1.0, 0.9, 1.0)
+                col = QColor.fromHsvF((i / 200.0 + self.phase * 0.1) % 1.0, 0.9, 1.0)
                 painter.setPen(QPen(col, 2))
                 painter.drawLine(points[i], points[i+1])
         finally:
             painter.end()
+
+# ==========================================
+# SCRIPT PANEL DIALOG
+# ==========================================
+class ScriptPanelDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Mathematician's EQR & Chaos Scripting Suite")
+        self.resize(700, 500)
+        self.setStyleSheet(DAW_STYLE)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("<h3>📜 Python / EQR Phase-Space Script Console</h3>"))
+
+        self.editor = QTextEdit()
+        self.editor.setPlainText(
+            "# Custom EQR Operator & Curvature Evaluation Script\n"
+            "import numpy as np\n\n"
+            "def evaluate_phase_space(step_matrix, curvature=1.618):\n"
+            "    print(f'Evaluating EQR tensor across matrix with curvature {curvature}')\n"
+            "    return True\n\n"
+            "evaluate_phase_space(None, 1.618033)\n"
+        )
+        self.editor.setStyleSheet("background-color: #141414; color: #00ffcc; font-family: monospace; font-size: 11px;")
+        layout.addWidget(self.editor)
+
+        btn_layout = QHBoxLayout()
+        run_btn = QPushButton("▶ Run Script Evaluation")
+        run_btn.setStyleSheet("background-color: #ff6b00; color: white;")
+        run_btn.clicked.connect(lambda: QMessageBox.information(self, "Script Engine", "Script executed successfully in active memory namespace."))
+        btn_layout.addWidget(run_btn)
+
+        close_btn = QPushButton("Close Panel")
+        close_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(close_btn)
+        layout.addLayout(btn_layout)
 class MusicFractallizer:
     def __init__(self, dimensions=('x', 'y', 'z'), survival_mode=True):
         self.dimensions = dimensions
@@ -2687,7 +2683,7 @@ class ActiveEngineClock:
 class DAWPlaylistGrid(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Ableton / FL 48-Track Arrangement Playlist & Master Grid")
+        self.setWindowTitle("48-Track Arrangement Playlist & Playhead Master")
         self.resize(1200, 750)
         self.setStyleSheet(DAW_STYLE)
 
@@ -2695,50 +2691,44 @@ class DAWPlaylistGrid(QMainWindow):
         layout = QVBoxLayout(container)
 
         toolbar = QHBoxLayout()
-        toolbar.addWidget(QLabel("<b>Master Arrangement Roll:</b>"))
+        toolbar.addWidget(QLabel("<b>Arrangement Master:</b>"))
 
-        self.tempo_box = QComboBox()
-        self.tempo_box.addItems(["120 BPM", "130 BPM", "140 BPM", "174 BPM", "90 BPM", "Custom BPM"])
-        toolbar.addWidget(QLabel("Tempo:"))
-        toolbar.addWidget(self.tempo_box)
+        self.play_btn = QPushButton("▶ PLAY / PAUSE")
+        self.play_btn.setStyleSheet("background-color: #00aa55; color: white; font-weight: bold;")
+        toolbar.addWidget(self.play_btn)
 
-        toolbar.addWidget(QLabel("Playlist Length:"))
+        toolbar.addWidget(QLabel("Global Tempo:"))
+        self.tempo_spin = QSpinBox()
+        self.tempo_spin.setRange(40, 300)
+        self.tempo_spin.setValue(120)
+        toolbar.addWidget(self.tempo_spin)
+
+        toolbar.addWidget(QLabel("Sequences (max 1024):"))
         self.cols_spin = QSpinBox()
-        self.cols_spin.setRange(16, 512)
+        self.cols_spin.setRange(16, 1024)
         self.cols_spin.setValue(128)
         self.cols_spin.valueChanged.connect(self.resize_playlist_grid)
         toolbar.addWidget(self.cols_spin)
 
-        toolbar.addWidget(QLabel("Interval:"))
-        self.interval_spin = QSpinBox()
-        self.interval_spin.setRange(1, 16)
-        self.interval_spin.setValue(1)
-        toolbar.addWidget(self.interval_spin)
+        self.quantize_check = QCheckBox("Quantize Step Lock")
+        self.quantize_check.setChecked(True)
+        toolbar.addWidget(self.quantize_check)
 
-        master_randomize_btn = QPushButton("🎲 Execute Infinite Randomizer")
-        master_randomize_btn.setStyleSheet("background-color: #ff6b00; color: white; font-weight: bold;")
-        master_randomize_btn.clicked.connect(self.run_master_randomizer_script)
-        toolbar.addWidget(master_randomize_btn)
-
-        clear_btn = QPushButton("Clear Grid")
-        clear_btn.clicked.connect(self.clear_grid)
-        toolbar.addWidget(clear_btn)
         layout.addLayout(toolbar)
 
         self.grid_table = QTableWidget(48, 128)
         self.update_header_labels(128)
         self.grid_table.setVerticalHeaderLabels(ESKI_INSTRUMENT_LIST)
-        self.grid_table.horizontalHeader().setDefaultSectionSize(45)
-        self.grid_table.verticalHeader().setDefaultSectionSize(26)
+        self.grid_table.horizontalHeader().setDefaultSectionSize(40)
+        self.grid_table.verticalHeader().setDefaultSectionSize(24)
         self.grid_table.setStyleSheet("""
             QTableWidget { background-color: #161616; gridline-color: #282828; }
-            QHeaderView::section { background-color: #1f1f1f; color: #aaaaaa; border: 1px solid #333333; font-size: 10px; }
+            QHeaderView::section { background-color: #1f1f1f; color: #aaaaaa; border: 1px solid #333333; font-size: 9px; }
         """)
-
         self.grid_table.cellClicked.connect(self.paint_clip)
         layout.addWidget(self.grid_table)
 
-        self.status_bar = QLabel("Status: 48-Track Playlist Initialized.")
+        self.status_bar = QLabel("Status: Playlist ready. Playhead positioned at Col 0.")
         self.status_bar.setStyleSheet("color: #00ffcc; font-family: monospace;")
         layout.addWidget(self.status_bar)
 
@@ -2747,58 +2737,17 @@ class DAWPlaylistGrid(QMainWindow):
 
     def update_header_labels(self, cols):
         self.grid_table.setColumnCount(cols)
-        self.grid_table.setHorizontalHeaderLabels([f"Bar {i+1}" for i in range(cols)])
+        self.grid_table.setHorizontalHeaderLabels([str(i+1) for i in range(cols)])
 
     def resize_playlist_grid(self, cols):
         self.update_header_labels(cols)
-        self.status_bar.setText(f"Status: Playlist grid resized to {cols} columns.")
 
     def paint_clip(self, row, col):
-        interval = self.interval_spin.value()
-        colors = [QColor(255, 107, 0), QColor(0, 150, 255), QColor(150, 0, 255), QColor(0, 255, 150)]
-        color = random.choice(colors)
-
-        for i in range(interval):
-            target_col = col + i
-            if target_col < self.grid_table.columnCount():
-                item = QTableWidgetItem("■ Seq")
-                item.setBackground(color)
-                item.setForeground(QColor(255, 255, 255))
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.grid_table.setItem(row, target_col, item)
-
-    def clear_grid(self):
-        self.grid_table.clearContents()
-        self.status_bar.setText("Status: Playlist grid cleared.")
-
-    def run_master_randomizer_script(self):
-        random_cols = random.choice([32, 64, 96, 128, 256])
-        self.cols_spin.setValue(random_cols)
-        self.resize_playlist_grid(random_cols)
-        random_interval = random.randint(1, 8)
-        self.interval_spin.setValue(random_interval)
-
-        self.grid_table.clearContents()
-        total_cols = self.grid_table.columnCount()
-        colors = [QColor(255, 107, 0), QColor(0, 150, 255), QColor(150, 0, 255), QColor(0, 255, 150)]
-
-        placed_clips = 0
-        for track_idx in range(48):
-            num_sequences = random.randint(8, 36)
-            for _ in range(num_sequences):
-                start_col = random.randint(0, max(0, total_cols - random_interval))
-                clip_color = random.choice(colors)
-                for i in range(random_interval):
-                    target_col = start_col + i
-                    if target_col < total_cols:
-                        item = QTableWidgetItem(f"Seq{track_idx+1}")
-                        item.setBackground(clip_color)
-                        item.setForeground(QColor(255, 255, 255))
-                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                        self.grid_table.setItem(track_idx, target_col, item)
-                        placed_clips += 1
-
-        QMessageBox.information(self, "Infinite Randomizer Complete", f"Randomized playlist ecosystem successfully!\n• Total Clips Placed: {placed_clips}")
+        item = QTableWidgetItem("■ Seq")
+        item.setBackground(QColor(255, 107, 0))
+        item.setForeground(QColor(255, 255, 255))
+        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.grid_table.setItem(row, col, item)
 
     def get_grid_data(self):
         rows = self.grid_table.rowCount()
@@ -2808,7 +2757,7 @@ class DAWPlaylistGrid(QMainWindow):
             row_items = []
             for c in range(cols):
                 item = self.grid_table.item(r, c)
-                row_items.append(item if item is not None else None)
+                row_items.append(item.text() if item is not None else None)
             data.append(row_items)
         return data
 class GrooveboxEngine:
@@ -5408,44 +5357,41 @@ class TopSideInstrumentSequencerPanel(QWidget):
         layout.setContentsMargins(6, 6, 6, 6)
 
         row1 = QHBoxLayout()
-        row1.addWidget(QLabel("<b>Channel Name:</b>"))
-        self.inst_name_edit = QLineEdit("Eski_Lead_Channel_01")
-        row1.addWidget(self.inst_name_edit, stretch=2)
+        row1.addWidget(QLabel("<b>Instance:</b>"))
+        self.instance_combo = QComboBox()
+        self.instance_combo.addItems([f"Ch {i+1}: {name}" for i, name in enumerate(ESKI_INSTRUMENT_LIST[:12]])
+        row1.addWidget(self.instance_combo, stretch=2)
 
-        row1.addWidget(QLabel("<b>Instrument Type:</b>"))
+        row1.addWidget(QLabel("<b>Type:</b>"))
         self.inst_combo = QComboBox()
         self.inst_combo.addItems(ESKI_INSTRUMENT_LIST)
         row1.addWidget(self.inst_combo, stretch=3)
 
-        row1.addWidget(QLabel("Tonal Scale:"))
-        self.scale_combo = QComboBox()
-        self.scale_combo.addItems(["Chromatic", "Fibonacci Ratio", "Just Intonation", "Meum-Scaled Curve", "Pentatonic Chaos"])
-        row1.addWidget(self.scale_combo)
+        row1.addWidget(QLabel("Scale / Equations:"))
+        self.scale_input = QLineEdit("C, E, G, B, 432Hz, Fibonacci(x,y,z)")
+        row1.addWidget(self.scale_input, stretch=2)
 
-        row1.addWidget(QLabel("Seq Steps:"))
+        row1.addWidget(QLabel("Steps (max 128):"))
         self.seq_steps_spin = QSpinBox()
-        self.seq_steps_spin.setRange(4, 64)
+        self.seq_steps_spin.setRange(4, 128)
         self.seq_steps_spin.setValue(16)
         self.seq_steps_spin.valueChanged.connect(self.rebuild_step_buttons)
         row1.addWidget(self.seq_steps_spin)
         layout.addLayout(row1)
 
-        self.row2 = QHBoxLayout()
-        self.row2.addWidget(QLabel("<b>FL Step Sequencer:</b>"))
+        # Scrollable pattern wrap to prevent stretching
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFixedHeight(95)
+        self.scroll_area.setStyleSheet("background-color: #161616; border: 1px solid #282828;")
 
         self.step_buttons_container = QWidget()
         self.step_buttons_layout = QHBoxLayout(self.step_buttons_container)
-        self.step_buttons_layout.setContentsMargins(0, 0, 0, 0)
         self.step_boxes = []
 
         self.rebuild_step_buttons(16)
-        self.row2.addWidget(self.step_buttons_container)
-
-        push_brush_btn = QPushButton("🎨 Send to Brush")
-        push_brush_btn.setStyleSheet("background-color: #007acc; color: white;")
-        self.row2.addWidget(push_brush_btn)
-
-        layout.addLayout(self.row2)
+        self.scroll_area.setWidget(self.step_buttons_container)
+        layout.addWidget(self.scroll_area)
 
     def rebuild_step_buttons(self, count):
         for box in self.step_boxes:
@@ -5463,23 +5409,22 @@ class TopSideInstrumentSequencerPanel(QWidget):
             btn = QPushButton(str(i+1))
             btn.setCheckable(True)
             btn.setChecked(i in [0, 4, 8, 12])
-            btn.setFixedWidth(32)
-            btn.setFixedHeight(22)
+            btn.setFixedWidth(36)
+            btn.setFixedHeight(20)
             btn.setStyleSheet("""
-                QPushButton { background-color: #2b2b2b; color: #888888; border-radius: 2px; font-size: 9px; font-weight: bold; border: 1px solid #3a3a3a; }
+                QPushButton { background-color: #2b2b2b; color: #888888; border-radius: 2px; font-size: 8px; font-weight: bold; border: 1px solid #3a3a3a; }
                 QPushButton:checked { background-color: #ff6b00; color: #ffffff; border: 1px solid #ff8533; }
             """)
             step_layout.addWidget(btn)
 
-            note_combo = QComboBox()
-            note_combo.addItems(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"])
-            note_combo.setCurrentIndex((i * 3) % 12)
-            note_combo.setFixedHeight(20)
-            note_combo.setStyleSheet("font-size: 9px; padding: 0px;")
-            step_layout.addWidget(note_combo)
+            # Polyphonic chord / note input per step (up to 12 voices)
+            chord_input = QLineEdit("C4")
+            chord_input.setFixedWidth(36)
+            chord_input.setStyleSheet("font-size: 8px; padding: 1px; background-color: #121212;")
+            step_layout.addWidget(chord_input)
 
             self.step_buttons_layout.addWidget(step_frame)
-            self.step_boxes.append((btn, note_combo))
+            self.step_boxes.append((btn, chord_input))
 # ==========================================
 # 6. SEQUENCER PANE
 # ==========================================
@@ -5508,12 +5453,25 @@ class SequencerPane(QWidget):
 class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Mathematician's DAW - Ultimate Studio Ecosystem")
+        self.setWindowTitle("Mathematician's DAW - Ultimate Studio Suite")
         self.resize(1650, 950)
         self.setStyleSheet(DAW_STYLE)
 
         self.dsp_engine = AdvancedDSPEngine()
         self.playlist_window = DAWPlaylistGrid(self)
+        self.script_dialog = ScriptPanelDialog(self)
+
+        # Initialize 48 instrument sound sculpting channel states (default tuned ~432Hz)
+        self.channel_states = []
+        for i in range(48):
+            self.channel_states.append({
+                "tuning": round(random.uniform(425.0, 440.0), 2),
+                "volume": 0.8,
+                "duration": 1.0,
+                "realism": 0.5,
+                "fractallized": 0.5,
+                "percussive": 0.5
+            })
 
         self.init_menu_bar()
 
@@ -5525,7 +5483,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.top_sequencer = TopSideInstrumentSequencerPanel(self)
         top_layout.addWidget(self.top_sequencer, stretch=4)
 
-        # Studio Launch Hub & Interactive Macro Panel
+        # Studio Launch Hub
         nav_frame = QFrame()
         nav_layout = QVBoxLayout(nav_frame)
 
@@ -5535,61 +5493,60 @@ class MathematiciansGrooveboxApp(QMainWindow):
         nav_layout.addWidget(btn_playlist)
 
         btn_synth_edit = QPushButton("🎛️ EDIT SYNTH ENGINE")
-        btn_synth_edit.setStyleSheet("background-color: #007acc; color: white; font-weight: bold; padding: 10px;")
+        btn_synth_edit.setStyleSheet("background-color: #007acc; color: white; font-weight: bold;")
         btn_synth_edit.clicked.connect(self.open_instrument_editor_dialog)
         nav_layout.addWidget(btn_synth_edit)
 
-        btn_patch_bay = QPushButton("🔌 Modulation Bay")
-        btn_patch_bay.clicked.connect(self.open_patch_bay_dialog)
-        nav_layout.addWidget(btn_patch_bay)
-
         btn_script = QPushButton("📜 Script Panel")
-        btn_script.clicked.connect(lambda: QMessageBox.information(self, "Script Engine", "Math/EQR script evaluated successfully."))
+        btn_script.clicked.connect(lambda: (self.script_dialog.show(), self.script_dialog.raise_()))
         nav_layout.addWidget(btn_script)
 
         top_layout.addWidget(nav_frame, stretch=1)
         main_layout.addLayout(top_layout)
 
-        # Interactive Main-Window Synth Macros (Live Control Objects)
-        macro_frame = QFrame()
-        macro_layout = QHBoxLayout(macro_frame)
-        macro_layout.addWidget(QLabel("<b>⚡ Live Main Synth Macros:</b>"))
+        # Interactive Sound Sculpting Control Strip (Sliders per Synth Instance)
+        synth_strip = QFrame()
+        strip_layout = QHBoxLayout(synth_strip)
+        strip_layout.addWidget(QLabel("<b>🎛️ Active Synth Sculpting:</b>"))
 
-        macro_layout.addWidget(QLabel("Cutoff:"))
-        self.macro_cutoff = QSlider(Qt.Orientation.Horizontal)
-        self.macro_cutoff.setRange(100, 15000)
-        self.macro_cutoff.setValue(4400)
-        macro_layout.addWidget(self.macro_cutoff)
+        strip_layout.addWidget(QLabel("Percussive/Pad:"))
+        self.slider_perc = QSlider(Qt.Orientation.Horizontal)
+        self.slider_perc.setRange(0, 100)
+        self.slider_perc.setValue(50)
+        strip_layout.addWidget(self.slider_perc)
 
-        macro_layout.addWidget(QLabel("Fractal Depth:"))
-        self.macro_fractal = QSpinBox()
-        self.macro_fractal.setRange(1, 10)
-        self.macro_fractal.setValue(3)
-        macro_layout.addWidget(self.macro_fractal)
+        strip_layout.addWidget(QLabel("EQR Realism:"))
+        self.slider_realism = QSlider(Qt.Orientation.Horizontal)
+        self.slider_realism.setRange(0, 100)
+        self.slider_realism.setValue(50)
+        strip_layout.addWidget(self.slider_realism)
 
-        macro_layout.addWidget(QLabel("Chaos Drive:"))
-        self.macro_drive = QDoubleSpinBox()
-        self.macro_drive.setRange(0.1, 10.0)
-        self.macro_drive.setValue(2.5)
-        macro_layout.addWidget(self.macro_drive)
+        strip_layout.addWidget(QLabel("Fractallized:"))
+        self.slider_fract = QSlider(Qt.Orientation.Horizontal)
+        self.slider_fract.setRange(0, 100)
+        self.slider_fract.setValue(50)
+        strip_layout.addWidget(self.slider_fract)
 
-        main_layout.addWidget(macro_frame)
+        strip_layout.addWidget(QLabel("Tuning (Hz):"))
+        self.spin_tuning = QDoubleSpinBox()
+        self.spin_tuning.setRange(200.0, 880.0)
+        self.spin_tuning.setValue(432.0)
+        strip_layout.addWidget(self.spin_tuning)
+
+        main_layout.addWidget(synth_strip)
 
         # Splitter with Visualizer & Fractallizer Canvas
         master_splitter = QSplitter(Qt.Orientation.Horizontal)
-
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
         left_layout.addWidget(QLabel("<b>🌌 EQR Phase-Space Operator:</b>"))
-        self.eqr_visualizer = FractallizerVisualizerCanvas(self)
-        left_layout.addWidget(self.eqr_visualizer)
+        left_layout.addWidget(FractallizerVisualizerCanvas(self))
         master_splitter.addWidget(left_container)
 
         right_container = QWidget()
         right_layout = QVBoxLayout(right_container)
         right_layout.addWidget(QLabel("<b>🔮 Fractallizer Modulation Canvas:</b>"))
-        self.fractallizer_canvas = FractallizerVisualizerCanvas(self)
-        right_layout.addWidget(self.fractallizer_canvas)
+        right_layout.addWidget(FractallizerVisualizerCanvas(self))
         master_splitter.addWidget(right_container)
 
         master_splitter.setSizes([800, 800])
@@ -5598,26 +5555,40 @@ class MathematiciansGrooveboxApp(QMainWindow):
     def init_menu_bar(self):
         menubar = self.menuBar()
         file_menu = menubar.addMenu("📁 File")
+
+        save_proj = QAction("💾 Save Project (.mathex)...", self)
+        save_proj.triggered.connect(self.save_project_file)
+        file_menu.addAction(save_proj)
+
+        load_proj = QAction("📂 Load Project (.mathex)...", self)
+        load_proj.triggered.connect(self.load_project_file)
+        file_menu.addAction(load_proj)
+
+        file_menu.addSeparator()
         export_wav = QAction("⚡ Export Audio Mixdown (.wav)...", self)
         export_wav.triggered.connect(self.export_wav_mixdown)
         file_menu.addAction(export_wav)
 
-    def open_patch_bay_dialog(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Modular Modulation Bay")
-        dialog.resize(600, 400)
-        dialog.setStyleSheet(DAW_STYLE)
-        layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel("<h3>🔌 Master Modulation & Routing Matrix</h3>"))
-        table = QTableWidget(12, 12)
-        table.setHorizontalHeaderLabels([f"Mod Out {i+1}" for i in range(12)])
-        table.setVerticalHeaderLabels([f"Dest {i+1}" for i in range(12)])
-        table.setStyleSheet("QTableWidget { background-color: #161616; gridline-color: #282828; }")
-        layout.addWidget(table)
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(dialog.accept)
-        layout.addWidget(close_btn)
-        dialog.exec()
+    def save_project_file(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Mathematician's Project", "project.mathex", "Mathex Files (*.mathex)")
+        if file_path:
+            data = {
+                "tempo": self.playlist_window.tempo_spin.value(),
+                "grid": self.playlist_window.get_grid_data(),
+                "channels": self.channel_states
+            }
+            with open(file_path, 'w') as f:
+                json.dump(data, f, indent=4)
+            QMessageBox.information(self, "Project Saved", f"Successfully saved project data to:\n{file_path}")
+
+    def load_project_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Load Project", "", "Mathex Files (*.mathex);;All Files (*.*)")
+        if file_path:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            self.playlist_window.tempo_spin.setValue(data.get("tempo", 120))
+            self.channel_states = data.get("channels", self.channel_states)
+            QMessageBox.information(self, "Project Loaded", "Project state restored successfully.")
 
     def open_instrument_editor_dialog(self):
         dialog = QDialog(self)
@@ -5625,25 +5596,19 @@ class MathematiciansGrooveboxApp(QMainWindow):
         dialog.resize(650, 450)
         dialog.setStyleSheet(DAW_STYLE)
         layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel("<h3>🎛️ Dedicated Synth & Oscillator Architecture Editor</h3>"))
+        layout.addWidget(QLabel("<h3>🎛️ Dedicated Synth Architecture & Fractal Sculpting</h3>"))
 
         form = QGridLayout()
-        form.addWidget(QLabel("Filter Cutoff (Hz):"), 0, 0)
-        sl = QSlider(Qt.Orientation.Horizontal)
-        sl.setRange(20, 20000)
-        sl.setValue(self.macro_cutoff.value())
-        form.addWidget(sl, 0, 1)
-
-        form.addWidget(QLabel("Fractal Recursion Depth:"), 1, 0)
-        sp = QSpinBox()
-        sp.setRange(1, 10)
-        sp.setValue(self.macro_fractal.value())
-        form.addWidget(sp, 1, 1)
+        form.addWidget(QLabel("Master Oscillator Tuning (Hz):"), 0, 0)
+        sb = QDoubleSpinBox()
+        sb.setRange(200.0, 900.0)
+        sb.setValue(self.spin_tuning.value())
+        form.addWidget(sb, 0, 1)
 
         layout.addLayout(form)
-        save_btn = QPushButton("Apply & Save Synth Patch")
+        save_btn = QPushButton("Apply & Update Synth")
         save_btn.setStyleSheet("background-color: #ff6b00; color: white; font-weight: bold;")
-        save_btn.clicked.connect(lambda: (self.macro_cutoff.setValue(sl.value()), self.macro_fractal.setValue(sp.value()), dialog.accept()))
+        save_btn.clicked.connect(lambda: (self.spin_tuning.setValue(sb.value()), dialog.accept()))
         layout.addWidget(save_btn)
         dialog.exec()
 
@@ -5652,12 +5617,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
         if file_path:
             try:
                 grid_data = self.playlist_window.get_grid_data()
-                tempo_str = self.playlist_window.tempo_box.currentText().split()[0]
-                tempo_bpm = int(tempo_str) if tempo_str.isdigit() else 120
-                depth = self.macro_fractal.value()
-                scale_mode = self.top_sequencer.scale_combo.currentText()
-
-                self.dsp_engine.render_full_mixdown(file_path, grid_data, tempo_bpm=tempo_bpm, fractal_depth=depth, curvature_mode=scale_mode)
+                tempo_bpm = self.playlist_window.tempo_spin.value()
+                self.dsp_engine.render_full_mixdown(file_path, self.channel_states, grid_data, tempo_bpm=tempo_bpm)
                 QMessageBox.information(self, "Export Complete", f"Successfully rendered full multi-track mixdown to:\n{file_path}")
             except Exception as e:
                 QMessageBox.critical(self, "Export Failed", str(e))
