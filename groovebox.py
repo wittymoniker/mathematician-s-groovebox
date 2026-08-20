@@ -6127,81 +6127,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
     def stop_playback(self):
         print("[System] Live audio playback stopped.")
-    def export_mixdown_dialog(self):
+
+        def export_mixdown_dialog(self):
         try:
             if wavfile is None:
                 print("[System Error] Scipy is not available. Run `pip install scipy`.")
                 return
-
-            default_filename = f"groovebox_mixdown_{self.export_counter:03d}.wav"
-            file_path, _ = QFileDialog.getSaveFileName(self, "Save Mixdown Audio", default_filename, "WAV Audio Files (*.wav)")
-
-            if not file_path:
-                return
-
-            sample_rate = 44100
-            bpm = self.spin_bpm.value() if hasattr(self, 'spin_bpm') else 120
-            rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 32
-            seq_len = self.spin_seq_length.value() if hasattr(self, 'spin_seq_length') else 16
-
-            # Corrected Tempo Transcoding:
-            # 1 beat = 60 / BPM seconds. Assuming 4 steps per beat (16th notes), calculate exact step duration.
-            seconds_per_beat = 60.0 / bpm
-            step_duration = seconds_per_beat / 4.0
-            row_duration = step_duration * seq_len
-            total_duration = rows * row_duration
-
-            t = np.linspace(0, total_duration, int(sample_rate * total_duration))
-            master_mixdown = np.zeros_like(t)
-
-            base_eqr = self.slider_eqr.value() / 100.0 if hasattr(self, 'slider_eqr') else 0.5
-            pkp_decay = self.slider_pkp_decay.value() / 1000.0 if hasattr(self, 'slider_pkp_decay') else 0.25
-            fractalizer_val = self.slider_fractalizer.value() / 100.0 if hasattr(self, 'slider_fractalizer') else 0.85
-            pkp_auto = self.chk_pkp_automod.isChecked()
-            seed_val = self.spin_seed_val.value() if hasattr(self, 'spin_seed_val') else 42
-
-            print(f"[Resonance Nullifier] Rendering mixdown at {bpm} BPM (Step duration: {step_duration:.3f}s) to '{file_path}'...")
-
-            np.random.seed(seed_val)
-
-            for row_idx in range(rows):
-                start_time = row_idx * row_duration
-                end_time = start_time + row_duration
-                mask = (t >= start_time) & (t < end_time)
-
-                if not np.any(mask):
-                    continue
-
-                local_t = t[mask] - start_time
-                row_mix = np.zeros_like(local_t)
-
-                active_cluster = np.random.choice(len(self.instrument_names_48), size=6, replace=False)
-
-                for op_idx in active_cluster:
-                    op_name = self.instrument_names_48[op_idx]
-                    mem = self.instrument_sequencer_memory[op_name]
-
-                    base_freq = 44.0 * (MEUM_CONSTANT ** (op_idx % 36))
-                    mod_freq = base_freq * MEUM_CONSTANT
-
-                    dynamic_eqr = base_eqr * (1.0 + 0.3 * np.sin(2.0 * np.pi * 0.2 * local_t + op_idx))
-
-                    # Step-sequencer trigger envelope modulation
-                    step_trigger_envelope = np.zeros_like(local_t)
-                    for s_idx in range(seq_len):
-                        if mem["steps"][s_idx]:
-                            s_start = s_idx * step_duration
-                            s_end = s_start + step_duration
-                            s_mask = (local_t >= s_start) & (local_t < s_end)
-                            if np.any(s_mask):
-                                s_local = local_t[s_mask] - s_start
-                                amp = mem["amplitudes"][s_idx]
-                                step_trigger_envelope[s_mask] += amp * np.exp(-s_local / max(step_duration * 0.5, 0.01))
-        def export_mixdown_dialog(self):
-            try:
-                if wavfile is None:
-                    print("[System Error] Scipy is not available. Run `pip install scipy`.")
-                    return
 
             default_filename = f"groovebox_mixdown_{self.export_counter:03d}.wav"
             file_path, _ = QFileDialog.getSaveFileName(self, "Save Mixdown Audio", default_filename, "WAV Audio Files (*.wav)")
