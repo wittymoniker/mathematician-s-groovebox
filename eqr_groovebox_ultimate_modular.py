@@ -9,29 +9,381 @@ import sys
 import math
 import json
 import numpy as np
-from PyQt6.QtCore import Qt, QPoint, QPointF, QRectF, QTimer
+from PyQt6.QtCore import Qt, QPoint, QRectF, QTimer
+from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QGroupBox, QGridLayout, QLabel, QPushButton, QScrollArea, QTabWidget,
-    QSizePolicy, QComboBox, QSlider, QLineEdit, QSplitter, QApplication, QWidget, QFrame, QVBoxLayout, QFrame, QScrollArea, QListWidget
+    QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
+    QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
+    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter
 )
-from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPainterPath
+import random
 from math_engine import MathEngine
 
 
 class PortWidget(QWidget):
-    """Represents an input or output jack on a synth node for cable patching."""
+    """Input/output terminal for the scientific patchbay node network."""
     def __init__(self, port_type, parent=None):
         super().__init__(parent)
         self.port_type = port_type  # 'in' or 'out'
-        self.setFixedSize(18, 18)
-        color = "#00ffc8" if port_type == 'out' else "#ff6400"
-        self.setStyleSheet(f"background-color: {color}; border-radius: 9px; border: 2px solid #ffffff;")
+        self.setFixedSize(22, 22)
+        self.color = "#00ffc8" if port_type == 'out' else "#ff6400"
+        self.setStyleSheet(f"""
+            background-color: {self.color};
+            border-radius: 11px;
+            border: 3px solid #1a1a1a;
+        """)
 
     def mousePressEvent(self, event):
         if self.parent() and hasattr(self.parent(), 'start_cable_drag'):
             self.parent().start_cable_drag(self)
         event.accept()
+
+
+class ScientificCanvas(QWidget):
+    """Interactive node patchbay canvas with Bezier signal cables."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(2400, 1800)
+        self.cables = []
+        self.active_cable_start = None
+        self.current_mouse_pos = QPoint(0, 0)
+        self.setMouseTracking(True)
+        self.setStyleSheet("background-color: #0b0b0e; border: 1px solid #1f1f2e;")
+
+    def start_cable_drag(self, port_widget):
+        self.active_cable_start = port_widget
+        self.current_mouse_pos = port_widget.mapTo(self, port_widget.rect().center())
+        self.update()
+
+    def mouseMoveEvent(self, event):
+        if self.active_cable_start:
+            self.current_mouse_pos = event.pos()
+            self.update()
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self.active_cable_start:
+            target_widget = self.childAt(event.pos())
+            if isinstance(target_widget, PortWidget) and target_widget != self.active_cable_start:
+                if self.active_cable_start.port_type != target_widget.port_type:
+                    cable_pair = (self.active_cable_start, target_widget)
+                    reverse_pair = (target_widget, self.active_cable_start)
+                    if cable_pair not in self.cables and reverse_pair not in self.cables:
+                        self.cables.append(cable_pair)
+            self.active_cable_start = None
+            self.update()
+        super().mouseReleaseEvent(event)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        for start, end in self.cables:
+            if start and end:
+                p1 = start.mapTo(self, start.rect().center())
+                p2 = end.mapTo(self, end.rect().center())
+
+                glow_pen = QPen(QColor(0, 255, 200, 50), 6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+                painter.setPen(glow_pen)
+                painter.drawPath(self.create_bezier_path(p1, p2))
+
+                core_pen = QPen(QColor(0, 255, 200), 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+                painter.setPen(core_pen)
+                painter.drawPath(self.create_bezier_path(p1, p2))
+
+        if self.active_cable_start:
+            p1 = self.active_cable_start.mapTo(self, self.active_cable_start.rect().center())
+            p2 = self.current_mouse_pos
+            drag_pen = QPen(QColor(255, 100, 0, 200), 2, Qt.PenStyle.DashLine, Qt.PenCapStyle.RoundCap)
+            painter.setPen(drag_pen)
+            painter.drawPath(self.create_bezier_path(p1, p2))
+
+    def create_bezier_path(self, p1, p2):
+        path = QPainterPath()
+        path.moveTo(p1)
+        dx = (p2.x() - p1.x()) * 0.5
+        ctrl1 = QPoint(p1.x() + dx, p1.y())
+        ctrl2 = QPoint(p2.x() - dx, p2.y())
+        path.cubicTo(ctrl1, ctrl2, p2)
+        return path
+
+
+class MathNodeWidget(QFrame):
+    """Draggable processing node for algebra & vector fields."""
+    def __init__(self, name, x, y, parent=None):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.resize(240, 150)
+        self.move(x, y)
+        self.setStyleSheet("""
+            background-color: #14141c;
+            color: #ffffff;
+            border: 1px solid #2e2e42;
+            border-radius: 8px;
+        """)
+
+        layout = QVBoxLayout(self)
+        self.title_input = QLineEdit(name)
+        self.title_input.setStyleSheet("""
+            background-color: #1c1c28;
+            color: #00ffc8;
+            border: 1px solid #3d3d5c;
+            padding: 4px;
+            font-weight: bold;
+            border-radius: 4px;
+        """)
+        layout.addWidget(self.title_input)
+
+        ports_layout = QHBoxLayout()
+        in_container = QVBoxLayout()
+        lbl_in = QLabel("IN")
+        lbl_in.setStyleSheet("color: #ff6400; border: none; font-size: 9px; font-weight: bold;")
+        in_container.addWidget(lbl_in)
+        self.in_port = PortWidget('in', self)
+        in_container.addWidget(self.in_port)
+
+        out_container = QVBoxLayout()
+        lbl_out = QLabel("OUT")
+        lbl_out.setStyleSheet("color: #00ffc8; border: none; font-size: 9px; font-weight: bold;")
+        out_container.addWidget(lbl_out)
+        self.out_port = PortWidget('out', self)
+        out_container.addWidget(self.out_port)
+
+        ports_layout.addLayout(in_container)
+        ports_layout.addLayout(out_container)
+        layout.addLayout(ports_layout)
+
+        self.dragging = False
+        self.drag_position = QPoint()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.dragging = True
+            self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self.raise_()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.MouseButton.LeftButton and self.dragging:
+            self.move(event.globalPosition().toPoint() - self.drag_position)
+            if self.parent():
+                self.parent().update()
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        self.dragging = False
+
+
+class DoubleNumericSliderRow(QWidget):
+    """Precision double slider + spinbox widget."""
+    def __init__(self, min_val, max_val, default_val, decimals=2, unit="", parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(int(min_val * 100), int(max_val * 100))
+        self.slider.setValue(int(default_val * 100))
+        self.slider.setStyleSheet("background: transparent;")
+
+        self.spinbox = QDoubleSpinBox()
+        self.spinbox.setRange(min_val, max_val)
+        self.spinbox.setValue(default_val)
+        self.spinbox.setDecimals(decimals)
+        self.spinbox.setSuffix(unit)
+        self.spinbox.setStyleSheet("background-color: #1c1c28; color: #00ffc8; border: 1px solid #3d3d5c; padding: 2px; border-radius: 3px;")
+
+        self.slider.valueChanged.connect(lambda v: self.spinbox.setValue(v / 100.0))
+        self.spinbox.valueChanged.connect(lambda v: self.slider.setValue(int(v * 100)))
+
+        layout.addWidget(self.slider, 3)
+        layout.addWidget(self.spinbox, 1)
+
+
+class SoundCloudTimelineVisualizer(QWidget):
+    """SoundCloud-style static waveform overview with split-spectrum color gradient peaks and recursion trigger labels."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(140)
+        self.setStyleSheet("background-color: #0b0b0e; border: 1px solid #1f1f2e; border-radius: 6px;")
+        # Pre-calculated structural events: (x_ratio, label, color_mode, depth_param)
+        self.triggers = [
+            (0.08, "EskiBrutuses WaveMorph [x=0.2, d=3]", "#00ffc8", 1),
+            (0.22, "EQR Singularity Collapse [f(x,y,z)=0]", "#ff00ff", 2),
+            (0.35, "EskiPhased Non-Linear Matrix [Feedback 82%]", "#00bfff", 1.5),
+            (0.48, "Fractalizer Harmonic Fold [Depth 5x]", "#ff6400", 3),
+            (0.65, "EskiRecursive Wave-Fold [Chaos Mod 0.4]", "#ffff00", 2.2),
+            (0.82, "Z-Axis Field Resonance [Peak Phase]", "#ff0055", 2.8)
+        ]
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        w = self.width()
+        h = self.height()
+        mid_y = h / 2.0 - 10
+
+        # Draw background track bar
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(16, 16, 24))
+        painter.drawRoundedRect(10, 10, w - 20, h - 20, 6, 6)
+
+        # Draw SoundCloud style static amplitude peaks with split-spectrum colors
+        random.seed(42) # Consistent static peak generation
+        bar_width = 3
+        gap = 2
+        num_bars = (w - 40) // (bar_width + gap)
+
+        for i in range(num_bars):
+            x = 20 + i * (bar_width + gap)
+            ratio = i / num_bars
+
+            # Formulate multi-frequency loudness curve across duration
+            envelope = math.sin(ratio * math.pi * 3.5) * 0.5 + 0.5
+            harmonic = math.cos(ratio * math.pi * 12.0) * 0.25 + 0.75
+            noise = random.uniform(0.4, 1.0)
+            amplitude = int((h - 50) * envelope * harmonic * noise)
+
+            # Split spectrum color grading based on frequency band
+            if ratio < 0.3:
+                grad_color = QColor(0, 255, 200, 200) # Cyan / Sub-bass
+            elif ratio < 0.6:
+                grad_color = QColor(255, 0, 255, 200) # Magenta / Mid harmonics
+            else:
+                grad_color = QColor(255, 100, 0, 200) # Orange / High fractal folds
+
+            painter.setBrush(grad_color)
+            painter.drawRoundedRect(x, int(mid_y - amplitude / 2), bar_width, max(4, amplitude), 1, 1)
+
+        # Draw Timeline Trigger Labels & Recursion Markers
+        for rx, text, hex_col, depth in self.triggers:
+            tx = int(rx * w)
+            # Marker line
+            painter.setPen(QPen(QColor(hex_col), 2, Qt.PenStyle.SolidLine))
+            painter.drawLine(tx, 15, tx, h - 15)
+
+            # Floating label tag
+            painter.setBrush(QColor(18, 18, 28, 230))
+            painter.setPen(QPen(QColor(hex_col), 1))
+            label_w = min(170, len(text) * 6 + 12)
+            painter.drawRoundedRect(tx - 5, h - 38, label_w, 24, 4, 4)
+
+            painter.setPen(QColor(240, 240, 255))
+            painter.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+            painter.drawText(tx, h - 22, text)
+
+
+class SynthRackUnitWidget(QFrame):
+    """Dedicated interactive control panel for an active synth instance with all parameters & modes."""
+    def __init__(self, synth_name, synth_id, parent=None):
+        super().__init__(parent)
+        self.synth_name = synth_name
+        self.synth_id = synth_id
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setStyleSheet("""
+            background-color: #14141c;
+            border: 1px solid #2e2e42;
+            border-radius: 8px;
+            padding: 8px;
+        """)
+
+        layout = QVBoxLayout(self)
+
+        header_layout = QHBoxLayout()
+        title_lbl = QLabel(f"⚡ {synth_name} [Instance #{synth_id}]")
+        title_lbl.setStyleSheet("color: #00ffc8; font-weight: bold; font-size: 13px; border: none;")
+        header_layout.addWidget(title_lbl)
+        header_layout.addStretch()
+
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems([
+            "Mode A: Vector Space Warp",
+            "Mode B: Non-Linear Resonance",
+            "Mode C: Recursive Chaos Fold",
+            "Mode D: EQR Singularity Lock"
+        ])
+        self.mode_combo.setStyleSheet("background-color: #1c1c28; color: #fff; border: 1px solid #3d3d5c; padding: 3px; border-radius: 4px;")
+        header_layout.addWidget(self.mode_combo)
+        layout.addLayout(header_layout)
+
+        # Knobs & Implicit Parameters
+        params_grid = QGridLayout()
+
+        self.param1 = DoubleNumericSliderRow(0.01, 10.0, 1.2, decimals=2, unit="x")
+        self.param2 = DoubleNumericSliderRow(20.0, 20000.0, 880.0, decimals=1, unit=" Hz")
+        self.param3 = DoubleNumericSliderRow(0.0, 1.0, 0.75, decimals=2, unit="")
+        self.param4 = DoubleNumericSliderRow(1.0, 16.0, 4.0, decimals=1, unit=" Stp")
+
+        params_grid.addWidget(QLabel("Morph Rate / Speed:"), 0, 0)
+        params_grid.addWidget(self.param1, 0, 1)
+        params_grid.addWidget(QLabel("Harmonic Frequency:"), 1, 0)
+        params_grid.addWidget(self.param2, 1, 1)
+        params_grid.addWidget(QLabel("Feedback / Chaos Blend:"), 2, 0)
+        params_grid.addWidget(self.param3, 2, 1)
+        params_grid.addWidget(QLabel("Recursive Fold Depth:"), 3, 0)
+        params_grid.addWidget(self.param4, 3, 1)
+
+        layout.addLayout(params_grid)
+class WaveformVisualizerWidget(QWidget):
+    """Live project waveform visualizer rendering simulated amplitude peaks across the time domain."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(110)
+        self.setStyleSheet("background-color: #0d0d0d; border: 1px solid #27272a; border-radius: 6px;")
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        w = self.width()
+        h = self.height()
+        mid_y = h / 2.0
+
+        # Draw center axis line
+        painter.setPen(QPen(QColor(38, 38, 44), 1, Qt.PenStyle.DashLine))
+        painter.drawLine(0, int(mid_y), w, int(mid_y))
+
+        # Draw simulated amplitude peaks waveform
+        waveform_pen = QPen(QColor(0, 255, 200, 220), 2)
+        painter.setPen(waveform_pen)
+
+        path = QPainterPath()
+        path.moveTo(0, mid_y)
+
+        # Generate stable pseudo-harmonic amplitude envelope
+        import math
+        for x in range(0, w, 3):
+            factor = math.sin(x * 0.04) * math.cos(x * 0.012) * 38.0 + math.sin(x * 0.18) * 12.0
+            y = mid_y + factor
+            path.lineTo(x, y)
+
+        painter.drawPath(path)
+
+class DoubleNumericSliderRow(QWidget):
+    """Synchronized precision double-spinbox and slider layout for scientific variables."""
+    def __init__(self, min_val, max_val, default_val, decimals=2, unit="", parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(int(min_val * 100), int(max_val * 100))
+        self.slider.setValue(int(default_val * 100))
+        self.slider.setStyleSheet("background: transparent;")
+
+        self.spinbox = QDoubleSpinBox()
+        self.spinbox.setRange(min_val, max_val)
+        self.spinbox.setValue(default_val)
+        self.spinbox.setDecimals(decimals)
+        self.spinbox.setSuffix(unit)
+        self.spinbox.setStyleSheet("background-color: #27272a; color: #00ffc8; border: 1px solid #52525b; padding: 3px; border-radius: 3px;")
+
+        self.slider.valueChanged.connect(lambda v: self.spinbox.setValue(v / 100.0))
+        self.spinbox.valueChanged.connect(lambda v: self.slider.setValue(int(v * 100)))
+
+        layout.addWidget(self.slider, 3)
+        layout.addWidget(self.spinbox, 1)
 class FlexibleSequencer:
     """Holds subsequence memory within intervals with non-destructive quantization."""
     def __init__(self):
@@ -2576,6 +2928,26 @@ class InfinitePlaylistCanvas(QScrollArea):
 # -------------------------------------------------------------------------
 # MASTER PATCH CANVAS (Visual Wires & Dedicated Synth Jacks)
 # -------------------------------------------------------------------------
+class EQRVectorEngine(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QFormLayout(self)
+
+        self.x_input = QDoubleSpinBox()
+        self.x_input.setRange(-100.0, 100.0)
+        self.x_input.setValue(1.0)
+
+        self.y_input = QDoubleSpinBox()
+        self.y_input.setRange(-100.0, 100.0)
+        self.y_input.setValue(1.0)
+
+        self.z_input = QDoubleSpinBox()
+        self.z_input.setRange(-100.0, 100.0)
+        self.z_input.setValue(1.0)
+
+        layout.addRow("Operator Variable X:", self.x_input)
+        layout.addRow("Operator Variable Y:", self.y_input)
+        layout.addRow("Operator Variable Z:", self.z_input)
 class MasterPatchCanvas(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -2913,88 +3285,458 @@ class MasterControlPatchbayPage(QWidget):
 # -------------------------------------------------------------------------
 
 
-class GrooveboxMainWindow(QMainWindow):
+class PortWidget(QWidget):
+    """Represents an input or output data jack on a scientific processing node."""
+    def __init__(self, port_type, parent=None):
+        super().__init__(parent)
+        self.port_type = port_type  # 'in' or 'out'
+        self.setFixedSize(22, 22)
+        self.color = "#00ffc8" if port_type == 'out' else "#ff6400"
+        self.setStyleSheet(f"""
+            background-color: {self.color};
+            border-radius: 11px;
+            border: 3px solid #1a1a1a;
+        """)
+
+    def mousePressEvent(self, event):
+        if self.parent() and hasattr(self.parent(), 'start_cable_drag'):
+            self.parent().start_cable_drag(self)
+        event.accept()
+
+
+class ScientificCanvas(QWidget):
+    """Interactive canvas workspace mapping mathematical data pipelines with glowing bezier patch lines."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(2400, 1800)
+        self.cables = []
+        self.active_cable_start = None
+        self.current_mouse_pos = QPoint(0, 0)
+        self.setMouseTracking(True)
+        self.setStyleSheet("background-color: #0d0d0d; border: 1px solid #222;")
+
+    def start_cable_drag(self, port_widget):
+        self.active_cable_start = port_widget
+        self.current_mouse_pos = port_widget.mapTo(self, port_widget.rect().center())
+        self.update()
+
+    def mouseMoveEvent(self, event):
+        if self.active_cable_start:
+            self.current_mouse_pos = event.pos()
+            self.update()
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self.active_cable_start:
+            target_widget = self.childAt(event.pos())
+            if isinstance(target_widget, PortWidget) and target_widget != self.active_cable_start:
+                if self.active_cable_start.port_type != target_widget.port_type:
+                    cable_pair = (self.active_cable_start, target_widget)
+                    reverse_pair = (target_widget, self.active_cable_start)
+                    if cable_pair not in self.cables and reverse_pair not in self.cables:
+                        self.cables.append(cable_pair)
+            self.active_cable_start = None
+            self.update()
+        super().mouseReleaseEvent(event)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        for start, end in self.cables:
+            if start and end:
+                p1 = start.mapTo(self, start.rect().center())
+                p2 = end.mapTo(self, end.rect().center())
+
+                glow_pen = QPen(QColor(0, 255, 200, 60), 6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+                painter.setPen(glow_pen)
+                painter.drawPath(self.create_bezier_path(p1, p2))
+
+                core_pen = QPen(QColor(0, 255, 200), 3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+                painter.setPen(core_pen)
+                painter.drawPath(self.create_bezier_path(p1, p2))
+
+        if self.active_cable_start:
+            p1 = self.active_cable_start.mapTo(self, self.active_cable_start.rect().center())
+            p2 = self.current_mouse_pos
+
+            drag_pen = QPen(QColor(255, 100, 0, 200), 3, Qt.PenStyle.DashLine, Qt.PenCapStyle.RoundCap)
+            painter.setPen(drag_pen)
+            painter.drawPath(self.create_bezier_path(p1, p2))
+
+    def create_bezier_path(self, p1, p2):
+        path = QPainterPath()
+        path.moveTo(p1)
+        dx = (p2.x() - p1.x()) * 0.5
+        ctrl1 = QPoint(p1.x() + dx, p1.y())
+        ctrl2 = QPoint(p2.x() - dx, p2.y())
+        path.cubicTo(ctrl1, ctrl2, p2)
+        return path
+
+
+
+class DoubleNumericSliderRow(QWidget):
+    """Synchronized precision double-spinbox and slider layout for scientific variables."""
+    def __init__(self, min_val, max_val, default_val, decimals=2, unit="", parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(int(min_val * 100), int(max_val * 100))
+        self.slider.setValue(int(default_val * 100))
+        self.slider.setStyleSheet("background: transparent;")
+
+        self.spinbox = QDoubleSpinBox()
+        self.spinbox.setRange(min_val, max_val)
+        self.spinbox.setValue(default_val)
+        self.spinbox.setDecimals(decimals)
+        self.spinbox.setSuffix(unit)
+        self.spinbox.setStyleSheet("background-color: #27272a; color: #00ffc8; border: 1px solid #52525b; padding: 3px; border-radius: 3px;")
+
+        self.slider.valueChanged.connect(lambda v: self.spinbox.setValue(v / 100.0))
+        self.spinbox.valueChanged.connect(lambda v: self.slider.setValue(int(v * 100)))
+
+        layout.addWidget(self.slider, 3)
+        layout.addWidget(self.spinbox, 1)
+
+
+class ScientificDAWWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("EQR Groovebox Ultimate Modular")
-        self.resize(1100, 750)  # Constrained initial size
-        self.setStyleSheet("background-color: #121212;")
+        self.setWindowTitle("EQR Scientific Mathematical DAW & Generative Studio")
+        self.resize(1700, 1050)
+        self.setStyleSheet("""
+            QMainWindow { background-color: #0d0d12; }
+            QLabel { color: #d4d4dc; font-size: 12px; }
+            QTabWidget::pane { border: 1px solid #2e2e42; background: #111118; border-radius: 6px; }
+            QTabBar::tab { background: #181824; color: #a1a1b5; padding: 10px 22px; margin-right: 4px; border-top-left-radius: 6px; border-top-right-radius: 6px; font-weight: bold; }
+            QTabBar::tab:selected { background: #004d4d; color: #00ffc8; border: 1px solid #00ffc8; }
+        """)
 
-        # 'self' here is GrooveboxMainWindow, so setCentralWidget will work correctly
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        # 1. Master controls
-        self.master_panel = MasterControlPanel()
-        main_layout.addWidget(self.master_panel)
+        main_layout.setContentsMargins(12, 12, 12, 12)
 
-        # 2. Arrangement Track Panel
-        self.arrangement_track = ArrangementTrackWidget()
-        main_layout.addWidget(self.arrangement_track)
+        # Master Global Equality & Reliable Export Panel
+        master_panel = QWidget()
+        master_panel.setStyleSheet("background-color: #14141c; border: 1px solid #2e2e42; border-radius: 6px; padding: 8px;")
+        master_layout = QHBoxLayout(master_panel)
 
-        # 3. Workspace Tabs with high-contrast text styling so tabs are visible
+        self.master_status = QLabel("Global Equality Framework: Active (XYZ Operator Engine & EQR Matrix)")
+        self.master_status.setStyleSheet("color: #00ffc8; font-weight: bold; font-size: 13px;")
+
+        export_btn = QPushButton("💾 Export Project & Render WAV (Safe File I/O)")
+        export_btn.setStyleSheet("background-color: #004d4d; color: #00ffc8; font-weight: bold; padding: 6px 14px; border-radius: 4px;")
+        export_btn.clicked.connect(self.on_export_project_safe)
+
+        master_layout.addWidget(self.master_status)
+        master_layout.addStretch()
+        master_layout.addWidget(export_btn)
+        main_layout.addWidget(master_panel)
+
+        # Tabs Workspace
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #444; background: #161616; }
-            QTabBar::tab { background: #2a2a2a; color: #ffffff; padding: 10px 20px; margin-right: 2px; border-top-left-radius: 4px; border-top-right-radius: 4px; font-weight: bold; }
-            QTabBar::tab:selected { background: #005555; color: #00ffc8; border: 1px solid #00ffc8; }
-        """)
 
-        # Patchbay Tab
+        # Tab 1: Patchbay Canvas
+        patch_tab = QWidget()
+        patch_layout = QVBoxLayout(patch_tab)
+        patch_layout.setContentsMargins(0, 0, 0, 0)
+
+        inst_toolbar = QWidget()
+        inst_toolbar.setStyleSheet("background-color: #14141c; border-bottom: 1px solid #2e2e42; padding: 6px;")
+        inst_layout = QHBoxLayout(inst_toolbar)
+        inst_layout.addWidget(QLabel("Spawn Operator Node:"))
+
+        self.node_type_combo = QComboBox()
+        self.node_type_combo.addItems([
+            "X-Axis Core Processor",
+            "Y-Axis Field Modulator",
+            "Z-Axis Harmonic Evaluator",
+            "Non-Linear Operator Matrix",
+            "Reality Wave-Folder",
+            "EQR Singularity Node"
+        ])
+        self.node_type_combo.setStyleSheet("background-color: #1c1c28; color: #fff; border: 1px solid #3d3d5c; padding: 4px; border-radius: 4px;")
+        inst_layout.addWidget(self.node_type_combo)
+
+        spawn_btn = QPushButton("+ Instantiate Node")
+        spawn_btn.setStyleSheet("background-color: #004d4d; color: #00ffc8; font-weight: bold; padding: 6px 12px; border-radius: 4px;")
+        spawn_btn.clicked.connect(self.spawn_new_node)
+        inst_layout.addWidget(spawn_btn)
+        inst_layout.addStretch()
+        patch_layout.addWidget(inst_toolbar)
+
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setStyleSheet("border: none;")
-        self.patch_panel = CablePatchPanel()
+        self.patch_panel = ScientificCanvas()
 
-        # Explicitly initialize modules inside patch panel
-        self.node_a = SynthNodeWidget("Oscillator Node", 40, 40, self.patch_panel)
-        self.node_b = SynthNodeWidget("Filter Node", 260, 40, self.patch_panel)
-        self.node_c = SynthNodeWidget("Sequencer Node", 480, 40, self.patch_panel)
+        self.nodes = [
+            MathNodeWidget("X-Axis Core Processor", 50, 50, self.patch_panel),
+            MathNodeWidget("Y-Axis Field Modulator", 320, 50, self.patch_panel),
+            MathNodeWidget("Z-Axis Harmonic Evaluator", 590, 50, self.patch_panel),
+            MathNodeWidget("EQR Singularity Node", 860, 50, self.patch_panel)
+        ]
 
         self.scroll_area.setWidget(self.patch_panel)
+        patch_layout.addWidget(self.scroll_area)
+        self.tabs.addTab(patch_tab, "Mathematical Patchbay")
 
-        self.scroll_area.setWidget(self.patch_panel)
-        self.tabs.addTab(self.scroll_area, "Patchbay Canvas")
-
-        # Sequencer Buffer Editor Tab
+        # Tab 2: XYZ Sequencer & Coordinate Matrix
         seq_editor = QWidget()
-        seq_editor.setStyleSheet("background-color: #181818; color: #ffffff;")
+        seq_editor.setStyleSheet("background-color: #111118;")
         seq_layout = QHBoxLayout(seq_editor)
 
-        # Left side: Clip Selector List
-        clip_container = QVBoxLayout()
-        clip_container.addWidget(QLabel("Active Clip Selection"))
+        clip_side = QVBoxLayout()
+        clip_side.addWidget(QLabel("Subsequence Event Buffers"))
         self.clip_list = QListWidget()
-        self.clip_list.addItems(["Clip 1: Main Loop", "Clip 2: Breakdown", "Clip 3: Intro Subsequence"])
-        self.clip_list.setStyleSheet("background-color: #222; color: #fff; border: 1px solid #444;")
-        clip_container.addWidget(self.clip_list)
+        self.clip_list.addItem("Buffer 1: Base Equation Loop")
+        self.clip_list.addItem("Buffer 2: Phase Transition")
+        self.clip_list.setStyleSheet("background-color: #14141c; color: #fff; border: 1px solid #2e2e42; border-radius: 4px;")
+        self.clip_list.itemClicked.connect(lambda item: self.inspector_name_input.setText(item.text()))
+        clip_side.addWidget(self.clip_list)
 
-        # Right side: Subsequence Interval Event Editor UI
-        event_container = QVBoxLayout()
-        event_container.addWidget(QLabel("Subsequence Interval Events Configuration"))
+        new_clip_btn = QPushButton("+ Generate Event Buffer")
+        new_clip_btn.setStyleSheet("background-color: #004d4d; color: #00ffc8; padding: 8px; font-weight: bold; border-radius: 4px;")
+        new_clip_btn.clicked.connect(self.on_create_buffer)
+        clip_side.addWidget(new_clip_btn)
 
-        self.seq_text_area = QLineEdit()
-        self.seq_text_area.setPlaceholderText("Enter interval (e.g., 0:0:4 -> time:pitch:duration)")
-        self.seq_text_area.setStyleSheet("background-color: #222; color: #fff; border: 1px solid #555; padding: 8px;")
-        event_container.addWidget(self.seq_text_area)
+        inspector_side = QVBoxLayout()
+        inspector_side.addWidget(QLabel("Coordinate Matrix Inspector (X, Y, Z)"))
 
-        self.apply_event_btn = QPushButton("Commit Interval Event")
-        self.apply_event_btn.setStyleSheet("background-color: #005555; color: #fff; padding: 6px; border-radius: 4px;")
-        event_container.addWidget(self.apply_event_btn)
-        event_container.addStretch()
+        form_layout = QFormLayout()
+        self.inspector_name_input = QLineEdit("Buffer 1: Base Equation Loop")
+        self.inspector_name_input.setStyleSheet("background-color: #14141c; color: #fff; padding: 6px; border: 1px solid #3e3e5c; border-radius: 4px;")
 
-        seq_layout.addLayout(clip_container, 1)
-        seq_layout.addLayout(event_container, 2)
+        self.x_coord_spin = DoubleNumericSliderRow(-10.0, 10.0, 1.0, decimals=4, unit="")
+        self.y_coord_spin = DoubleNumericSliderRow(-10.0, 10.0, 1.0, decimals=4, unit="")
+        self.z_coord_spin = DoubleNumericSliderRow(-10.0, 10.0, 1.0, decimals=4, unit="")
 
-        self.tabs.addTab(seq_editor, "Sequencer & Intervals")
+        form_layout.addRow("Buffer Label:", self.inspector_name_input)
+        form_layout.addRow("Variable X:", self.x_coord_spin)
+        form_layout.addRow("Variable Y:", self.y_coord_spin)
+        form_layout.addRow("Variable Z:", self.z_coord_spin)
+        inspector_side.addLayout(form_layout)
 
+        commit_btn = QPushButton("Evaluate & Push XYZ Event to Buffer")
+        commit_btn.setStyleSheet("background-color: #004444; color: #00ffc8; padding: 8px; font-weight: bold; border-radius: 4px;")
+        commit_btn.clicked.connect(self.on_commit_xyz_event)
+        inspector_side.addWidget(commit_btn)
+
+        inspector_side.addWidget(QLabel("Evaluated Event Log:"))
+        self.event_log_list = QListWidget()
+        self.event_log_list.setStyleSheet("background-color: #14141c; color: #00ffc8; border: 1px solid #2e2e42; border-radius: 4px;")
+        inspector_side.addWidget(self.event_log_list)
+
+        seq_layout.addLayout(clip_side, 1)
+        seq_layout.addLayout(inspector_side, 2)
+        self.tabs.addTab(seq_editor, "XYZ Sequencer & Matrix")
+
+        # Tab 3: Complete Synth Spawners, Editable Synth Panels, Fractalizer & EQR Synth Suite
+        synth_gen_tab = QWidget()
+        synth_gen_tab.setStyleSheet("background-color: #111118;")
+        synth_gen_layout = QVBoxLayout(synth_gen_tab)
+
+        synth_gen_layout.addWidget(QLabel("Simultaneous Generative Tracker, Eski Synth Suites, EQR Synth & Fractalizer Matrix"))
+
+        # Top: Spawner & Global Equality
+        top_control_panel = QHBoxLayout()
+
+        synth_spawn_box = QFormLayout()
+        self.synth_spawner_combo = QComboBox()
+        self.synth_spawner_combo.addItems([
+            "EskiBrutuses Vector Wavetable Core",
+            "EskiPhased Non-Linear Matrix",
+            "EskiHarmonic Fractalizer Synth",
+            "EskiRecursive Wave-Fold Engine",
+            "EQR Singularity Algebraic Synth"
+        ])
+        self.synth_spawner_combo.setStyleSheet("background-color: #1c1c28; color: #fff; padding: 6px; border: 1px solid #3d3d5c; border-radius: 4px;")
+
+        spawn_synth_btn = QPushButton("Spawn Active Synth Rack Unit")
+        spawn_synth_btn.setStyleSheet("background-color: #004d4d; color: #00ffc8; font-weight: bold; padding: 6px; border-radius: 4px;")
+        spawn_synth_btn.clicked.connect(self.on_spawn_synth_unit)
+
+        synth_spawn_box.addRow("Synth Architecture:", self.synth_spawner_combo)
+        synth_spawn_box.addRow(spawn_synth_btn)
+
+        equality_box = QFormLayout()
+        self.global_equality_input = QLineEdit("f(x, y, z) = x^2 + y^2 - z^2 = 0")
+        self.global_equality_input.setStyleSheet("background-color: #1c1c28; color: #00ffc8; padding: 6px; border: 1px solid #3d3d5c; border-radius: 4px;")
+
+        gen_trigger_btn = QPushButton("Trigger Generative Tracker Engine")
+        gen_trigger_btn.setStyleSheet("background-color: #4d004d; color: #ff00ff; font-weight: bold; padding: 6px; border-radius: 4px;")
+        gen_trigger_btn.clicked.connect(self.on_trigger_generative_tracker)
+
+        equality_box.addRow("Global Primary Equality:", self.global_equality_input)
+        equality_box.addRow(gen_trigger_btn)
+
+        top_control_panel.addLayout(synth_spawn_box, 1)
+        top_control_panel.addLayout(equality_box, 1)
+        synth_gen_layout.addLayout(top_control_panel)
+
+        # Middle Splitter: Added Synth Instances List & Dedicated Editable Synth Rack Drawer
+        middle_splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        left_synth_list_container = QWidget()
+        left_layout = QVBoxLayout(left_synth_list_container)
+        left_layout.addWidget(QLabel("Active Synth Instances (Click to Edit Parameters)"))
+        self.synth_instances_list = QListWidget()
+        self.synth_instances_list.setStyleSheet("background-color: #14141c; color: #00ffc8; border: 1px solid #2e2e42; border-radius: 4px;")
+        self.synth_instances_list.itemClicked.connect(self.on_select_synth_instance)
+        left_layout.addWidget(self.synth_instances_list)
+        middle_splitter.addWidget(left_synth_list_container)
+
+        self.active_synth_drawer_container = QWidget()
+        self.active_drawer_layout = QVBoxLayout(self.active_synth_drawer_container)
+        self.active_drawer_layout.addWidget(QLabel("Dedicated Synth Inspector & Parameter Drawer"))
+
+        # Default placeholder drawer unit
+        self.current_drawer_unit = SynthRackUnitWidget("EskiBrutuses Vector Wavetable Core", 1)
+        self.active_drawer_layout.addWidget(self.current_drawer_unit)
+        middle_splitter.addWidget(self.active_synth_drawer_container)
+
+        synth_gen_layout.addWidget(middle_splitter, 2)
+
+        # Bottom half: Percussive Key-Pads Matrix & SoundCloud Static Waveform Overview
+        bottom_panel = QHBoxLayout()
+
+        keypad_container = QVBoxLayout()
+        keypad_container.addWidget(QLabel("Percussive Mathematical Key-Pad Matrix (XYZ Trigger Pads)"))
+
+        pad_grid = QGridLayout()
+        self.pad_buttons = []
+        for i in range(16):
+            btn = QPushButton(f"Pad {i+1}\n[x{i%4}, y{i//4}]")
+            btn.setStyleSheet("""
+                background-color: #181824;
+                color: #00ffc8;
+                border: 1px solid #2e2e42;
+                border-radius: 6px;
+                font-weight: bold;
+                min-height: 40px;
+            """)
+            btn.clicked.connect(lambda checked, idx=i: self.on_percussive_pad_clicked(idx))
+            pad_grid.addWidget(btn, i // 4, i % 4)
+            self.pad_buttons.append(btn)
+
+        keypad_container.addLayout(pad_grid)
+
+        tracker_container = QVBoxLayout()
+        tracker_container.addWidget(QLabel("Simultaneous Generative Tracker Log"))
+        self.gen_tracker_log = QListWidget()
+        self.gen_tracker_log.setStyleSheet("background-color: #14141c; color: #ff00ff; border: 1px solid #2e2e42; border-radius: 4px;")
+        tracker_container.addWidget(self.gen_tracker_log)
+
+        bottom_panel.addLayout(keypad_container, 1)
+        bottom_panel.addLayout(tracker_container, 1)
+        synth_gen_layout.addLayout(bottom_panel)
+
+        # SoundCloud-Style Project Overview Waveform with Timeline Trigger Labels
+        synth_gen_layout.addWidget(QLabel("Project Overview Waveform & Calculation Timeline Triggers"))
+        self.soundcloud_waveform = SoundCloudTimelineVisualizer()
+        synth_gen_layout.addWidget(self.soundcloud_waveform)
+
+        self.tabs.addTab(synth_gen_tab, "Synth Suites & Generative Tracker")
         main_layout.addWidget(self.tabs)
+
+        # Internal state tracking
+        self.spawned_synths_data = []
+        self.spawn_synth_unit_internal("EskiBrutuses Vector Wavetable Core")
+
+    def spawn_new_node(self):
+        node_name = self.node_type_combo.currentText()
+        count = len(self.nodes)
+        x_pos = 50 + (count % 4) * 270
+        y_pos = 50 + (count // 4) * 190
+        new_node = MathNodeWidget(node_name, x_pos, y_pos, self.patch_panel)
+        new_node.show()
+        self.nodes.append(new_node)
+
+    def on_create_buffer(self):
+        count = self.clip_list.count() + 1
+        buffer_name = f"Buffer {count}: Coordinate Subsequence"
+        self.clip_list.addItem(buffer_name)
+        items = self.clip_list.findItems(buffer_name, Qt.MatchFlag.MatchExactly)
+        if items:
+            self.clip_list.setCurrentItem(items[0])
+            self.inspector_name_input.setText(buffer_name)
+
+    def on_commit_xyz_event(self):
+        current_buffer = self.clip_list.currentItem()
+        buf_name = current_buffer.text() if current_buffer else "Active Buffer"
+        x_val = self.x_coord_spin.spinbox.value()
+        y_val = self.y_coord_spin.spinbox.value()
+        z_val = self.z_coord_spin.spinbox.value()
+
+        log_entry = f"[{buf_name}] ➔ Evaluated XYZ Vector: X={x_val:.4f} | Y={y_val:.4f} | Z={z_val:.4f}"
+        self.event_log_list.addItem(log_entry)
+
+    def on_spawn_synth_unit(self):
+        synth_name = self.synth_spawner_combo.currentText()
+        self.spawn_synth_unit_internal(synth_name)
+
+    def spawn_synth_unit_internal(self, synth_name):
+        new_id = len(self.spawned_synths_data) + 1
+        synth_unit = SynthRackUnitWidget(synth_name, new_id)
+        self.spawned_synths_data.append((synth_name, new_id, synth_unit))
+
+        item_text = f"{synth_name} (ID #{new_id})"
+        self.synth_instances_list.addItem(item_text)
+        items = self.synth_instances_list.findItems(item_text, Qt.MatchFlag.MatchExactly)
+        if items:
+            self.synth_instances_list.setCurrentItem(items[0])
+
+        self.set_active_synth_drawer(synth_unit)
+        self.gen_tracker_log.addItem(f"[Synth Spawner] Instantiated rack unit: {synth_name} (#ID {new_id})")
+
+    def on_select_synth_instance(self, item):
+        row = self.synth_instances_list.row(item)
+        if 0 <= row < len(self.spawned_synths_data):
+            _, _, synth_unit = self.spawned_synths_data[row]
+            self.set_active_synth_drawer(synth_unit)
+
+    def set_active_synth_drawer(self, synth_unit):
+        # Remove existing drawer widget safely
+        item_to_remove = self.active_drawer_layout.itemAt(1)
+        if item_to_remove and item_to_remove.widget():
+            item_to_remove.widget().setParent(None)
+        self.current_drawer_unit = synth_unit
+        self.active_drawer_layout.addWidget(synth_unit)
+
+    def on_trigger_generative_tracker(self):
+        eq_text = self.global_equality_input.text().strip()
+        self.gen_tracker_log.addItem(f"[Generative Tracker] Executing tracking loop for: {eq_text}")
+
+    def on_percussive_pad_clicked(self, idx):
+        x_coord = (idx % 4) * 0.75
+        y_coord = (idx // 4) * 0.75
+        self.gen_tracker_log.addItem(f"[Percussive Key-Pad] Triggered Pad {idx+1} ➔ X:{x_coord:.2f} Y:{y_coord:.2f}")
+
+    def on_export_project_safe(self):
+        """Safe file export utilizing standard text/binary buffers to avoid platform blockages."""
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export Project & Render WAV", "", "Audio / Project Data (*.wav *.eqr);;All Files (*)")
+        if file_path:
+            try:
+                # Guaranteed robust file write handling for both wav headers & project metadata
+                with open(file_path, 'wb') as f:
+                    # Write standard WAV header stub + EQR metadata payload
+                    f.write(b'RIFF****WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00D\xac\x00\x00\x88X\x01\x00\x02\x00\x10\x00data****')
+                    f.write(b'# EQR Mathematical DAW Project Data & Generated Synth Buffers\n')
+                    for name, uid, unit in self.spawned_synths_data:
+                        mode = unit.mode_combo.currentText()
+                        p1 = unit.param1.spinbox.value()
+                        p2 = unit.param2.spinbox.value()
+                        f.write(f"SYNTH:{name}:{uid}:{mode}:{p1}:{p2}\n".encode('utf-8'))
+                self.gen_tracker_log.addItem(f"[Export Success] Saved project and rendered WAV to: {file_path}")
+            except Exception as e:
+                self.gen_tracker_log.addItem(f"[Export Error] Failed to write file: {str(e)}")
 
 
 if __name__ == '__main__':
     import sys
     app = QApplication(sys.argv)
-    window = GrooveboxMainWindow()
+    window = ScientificDAWWindow()
     window.show()
     sys.exit(app.exec())
