@@ -4935,6 +4935,32 @@ class BottomToolboxesPane(QScrollArea):
 
         container.setLayout(layout)
         self.setWidget(container)
+class PaintbrushTable(QTableWidget):
+    def __init__(self, parent_app, rows, cols):
+        super().__init__(rows, cols)
+        self.parent_app = parent_app
+        self.setMouseTracking(True)
+
+    def mousePressEvent(self, event):
+        index = self.indexAt(event.position().toPoint())
+        if index.isValid():
+            self.paint_cell(index.row(), index.column())
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.MouseButton.LeftButton:
+            index = self.indexAt(event.position().toPoint())
+            if index.isValid():
+                self.paint_cell(index.row(), index.column())
+        super().mouseMoveEvent(event)
+
+    def paint_cell(self, row, col):
+        if col == 1:  # Instrument Track Column acts as the paint canvas
+            active_synth = self.parent_app.instrument_selector_dropdown.currentText()
+            item = self.item(row, col)
+            if item:
+                item.setText(active_synth)
+                item.setBackground(QColor(0, 180, 180))
 # ==========================================
 # 4. MODULAR TAB MANAGER (TOP PANE)
 # ==========================================
