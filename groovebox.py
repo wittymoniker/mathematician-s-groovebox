@@ -5359,7 +5359,7 @@ class TopSideInstrumentSequencerPanel(QWidget):
         row1 = QHBoxLayout()
         row1.addWidget(QLabel("<b>Instance:</b>"))
         self.instance_combo = QComboBox()
-        self.instance_combo.addItems([f"Ch {i+1}: {name}" for i, name in enumerate(ESKI_INSTRUMENT_LIST[:12]])
+        self.instance_combo.addItems([f"Ch {i+1}: {name}" for i, name in enumerate(ESKI_INSTRUMENT_LIST[:12]]))
         row1.addWidget(self.instance_combo, stretch=2)
 
         row1.addWidget(QLabel("<b>Type:</b>"))
