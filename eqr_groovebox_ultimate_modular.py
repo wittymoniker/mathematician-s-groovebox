@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
     QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial
 )
-
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton
 import random
 from math_engine import MathEngine
 
@@ -3772,6 +3772,40 @@ class DoubleNumericSliderRow(QWidget):
 class ScientificDAWWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+
+        self.setWindowTitle("Equation of Reality (EQR) - Single-Stream Workspace")
+
+        # 1. Set a default window size so it doesn't open as a tiny gray box
+        self.resize(1100, 750)
+
+        # 2. Create the central container widget and main layout
+        central_container = QWidget(self)
+
+
+        central_container.setStyleSheet("background-color: #2b2b2b; color: #ffffff;") # Dark gray test background
+
+        main_layout = QVBoxLayout(central_container)
+        main_layout = QVBoxLayout(central_container)
+
+        # 3. Add your coordinate evaluator elements directly to the layout
+        title_label = QLabel("Coordinate Equation Evaluator:")
+        main_layout.addWidget(title_label)
+
+        # Example input field for your x, y, z formulas
+        self.formula_input = QLineEdit()
+        self.formula_input.setPlaceholderText("Enter formula using x, y, z variables (e.g., isn(x) * y + ics(z))...")
+        main_layout.addWidget(self.formula_input)
+
+        # Add a placeholder button or additional control
+        eval_button = QPushButton("Evaluate Stream")
+        main_layout.addWidget(eval_button)
+
+        # Add a stretch to push everything to the top nicely
+        main_layout.addStretch()
+
+        # 4. Apply the layout to the container and set it as the central widget
+        central_container.setLayout(main_layout)
+        self.setCentralWidget(central_container)
         self.math_engine = EQRMathEngine(use_meum=True)
         self.setWindowTitle("Mathematician's Groovebox - Scientific DAW Laboratory Suite")
         self.resize(1850, 1000)
@@ -3788,6 +3822,32 @@ class ScientificDAWWindow(QMainWindow):
         # --- LEFT PANEL: The 13 Workflow-Centric Tabs ---
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
+        self.setCentralWidget(builder_widget)
+        self.builder_widget = EquationBuilderWidget(self)
+        self.setCentralWidget(self.builder_widget)
+        central_container = QWidget(self)
+        main_layout = QVBoxLayout(central_container)
+        # Force the widget and window to calculate layout and display
+
+
+        title_label = QLabel("Coordinate Equation Evaluator:")
+        main_layout.addWidget(title_label)
+
+        self.formula_input = QLineEdit()
+        self.formula_input.setPlaceholderText("Enter formula using x, y, z variables (e.g., isn(x) * y + ics(z))...")
+        main_layout.addWidget(self.formula_input)
+
+        main_layout.addStretch()
+
+        # Apply the layout and set as central widget
+        central_container.setLayout(main_layout)
+        self.setCentralWidget(central_container)
+
+
+
+        self.resize(1100, 750)
+        self.show()
+
 
         self.daw_tabs = QTabWidget()
         self.daw_tabs.addTab(self.create_instruments_rack_tab(), "1. Instruments & Sound Rack")
