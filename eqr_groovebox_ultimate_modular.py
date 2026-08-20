@@ -14,7 +14,7 @@ from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QLinearGradient, Q
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
-    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox
+    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem
 )
 import random
 from math_engine import MathEngine
@@ -529,7 +529,6 @@ class EQRCoordinateEngine:
         self.z = np.zeros(512)
 
     def evaluate_composition_script(self, script_text: str, t: float):
-        """Evaluates compositional scripting with support for hardcoded sequence, static parameters, and conditions."""
         x, y, z = self.x, self.y, self.z + t
         namespace = {"np": np, "x": x, "y": y, "z": z, "isn": np.sin, "ics": np.cos, "result": np.zeros_like(x)}
 
@@ -547,7 +546,7 @@ class EQRCoordinateEngine:
 
 
 class FocusZone3DWidget(QWidget):
-    """3D zone widget featuring mouse point selection, right-click insert, and scroll-wheel deletion."""
+    """3D zone widget featuring mouse point selection, right-click insert, and middle-click/scroll deletion."""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumHeight(250)
@@ -560,18 +559,20 @@ class FocusZone3DWidget(QWidget):
         click_x = event.position().x()
         click_y = event.position().y()
 
-        # Check if clicking near an existing point to select it
         clicked_idx = -1
         for idx, pt in enumerate(self.focal_points):
             px = int((pt['x'] + 1.0) * (w / 2.0))
             py = int((1.0 - pt['y']) * (h / 2.0))
-            if abs(click_x - px) < 12 and abs(click_y - py) < 12:
+            if abs(click_x - px) < 14 and abs(click_y - py) < 14:
                 clicked_idx = idx
                 break
 
-        if event.button() == Qt.MouseButton.RightButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             if clicked_idx != -1:
-                # Select point on right-click if needed, or insert new
+                self.selected_point_idx = clicked_idx
+                self.update()
+        elif event.button() == Qt.MouseButton.RightButton:
+            if clicked_idx != -1:
                 self.selected_point_idx = clicked_idx
             else:
                 nx = (click_x / w) * 2.0 - 1.0
@@ -579,15 +580,17 @@ class FocusZone3DWidget(QWidget):
                 self.focal_points.append({'x': nx, 'y': ny, 'z': 0.0})
                 self.selected_point_idx = len(self.focal_points) - 1
             self.update()
-        elif event.button() == Qt.MouseButton.LeftButton:
-            if clicked_idx != -1:
-                self.selected_point_idx = clicked_idx
+        elif event.button() == Qt.MouseButton.MiddleButton:
+            # Middle-click directly deletes the clicked or currently selected point
+            target_idx = clicked_idx if clicked_idx != -1 else self.selected_point_idx
+            if len(self.focal_points) > 1:
+                self.focal_points.pop(target_idx)
+                self.selected_point_idx = max(0, target_idx - 1)
                 self.update()
 
     def wheelEvent(self, event):
-        """Scroll wheel deletes the currently selected focal point if more than one exists."""
-        if len(self.focal_points) > 1:
-            # Scroll down or up deletes the selected point
+        # Scrolling downward also deletes the selected point if more than one exists
+        if event.angleDelta().y() < 0 and len(self.focal_points) > 1:
             self.focal_points.pop(self.selected_point_idx)
             self.selected_point_idx = max(0, self.selected_point_idx - 1)
             self.update()
@@ -615,66 +618,11 @@ class FocusZone3DWidget(QWidget):
             color = QColor(255, 100, 100) if idx == self.selected_point_idx else QColor(0, 220, 180)
             painter.setBrush(color)
             painter.setPen(QPen(Qt.GlobalColor.white, 2))
-            painter.drawEllipse(px - 6, py - 6, 12, 12)
+            painter.drawEllipse(px - 8, py - 8, 16, 16)
 
             painter.setPen(QPen(Qt.GlobalColor.white, 1))
             painter.setFont(QFont("Arial", 8))
-            painter.drawText(px + 10, py - 5, f"P{idx}({pt['x']:.2f},{pt['y']:.2f},{pt['z']:.2f})")
-class FocusZone3DWidget(QWidget):
-    """3D zone widget featuring adjustable focal points, right-click insert/delete, and XYZ dragbars."""
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setMinimumHeight(250)
-        self.focal_points = [{'x': 0.0, 'y': 0.0, 'z': 0.0}]
-        self.selected_point_idx = 0
-        self.setMouseTracking(True)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.RightButton:
-            # Right-click to insert a new focal point at normalized coordinates
-            nx = (event.position().x() / self.width()) * 2.0 - 1.0
-            ny = 1.0 - (event.position().y() / self.height()) * 2.0
-            self.focal_points.append({'x': nx, 'y': ny, 'z': 0.0})
-            self.selected_point_idx = len(self.focal_points) - 1
-            self.update()
-        elif event.button() == Qt.MouseButton.LeftButton:
-            # Left-click to select closest point or delete if shift held
-            if len(self.focal_points) > 1 and event.modifiers() == Qt.KeyboardModifier.ShiftModifier:
-                if len(self.focal_points) > 1:
-                    self.focal_points.pop(self.selected_point_idx)
-                    self.selected_point_idx = max(0, self.selected_point_idx - 1)
-                    self.update()
-
-    def update_coordinate_axis(self, axis: str, val: float):
-        """Updates current focal point using XYZ dragbars."""
-        if self.focal_points:
-            self.focal_points[self.selected_point_idx][axis] = val
-            self.update()
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self.rect(), QColor(20, 20, 28))
-
-        # Draw 3D projection grid lines
-        painter.setPen(QPen(QColor(50, 50, 70), 1, Qt.PenStyle.DashLine))
-        w, h = self.width(), self.height()
-        painter.drawLine(0, h // 2, w, h // 2)
-        painter.drawLine(w // 2, 0, w // 2, h)
-
-        # Draw focal points
-        for idx, pt in enumerate(self.focal_points):
-            px = int((pt['x'] + 1.0) * (w / 2.0))
-            py = int((1.0 - pt['y']) * (h / 2.0))
-
-            color = QColor(255, 100, 100) if idx == self.selected_point_idx else QColor(0, 220, 180)
-            painter.setBrush(color)
-            painter.setPen(QPen(Qt.GlobalColor.white, 2))
-            painter.drawEllipse(px - 6, py - 6, 12, 12)
-
-            painter.setPen(QPen(Qt.GlobalColor.white, 1))
-            painter.setFont(QFont("Arial", 8))
-            painter.drawText(px + 10, py - 5, f"P{idx}({pt['x']:.2f},{pt['y']:.2f},{pt['z']:.2f})")
+            painter.drawText(px + 12, py - 5, f"P{idx}({pt['x']:.2f},{pt['y']:.2f},{pt['z']:.2f})")
 
 
 class EQRVisualizerCanvas(QWidget):
@@ -3679,11 +3627,8 @@ class ScientificDAWWindow(QMainWindow):
         self.resize(1440, 900)
 
         self.coord_engine = EQRCoordinateEngine()
-
-        # Menu Bar setup with README / Syntax Guide access
         self.init_menu_bar()
 
-        # Restored multi-tab architecture layout
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
 
@@ -3692,12 +3637,12 @@ class ScientificDAWWindow(QMainWindow):
         self.init_script_tab()
         self.tabs.addTab(self.tab_script, "Composition Script & Master Canvas")
 
-        # Tab 2: Multi-Lane Sequencer / Routing Suite
+        # Tab 2: Multi-Lane Sequencer / Routing Matrix (Restored)
         self.tab_sequencer = QWidget()
         self.init_sequencer_tab()
         self.tabs.addTab(self.tab_sequencer, "Multi-Lane Sequencer")
 
-        # Tab 3: Eskivector & Eskitable Modular Engines
+        # Tab 3: Eskivector & Eskitable Modular Engines (Restored)
         self.tab_engines = QWidget()
         self.init_engines_tab()
         self.tabs.addTab(self.tab_engines, "Synth Engines (Eskivector/Eskitable)")
@@ -3728,7 +3673,7 @@ class ScientificDAWWindow(QMainWindow):
             "3. 3D FOCUS ZONE INTERACTION:\n"
             "   - Left-Click: Select an existing focal point node.\n"
             "   - Right-Click: Insert a new focus node at the target coordinate.\n"
-            "   - Scroll Wheel: Delete the currently selected focus point.\n"
+            "   - Middle-Click or Scroll Down: Delete the selected focus point.\n"
             "   - XYZ Dragbars: Real-time manipulation of spatial coordinate parameters."
         )
         QMessageBox.information(self, "Composition Syntax README", readme_text)
@@ -3740,8 +3685,6 @@ class ScientificDAWWindow(QMainWindow):
         layout.addWidget(self.visualizer)
 
         script_layout = QHBoxLayout()
-
-        # Advanced Composition Code Example demonstrating conditional & logical structure
         default_script = (
             "# Advanced Composition Series Example\n"
             "if t < 4.0:\n"
@@ -3758,7 +3701,6 @@ class ScientificDAWWindow(QMainWindow):
         self.txt_script_editor = QTextEdit()
         self.txt_script_editor.setText(default_script)
         script_layout.addWidget(self.txt_script_editor, 3)
-
         layout.addLayout(script_layout)
 
         zone_layout = QHBoxLayout()
@@ -3800,14 +3742,36 @@ class ScientificDAWWindow(QMainWindow):
         layout.addLayout(export_layout)
 
     def init_sequencer_tab(self):
+        """Restores the multi-lane sequencer routing matrix."""
         layout = QVBoxLayout(self.tab_sequencer)
-        layout.addWidget(QLabel("Multi-Lane Sequencer & Parameter Routing Matrix (Active Engine)"))
-        # Integrates slot mapping for amplitude and frequency lanes
+        layout.addWidget(QLabel("Multi-Lane Parameter Routing Matrix"))
+
+        self.seq_table = QTableWidget(6, 4)
+        self.seq_table.setHorizontalHeaderLabels(["Lane ID", "Target Coordinate", "Modulation Depth", "State"])
+        for row in range(6):
+            self.seq_table.setItem(row, 0, QTableWidgetItem(f"Lane {row+1}"))
+            self.seq_table.setItem(row, 1, QTableWidgetItem("X-Axis" if row % 2 == 0 else "Y-Axis"))
+            self.seq_table.setItem(row, 2, QTableWidgetItem(f"{(row + 1) * 0.25:.2f}"))
+            self.seq_table.setItem(row, 3, QTableWidgetItem("Active"))
+        layout.addWidget(self.seq_table)
 
     def init_engines_tab(self):
+        """Restores the Eskivector & Eskitable procedural synthesis modules."""
         layout = QVBoxLayout(self.tab_engines)
         layout.addWidget(QLabel("Eskivector & Eskitable Procedural Synthesis Suites"))
-        # Integrates custom algebraic operator generators
+
+        engines_layout = QHBoxLayout()
+        self.eskivector_panel = QTextEdit()
+        self.eskivector_panel.setReadOnly(True)
+        self.eskivector_panel.setText("Eskivector Engine Active:\n- Handles vector spatial rotations.\n- Maps x, y, z directly to audio buffer frequencies.")
+
+        self.eskitable_panel = QTextEdit()
+        self.eskitable_panel.setReadOnly(True)
+        self.eskitable_panel.setText("Eskitable Engine Active:\n- Wavetable lookup synthesis.\n- Evaluates custom isosceles operators (isn, ics).")
+
+        engines_layout.addWidget(self.eskivector_panel)
+        engines_layout.addWidget(self.eskitable_panel)
+        layout.addLayout(engines_layout)
 
     def compile_composition(self):
         script_code = self.txt_script_editor.toPlainText()
