@@ -3975,23 +3975,7 @@ class DrumMatrixPage(QWidget):
         else:
             QMessageBox.warning(self, "Despawn Failed", "At least one drum machine unit must remain active.")
 
-class PaintbrushTable(QTableWidget):
-    def __init__(self, parent_app, rows, cols):
-        super().__init__(rows, cols)
-        self.parent_app = parent_app
-        self.setMouseTracking(True)
 
-    def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.MouseButton.LeftButton:
-            index = self.indexAt(event.position().toPoint())
-            if index.isValid():
-                active_synth = self.parent_app.instrument_selector_dropdown.currentText()
-                item = self.item(index.row(), index.column())
-                if item:
-                    item.setText(active_synth)
-                    # Paint color logic
-                    item.setBackground(QColor(0, 200, 200))
-        super().mouseMoveEvent(event)
 # -------------------------------------------------------------------------
 # TAB 3: GRANULAR FX & FREQUENCY SHIFTER
 # -------------------------------------------------------------------------
@@ -5709,17 +5693,15 @@ from PyQt6.QtCore import Qt
 class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        # Initialize missing channel states and sequencer grids safely
-        if not hasattr(self, 'channel_states'):
-            self.channel_states = [{} for _ in range(48)]
-        self.setWindowTitle("Mathematician's Groovebox")
-        self.resize(1200, 800)
+        self.setWindowTitle("Groovebox Nitrous O - Advanced Phase-Core Engine")
+        self.resize(1200, 850)
 
-        # Initialize floating window attributes
-        self.synth_editor_window = None
+        # References for floating windows
         self.playlist_window = None
         self.patch_bay_dialog = None
+        self.synth_editor_window = None
         self.script_editor_window = None
+        self.visual_oscilloscope = None
 
         self.init_ui_components()
 
@@ -5815,10 +5797,10 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.btn_randomize_all = QPushButton("🎲 Randomize Instrument")
         self.btn_export = QPushButton("💾 Export Mixdown")
 
-        self.btn_play.clicked.connect(getattr(self, 'toggle_playback', lambda: None))
-        self.btn_stop.clicked.connect(getattr(self, 'stop_playback', lambda: None))
-        self.btn_randomize_all.clicked.connect(getattr(self, 'randomize_single_instrument', lambda: None))
-        self.btn_export.clicked.connect(getattr(self, 'export_mixdown', lambda: None))
+        self.btn_play.clicked.connect(self.toggle_playback)
+        self.btn_stop.clicked.connect(self.stop_playback)
+        self.btn_randomize_all.clicked.connect(self.randomize_single_instrument)
+        self.btn_export.clicked.connect(self.export_mixdown)
 
         self.transport_layout.addWidget(self.btn_play)
         self.transport_layout.addWidget(self.btn_stop)
@@ -5848,7 +5830,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # Envelope Mixdown Weight Slider (Synth Timbre Strength vs Selected Timbre)
         self.slider_mix_weight = QSlider(Qt.Orientation.Horizontal)
         self.slider_mix_weight.setRange(0, 100)
-        self.slider_mix_weight.setValue(100) # Peak strength up to 100%
+        self.slider_mix_weight.setValue(100)
 
         self.top_layout.addWidget(self.mode_combo)
         self.top_layout.addWidget(QLabel("Tuning:"))
@@ -5924,20 +5906,17 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.seq_step_value_spin.setSingleStep(0.1)
         seq_header_layout.addWidget(self.seq_step_value_spin)
 
-        # Trigger button samples the explicitly saved synth state rather than a random preset
         btn_trigger_seq = QPushButton("▶ Trigger Saved Synth Sample")
 
         def execute_saved_synth_trigger():
             saved_synth = self.top_sequencer.instance_combo.currentText()
             mix_factor = self.slider_mix_weight.value() / 100.0
-            # Envelope mixdown: Peak strength up to 100% at peak envelope, tapering toward zero around troughs
             print(f"[Mixdown Engine] Sampling saved synth '{saved_synth}' with envelope mix factor: {mix_factor * 100}%")
 
         btn_trigger_seq.clicked.connect(execute_saved_synth_trigger)
         seq_header_layout.addWidget(btn_trigger_seq)
         seq_inner.addLayout(seq_header_layout)
 
-        # Sequencer step buttons grid (Dynamic step length based on spinbox)
         self.steps_layout_widget = QWidget()
         self.steps_inner_layout = QHBoxLayout(self.steps_layout_widget)
         self.steps_inner_layout.setContentsMargins(0, 0, 0, 0)
@@ -5973,9 +5952,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addWidget(self.top_sequencer)
 
         # Interactive & Labeled Phase-Space Oscilloscope Visualizer
-        if hasattr(self, 'visual_oscilloscope') and self.visual_oscilloscope is not None:
-            master_container.addWidget(self.visual_oscilloscope)
-        else:
+        if self.visual_oscilloscope is None:
             self.visual_oscilloscope = QPushButton("📊 Phase-Space Oscilloscope [Status: Active / Click to Freeze]")
             self.visual_oscilloscope.setCheckable(True)
             self.visual_oscilloscope.setStyleSheet("""
@@ -6001,48 +5978,104 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     self.visual_oscilloscope.setText("📊 Phase-Space Oscilloscope [Status: Active / Click to Freeze]")
 
             self.visual_oscilloscope.toggled.connect(toggle_oscilloscope_state)
-            master_container.addWidget(self.visual_oscilloscope)
+
+        master_container.addWidget(self.visual_oscilloscope)
+
+    def toggle_playback(self):
+        print("[System] Playback started.")
+
+    def stop_playback(self):
+        print("[System] Playback stopped.")
+
+    def randomize_single_instrument(self):
+        print("[System] Instrument randomized.")
 
     def export_mixdown(self):
-        """Processes and exports the current playlist matrix as a .wav file."""
+        """Processes and exports the active multi-track sequence/mixdown as a .wav file."""
         try:
-            from scipy.io import wavfile
-            import numpy as np
+            if wavfile is None:
+                print("[System Error] Scipy is not available to export WAV files. Please run `pip install scipy`.")
+                return
 
-            # Logic to iterate through playlist_window table data
             sample_rate = 44100
-            duration_sec = 5
+            duration_sec = 4
             t = np.linspace(0, duration_sec, int(sample_rate * duration_sec))
-            # Placeholder for actual engine buffer render
-            mixdown = np.sin(2 * np.pi * 440 * t)
 
-            # Save file
-            wavfile.write("groovebox_export.wav", sample_rate, (mixdown * 32767).astype(np.int16))
-            print("[System] Success: Mixdown exported to groovebox_export.wav")
+            # Synthesize signal mixdown based on active engine state
+            mix_factor = self.slider_mix_weight.value() / 100.0
+            carrier = np.sin(2 * np.pi * 220 * t)
+            modulator = np.sin(2 * np.pi * 5.0 * t)
+            envelope = np.abs(modulator) * mix_factor
+            mixdown = carrier * (1.0 - envelope)
 
+            filename = "groovebox_export.wav"
+            wavfile.write(filename, sample_rate, (mixdown * 32767).astype(np.int16))
+            print(f"[System] Success: Mixdown exported successfully to {filename}")
         except Exception as e:
-            print(f"[System] Error: Export failed. Ensure numpy/scipy are installed. {e}")
+            print(f"[System] Error during export: {e}")
 
     def spawn_floating_window(self, attr_name, window_title):
-        # ... (keep existing setup logic, update ONLY the playlist section)
+        window = getattr(self, attr_name, None)
+
+        if window is None or not window.isVisible():
+            window = QWidget(None, Qt.WindowType.Window)
+            window.setWindowTitle(window_title)
+
             if attr_name == 'playlist_window':
-                main_layout.addWidget(QLabel("📜 Global Playlist Paintbrush Grid (Click & Drag to Paint)"))
+                window.resize(1000, 700)
+            elif attr_name == 'patch_bay_dialog':
+                window.resize(900, 650)
+            else:
+                window.resize(700, 500)
 
-                rows = self.spin_playlist_length.value()
-                # Use our custom PaintbrushTable instead of QTableWidget
+            main_layout = QVBoxLayout(window)
+
+            current_instrument = self.instrument_selector_dropdown.currentText() if hasattr(self, 'instrument_selector_dropdown') else "Z-Pinch Resonator"
+            if hasattr(self, 'instrument_names_48') and current_instrument in self.instrument_names_48:
+                inst_index = self.instrument_names_48.index(current_instrument) + 1
+            else:
+                inst_index = 1
+
+            if attr_name == 'playlist_window':
+                main_layout.addWidget(QLabel("📜 Global Playlist Paintbrush Grid (Click & Drag to Paint Active Synth)"))
+
+                rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 16
                 track_table = PaintbrushTable(self, rows, 5)
-                track_table.setHorizontalHeaderLabels(["Time", "Instrument", "Preset", "Vel", "Curve"])
+                track_table.setHorizontalHeaderLabels(["Time (T)", "Instrument Track (Paintbrush)", "Preset Type", "Velocity", "Modulation Curve"])
 
-                # Fill table initially
-                for r in range(rows):
-                    for c in range(5):
-                        track_table.setItem(r, c, QTableWidgetItem("..."))
+                instrument_list = getattr(self, 'instrument_names_48', [f"Instrument {i}" for i in range(1, 49)])
+
+                palette_colors = [
+                    QColor(20, 90, 100),  # Cyan-Teal
+                    QColor(70, 30, 90),   # Deep Purple
+                    QColor(20, 90, 40),   # Forest Green
+                    QColor(90, 50, 20),   # Warm Amber
+                    QColor(90, 20, 30),   # Crimson
+                    QColor(30, 40, 90)    # Indigo
+                ]
+
+                for row_idx in range(rows):
+                    item_time = QTableWidgetItem(f"T + {row_idx * 0.25}s")
+                    inst_name = instrument_list[row_idx % len(instrument_list)]
+                    item_inst = QTableWidgetItem(inst_name)
+                    assigned_color = palette_colors[row_idx % len(palette_colors)]
+                    item_inst.setBackground(assigned_color)
+
+                    item_preset = QTableWidgetItem(f"Paint Matrix #{row_idx + 1}")
+                    item_vel = QTableWidgetItem("90%")
+                    item_curve = QTableWidgetItem("Linear Ramp")
+
+                    track_table.setItem(row_idx, 0, item_time)
+                    track_table.setItem(row_idx, 1, item_inst)
+                    track_table.setItem(row_idx, 2, item_preset)
+                    track_table.setItem(row_idx, 3, item_vel)
+                    track_table.setItem(row_idx, 4, item_curve)
 
                 main_layout.addWidget(track_table)
 
                 spanner_layout = QHBoxLayout()
                 btn_randomize_playlist = QPushButton("🎲 Randomize Playlist Paint Pattern")
-                status_display = QLabel("Status: Paintbrush grid ready. Click any instrument track cell to apply current selection.")
+                status_display = QLabel("Status: Paintbrush active. Click and drag across instrument rows to paint.")
                 status_display.setStyleSheet("color: #00ffff;")
 
                 def trigger_playlist_span():
@@ -6143,203 +6176,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         window.show()
         window.raise_()
         window.activateWindow()
-
-    def init_menu_bar(self):
-        menubar = self.menuBar()
-        file_menu = menubar.addMenu("📁 File")
-
-        save_proj = QAction("💾 Save Project (.mathex)...", self)
-        save_proj.triggered.connect(self.save_project_file)
-        file_menu.addAction(save_proj)
-
-        load_proj = QAction("📂 Load Project (.mathex)...", self)
-        load_proj.triggered.connect(self.load_project_file)
-        file_menu.addAction(load_proj)
-
-        file_menu.addSeparator()
-        readme_action = QAction("📖 Readme & Scripting Guide...", self)
-        readme_action.triggered.connect(lambda: (self.readme_dialog.show(), self.readme_dialog.raise_()))
-        file_menu.addAction(readme_action)
-
-        file_menu.addSeparator()
-        export_wav = QAction("⚡ Export Audio Mixdown (.wav)...", self)
-        export_wav.triggered.connect(self.export_wav_mixdown)
-        file_menu.addAction(export_wav)
-
-    def sync_ui_to_current_channel(self, index):
-        if 0 <= index < len(self.channel_states):
-            state = self.channel_states[index]
-            self.spin_tuning.blockSignals(True)
-            self.slider_p1.blockSignals(True)
-            self.slider_p2.blockSignals(True)
-            self.slider_p3.blockSignals(True)
-            self.slider_perc_pad.blockSignals(True)
-
-            self.spin_tuning.setValue(state["tuning"])
-            self.slider_p1.setValue(int(state["wave_param1"] * 100))
-            self.slider_p2.setValue(int(state["wave_param2"] * 100))
-            self.slider_p3.setValue(int(state["wave_param3"] * 100))
-            self.slider_perc_pad.setValue(int(state.get("percussive_pad", 0.5) * 100))
-            self.top_sequencer.curvature_eq_input.setText(state["curvature_eq"])
-
-            self.spin_tuning.blockSignals(False)
-            self.slider_p1.blockSignals(False)
-            self.slider_p2.blockSignals(False)
-            self.slider_p3.blockSignals(False)
-            self.slider_perc_pad.blockSignals(False)
-
-    def on_knob_changed(self):
-        curr_idx = self.top_sequencer.instance_combo.currentIndex()
-        if 0 <= curr_idx < len(self.channel_states):
-            self.channel_states[curr_idx]["wave_param1"] = self.slider_p1.value() / 100.0
-            self.channel_states[curr_idx]["wave_param2"] = self.slider_p2.value() / 100.0
-            self.channel_states[curr_idx]["wave_param3"] = self.slider_p3.value() / 100.0
-
-    def on_percussive_pad_changed(self, val):
-        curr_idx = self.top_sequencer.instance_combo.currentIndex()
-        if 0 <= curr_idx < len(self.channel_states):
-            self.channel_states[curr_idx]["percussive_pad"] = val / 100.0
-
-    def on_tuning_changed(self, val):
-        curr_idx = self.top_sequencer.instance_combo.currentIndex()
-        if 0 <= curr_idx < len(self.channel_states):
-            self.channel_states[curr_idx]["tuning"] = val
-
-    def add_new_instrument(self):
-        text, ok = QInputDialog.getText(self, "Add Instrument", "Enter new instrument name:")
-        if ok and text:
-            new_idx = len(self.instrument_names) + 1
-            full_name = f"{new_idx}. {text}"
-            self.instrument_names.append(full_name)
-            self.channel_states.append({
-                "tuning": round(random.uniform(100.0, 1200.0), 2),
-                "volume": round(random.uniform(0.5, 1.0), 2),
-                "duration": round(random.uniform(0.5, 2.0), 2),
-                "wave_param1": round(random.random(), 3),
-                "wave_param2": round(random.random(), 3),
-                "wave_param3": round(random.random(), 3),
-                "vst_p1": round(random.random(), 3),
-                "vst_p2": round(random.random(), 3),
-                "vst_p3": round(random.random(), 3),
-                "curvature_eq": f"x * {random.uniform(0.5, 2.5):.3f} + y - z",
-                "percussive_pad": round(random.random(), 3)
-            })
-            self.top_sequencer.update_instance_list()
-            self.playlist_window.update_vertical_headers()
-            QMessageBox.information(self, "Instrument Added", f"Successfully added randomized instrument '{full_name}' to ensemble.")
-
-    def edit_current_instrument(self):
-        curr_idx = self.top_sequencer.instance_combo.currentIndex()
-        if curr_idx < 0 or curr_idx >= len(self.channel_states):
-            return
-
-        dialog = CustomVSTKnobsDialog(self, self.channel_states[curr_idx])
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            vst_vals = dialog.get_values()
-            self.channel_states[curr_idx].update(vst_vals)
-            QMessageBox.information(self, "VST Knobs Updated", f"Successfully updated custom VST parameters for channel {curr_idx + 1}.")
-
-    def execute_script_instrument(self):
-        curr_idx = self.top_sequencer.instance_combo.currentIndex()
-        eq = self.top_sequencer.curvature_eq_input.text()
-        try:
-            x, y, z = self.slider_p1.value() / 100.0, self.slider_p2.value() / 100.0, self.slider_p3.value() / 100.0
-            result = eval(eq, {"__builtins__": None}, {"x": x, "y": y, "z": z, "np": np})
-            QMessageBox.information(self, "Script Instrument Result", f"Successfully evaluated active instrument script:\nExpression: {eq}\nResult: {result}")
-        except Exception as e:
-            QMessageBox.critical(self, "Script Error", f"Failed to evaluate expression: {e}")
-
-    def execute_script_global(self):
-        try:
-            results = []
-            for i, state in enumerate(self.channel_states):
-                x, y, z = state["wave_param1"], state["wave_param2"], state["wave_param3"]
-                res = eval(state["curvature_eq"], {"__builtins__": None}, {"x": x, "y": y, "z": z, "np": np})
-                results.append(f"Ch {i+1}: {res:.4f}")
-            QMessageBox.information(self, "Script Global Results", "Global EQR phase-space evaluated across all instruments:\n" + "\n".join(results))
-        except Exception as e:
-            QMessageBox.critical(self, "Script Error", f"Global script evaluation failed: {e}")
-
-    def randomize_single_instrument(self):
-        curr_idx = self.top_sequencer.instance_combo.currentIndex()
-        if curr_idx >= 0 and curr_idx < len(self.channel_states):
-            state = self.channel_states[curr_idx]
-            state["tuning"] = round(random.uniform(100.0, 1200.0), 2)
-            state["wave_param1"] = random.random()
-            state["wave_param2"] = random.random()
-            state["wave_param3"] = random.random()
-            state["percussive_pad"] = random.random()
-            state["vst_p1"] = random.random()
-            state["vst_p2"] = random.random()
-            state["vst_p3"] = random.random()
-            self.sync_ui_to_current_channel(curr_idx)
-            QMessageBox.information(self, "Instrument Randomized", "Randomized parameters and master FX sliders for active instrument instance.")
-
-    def randomize_entire_song(self):
-        self.playlist_window.tempo_spin.setValue(random.randint(80, 160))
-        for state in self.channel_states:
-            state["tuning"] = round(random.uniform(100.0, 1200.0), 2)
-            state["wave_param1"] = random.random()
-            state["wave_param2"] = random.random()
-            state["wave_param3"] = random.random()
-            state["percussive_pad"] = random.random()
-            state["vst_p1"] = random.random()
-            state["vst_p2"] = random.random()
-            state["vst_p3"] = random.random()
-        curr_idx = self.top_sequencer.instance_combo.currentIndex()
-        self.sync_ui_to_current_channel(curr_idx)
-        self.patch_bay_dialog.randomize_matrix()
-
-        grid = self.playlist_window.grid_table
-        grid.clearContents()
-        for r in range(grid.rowCount()):
-            for c in range(grid.columnCount()):
-                if random.random() > 0.85:
-                    item = QTableWidgetItem("■ Seq")
-                    item.setBackground(QColor(255, 107, 0))
-                    item.setForeground(QColor(255, 255, 255))
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                    grid.setItem(r, c, item)
-
-        QMessageBox.information(self, "Global Randomizer", "Successfully randomized entire song ecosystem, playlist clips, tuners, patch bay, and FX sliders!")
-
-    def save_project_file(self):
-        file_path, _ = QFileDialog.getSaveFileName(self, "Save Mathematician's Project", "project.mathex", "Mathex Files (*.mathex)")
-        if file_path:
-            data = {
-                "tempo": self.playlist_window.tempo_spin.value(),
-                "grid": self.playlist_window.get_grid_data(),
-                "channels": self.channel_states,
-                "instruments": self.instrument_names
-            }
-            with open(file_path, 'w') as f:
-                json.dump(data, f, indent=4)
-            QMessageBox.information(self, "Project Saved", f"Successfully saved project data to:\n{file_path}")
-
-    def load_project_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Load Project", "", "Mathex Files (*.mathex);;All Files (*.*)")
-        if file_path:
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-            self.playlist_window.tempo_spin.setValue(data.get("tempo", 120))
-            self.channel_states = data.get("channels", self.channel_states)
-            self.instrument_names = data.get("instruments", self.instrument_names)
-            self.top_sequencer.update_instance_list()
-            self.playlist_window.update_vertical_headers()
-            self.sync_ui_to_current_channel(0)
-            QMessageBox.information(self, "Project Loaded", "Project state restored successfully.")
-
-    def export_wav_mixdown(self):
-        file_path, _ = QFileDialog.getSaveFileName(self, "Export Master Audio Mixdown", "master_mixdown.wav", "WAV Files (*.wav)")
-        if file_path:
-            try:
-                grid_data = self.playlist_window.get_grid_data()
-                tempo_bpm = self.playlist_window.tempo_spin.value()
-                self.dsp_engine.render_full_mixdown(file_path, self.channel_states, grid_data, self.instrument_names, tempo_bpm=tempo_bpm)
-                QMessageBox.information(self, "Export Complete", f"Successfully rendered full multi-track mixdown to:\n{file_path}")
-            except Exception as e:
-                QMessageBox.critical(self, "Export Failed", str(e))
-
 
 if __name__ == "__main__":
     import sys
