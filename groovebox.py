@@ -5821,23 +5821,23 @@ class MathematiciansGrooveboxApp(QMainWindow):
             QMessageBox.critical(self, "Script Error", f"Global script evaluation failed: {e}")
 
     def randomize_single_instrument(self):
-    curr_idx = self.top_sequencer.instance_combo.currentIndex()
-    if curr_idx >= 0 and curr_idx < len(self.channel_states):
-        state = self.channel_states[curr_idx]
+        curr_idx = self.top_sequencer.instance_combo.currentIndex()
+        if curr_idx >= 0 and curr_idx < len(self.channel_states):
+            state = self.channel_states[curr_idx]
 
-        # Randomize the 5 External Panel Controls
-        state["tuning"] = round(random.uniform(100.0, 1200.0), 2)
-        state["amplitude"] = round(random.uniform(0.1, 1.0), 2)
-        state["duration"] = round(random.uniform(0.1, 2.0), 2)
-        state["fractalizer"] = round(random.random(), 3)
-        state["eqr_effect"] = round(random.random(), 3)
+            # Randomize the 5 External Panel Controls
+            state["tuning"] = round(random.uniform(100.0, 1200.0), 2)
+            state["amplitude"] = round(random.uniform(0.1, 1.0), 2)
+            state["duration"] = round(random.uniform(0.1, 2.0), 2)
+            state["fractalizer"] = round(random.random(), 3)
+            state["eqr_effect"] = round(random.random(), 3)
 
-        # Randomize the 6 internal synth knobs
-        for i in range(1, 7):
-            state[f"synth_knob{i}"] = round(random.random(), 3)
+            # Randomize the 6 internal synth knobs
+            for i in range(1, 7):
+                state[f"synth_knob{i}"] = round(random.random(), 3)
 
-        self.sync_ui_to_current_channel(curr_idx)
-        QMessageBox.information(self, "Instrument Randomized", f"Randomized 5 external controls & 6 internal synth knobs for instrument #{curr_idx + 1}.")
+            self.sync_ui_to_current_channel(curr_idx)
+            QMessageBox.information(self, "Instrument Randomized", f"Randomized 5 external controls & 6 internal synth knobs for instrument #{curr_idx + 1}.")
 
     def randomize_entire_song(self):
         self.playlist_window.tempo_spin.setValue(random.randint(80, 160))
