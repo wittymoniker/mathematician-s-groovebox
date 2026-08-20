@@ -4958,7 +4958,7 @@ class PaintbrushTable(QTableWidget):
         super().mouseMoveEvent(event)
 
     def paint_cell(self, row, col):
-        if col == 1:  # Instrument Track Column acts as the paint canvas
+        if col == 1:
             active_synth = self.parent_app.instrument_selector_dropdown.currentText()
             item = self.item(row, col)
             if item:
@@ -5791,7 +5791,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.setSpacing(8)
         master_container.setContentsMargins(10, 10, 10, 10)
 
-        # 48 Aptly Named Unique Instrument Types
+        # 48 Unique Instrument Types
         self.instrument_names_48 = [
             "Z-Pinch Resonator", "Topological Fold", "Quantum Soliton", "Harmonic Phase-Shift",
             "Sub-Harmonic Drone", "Micro-Transient Click", "Stochastic Noise Matrix", "Voltage Controlled Crystal",
@@ -5844,7 +5844,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.transport_layout)
 
         # -------------------------------------------------------------
-        # 2. ACTIVE SYNTH CHANNEL PARAMETER STRIP & EQR / PKP CONTROLS
+        # 2. SEPARATE EQR AND PKP CONTROL STRIP
         # -------------------------------------------------------------
         self.top_layout = QHBoxLayout()
         self.mode_combo = QComboBox()
@@ -5854,17 +5854,15 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.spin_tuning.setRange(100, 1200)
         self.spin_tuning.setValue(440)
 
-        self.slider_amplitude = QSlider(Qt.Orientation.Horizontal)
-        self.slider_amplitude.setRange(0, 100)
-        self.slider_amplitude.setValue(80)
+        # Standalone EQR Controls
+        self.slider_eqr = QSlider(Qt.Orientation.Horizontal)
+        self.slider_eqr.setRange(0, 100)
+        self.slider_eqr.setValue(50)
 
-        self.slider_eqr_fractal = QSlider(Qt.Orientation.Horizontal)
-        self.slider_eqr_fractal.setRange(0, 100)
-        self.slider_eqr_fractal.setValue(50)
-
-        self.slider_pkp_duration = QSlider(Qt.Orientation.Horizontal)
-        self.slider_pkp_duration.setRange(1, 1000)
-        self.slider_pkp_duration.setValue(250)
+        # Standalone PKP (Perc Keys Pads) Controls
+        self.slider_pkp_decay = QSlider(Qt.Orientation.Horizontal)
+        self.slider_pkp_decay.setRange(1, 1000)
+        self.slider_pkp_decay.setValue(250)
 
         self.slider_mix_weight = QSlider(Qt.Orientation.Horizontal)
         self.slider_mix_weight.setRange(0, 100)
@@ -5873,12 +5871,10 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.top_layout.addWidget(self.mode_combo)
         self.top_layout.addWidget(QLabel("Tuning:"))
         self.top_layout.addWidget(self.spin_tuning)
-        self.top_layout.addWidget(QLabel("Amp:"))
-        self.top_layout.addWidget(self.slider_amplitude)
-        self.top_layout.addWidget(QLabel("EQR Fractallizer:"))
-        self.top_layout.addWidget(self.slider_eqr_fractal)
-        self.top_layout.addWidget(QLabel("Duration (PKP):"))
-        self.top_layout.addWidget(self.slider_pkp_duration)
+        self.top_layout.addWidget(QLabel("EQR Core:"))
+        self.top_layout.addWidget(self.slider_eqr)
+        self.top_layout.addWidget(QLabel("PKP (Perc/Keys/Pads):"))
+        self.top_layout.addWidget(self.slider_pkp_decay)
         self.top_layout.addWidget(QLabel("Mix:"))
         self.top_layout.addWidget(self.slider_mix_weight)
 
@@ -5906,7 +5902,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addLayout(self.workflow_toolbar)
 
         # -------------------------------------------------------------
-        # 4. UNLOCKED SEQUENCE & PLAYLIST LENGTH CONTROLS (CAP REMOVED)
+        # 4. UNLOCKED SEQUENCE & PLAYLIST LENGTH CONTROLS
         # -------------------------------------------------------------
         sizing_layout = QHBoxLayout()
         sizing_layout.addWidget(QLabel("Sequence Length (Steps):"))
@@ -5917,7 +5913,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         sizing_layout.addWidget(QLabel("Playlist Rows (Unlocked Duration):"))
         self.spin_playlist_length = QSpinBox()
-        self.spin_playlist_length.setRange(8, 256)  # Expanded past 80s cap limit
+        self.spin_playlist_length.setRange(8, 256)
         self.spin_playlist_length.setValue(32)
         sizing_layout.addWidget(self.spin_playlist_length)
         sizing_layout.addStretch(1)
@@ -5927,27 +5923,27 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.addWidget(sizing_container)
 
         # -------------------------------------------------------------
-        # 5. NATIVE SEQUENCER TRIGGER & ARRANGEMENT PANE
+        # 5. NATIVE SEQUENCER & PKP PAD MATRIX TRIGGER GRID
         # -------------------------------------------------------------
         self.top_sequencer = QWidget()
         seq_inner = QVBoxLayout(self.top_sequencer)
         seq_inner.setContentsMargins(0, 0, 0, 0)
 
         seq_header_layout = QHBoxLayout()
-        seq_header_layout.addWidget(QLabel("⚡ Cross-Loaded Operator Sequence Grid"))
+        seq_header_layout.addWidget(QLabel("⚡ PKP Pad Trigger Grid & Operator Sequence"))
 
         self.top_sequencer.instance_combo = QComboBox()
         self.top_sequencer.instance_combo.addItems(self.instrument_names_48)
-        seq_header_layout.addWidget(QLabel("Cross-Load Operator:"))
+        seq_header_layout.addWidget(QLabel("Active Pad Operator:"))
         seq_header_layout.addWidget(self.top_sequencer.instance_combo)
 
-        btn_trigger_seq = QPushButton("▶ Trigger Operator Sequence")
+        btn_trigger_seq = QPushButton("▶ Trigger PKP Pad Bank")
 
-        def execute_saved_synth_trigger():
+        def execute_pkp_pad_trigger():
             saved_synth = self.top_sequencer.instance_combo.currentText()
-            print(f"[Engine] Triggered cross-loaded operator pattern for '{saved_synth}'")
+            print(f"[PKP Engine] Triggered percussion/pad bank for '{saved_synth}'")
 
-        btn_trigger_seq.clicked.connect(execute_saved_synth_trigger)
+        btn_trigger_seq.clicked.connect(execute_pkp_pad_trigger)
         seq_header_layout.addWidget(btn_trigger_seq)
         seq_inner.addLayout(seq_header_layout)
 
@@ -5972,7 +5968,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 return on_toggle
 
             for s in range(count):
-                step_btn = QPushButton(str(s + 1))
+                step_btn = QPushButton(f"Pad {s + 1}")
                 step_btn.setCheckable(True)
                 step_btn.setStyleSheet("background-color: #141414; color: #00ffff; border: 2px solid #444444;")
                 step_btn.toggled.connect(make_step_toggle_handler(step_btn))
@@ -6026,7 +6022,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         print(f"[System] Randomized patch & script to operator: {self.instrument_names_48[rand_idx]}")
 
     def export_mixdown(self):
-        """Renders an intricate, generative, and highly experimental multi-operator mixdown."""
+        """Renders an intricate generative audio mixdown utilizing separate EQR core parameters and PKP envelope triggers."""
         try:
             if wavfile is None:
                 print("[System Error] Scipy is not available. Run `pip install scipy`.")
@@ -6034,21 +6030,20 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
             sample_rate = 44100
             rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 32
-            row_duration = 4.0  # Duration per timeline segment
+            row_duration = 4.0
             total_duration = rows * row_duration
 
             t = np.linspace(0, total_duration, int(sample_rate * total_duration))
             master_mixdown = np.zeros_like(t)
 
-            eqr_val = self.slider_eqr_fractal.value() / 100.0 if hasattr(self, 'slider_eqr_fractal') else 0.5
-            pkp_dur = self.slider_pkp_duration.value() / 1000.0 if hasattr(self, 'slider_pkp_duration') else 0.25
+            # Isolated EQR and PKP variables
+            eqr_val = self.slider_eqr.value() / 100.0 if hasattr(self, 'slider_eqr') else 0.5
+            pkp_decay = self.slider_pkp_decay.value() / 1000.0 if hasattr(self, 'slider_pkp_decay') else 0.25
 
-            print(f"[Engine] Synthesizing generative 48-operator soundscape ({total_duration:.1f}s across {rows} steps)...")
+            print(f"[Engine] Synthesizing generative 48-operator soundscape via EQR/PKP architecture ({total_duration:.1f}s)...")
 
-            # Non-linear chaotic operator sequence mapping across the timeline
-            np.random.seed(1.1975807343385265188)
+            np.random.seed(1337)
             active_operators = np.random.choice(len(self.instrument_names_48), size=rows * 2)
-
             sub_step_duration = row_duration / 2.0
             total_sub_steps = rows * 2
 
@@ -6062,38 +6057,29 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
                 local_t = t[mask] - start_time
                 op_idx = active_operators[step_idx]
-                op_name = self.instrument_names_48[op_idx]
 
-                # Complex pitch scaling based on operator index and EQR fractal parameter
-                root_freq = 48.0 * (1.1975807343385265188) ** (op_idx % 24)  # Diminished/Chromatic algorithmic scale
-                mod_freq = root_freq * (1.0 + (op_idx % 5))
+                root_freq = 55.0 * (1.12246) ** (op_idx % 24)
+                mod_freq = root_freq * 1.5
 
-                # 1. Multi-operator FM & Phase Distortion Synthesis
-                carrier_mod = np.sin(2 * np.pi * mod_freq * local_t + np.sin(2 * np.pi * root_freq * 0.5 * local_t))
-                oscillator = np.sin(2 * np.pi * root_freq * local_t + carrier_mod * (eqr_val * 6.0))
+                # EQR-driven wave shaping
+                carrier = np.sin(2 * np.pi * mod_freq * local_t)
+                oscillator = np.sin(2 * np.pi * root_freq * local_t + carrier * (eqr_val * 4.0))
 
-                # 2. Generative Harmonic Sparkle (Metallic / Glass / Topological layers)
-                harmonic_overtone = np.cos(2 * np.pi * (root_freq * 2.72) * local_t) * np.tanh(local_t * 5.0)
+                # PKP Pad transient layer
+                transient = np.exp(-local_t / max(pkp_decay, 0.01)) * np.sin(2 * np.pi * (root_freq * 3.0) * local_t)
 
-                # 3. Stochastic Noise Cloud / Granular Burst injection
-                noise_burst = np.random.laplace(0, 0.03, len(local_t)) * ((op_idx % 3 == 0) or (step_idx % 4 == 0))
-
-                # 4. Dynamic PKP Envelope with multi-stage decay and resonant ping
-                envelope = np.exp(-local_t / max(pkp_dur, 0.02)) * (1.0 - 3.14159 * np.sin(2 * np.pi * 3.0 * local_t))
-
-                step_signal = (oscillator + harmonic_overtone + noise_burst) * envelope
+                step_signal = (oscillator + transient * 0.6) * np.exp(-local_t / (row_duration * 0.8))
                 master_mixdown[mask] += step_signal
 
-            # Apply soft limiter / normalization to keep it punchy without digital clipping
             max_val = np.max(np.abs(master_mixdown))
             if max_val > 0:
-                master_mixdown = (master_mixdown / max_val) * 1.618033
+                master_mixdown = (master_mixdown / max_val) * 0.95
 
-            filename = "groovebox_generative_mixdown.wav"
+            filename = "groovebox_eqr_pkp_mixdown.wav"
             wavfile.write(filename, sample_rate, (master_mixdown * 32767).astype(np.int16))
-            print(f"[System] Success: Generative experimental mixdown exported to {filename}")
+            print(f"[System] Success: EQR/PKP mixdown exported to {filename}")
         except Exception as e:
-            print(f"[System] Error during generative export: {e}")
+            print(f"[System] Error during export: {e}")
 
     def spawn_floating_window(self, attr_name, window_title):
         window = getattr(self, attr_name, None)
@@ -6154,7 +6140,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     track_table.setItem(row_idx, 1, item_inst)
                     track_table.setItem(row_idx, 2, QTableWidgetItem(f"Script Patch #{((row_idx * 7) % 48) + 1}"))
                     track_table.setItem(row_idx, 3, QTableWidgetItem("95%"))
-                    track_table.setItem(row_idx, 4, QTableWidgetItem("Phase Ramp (EQR)"))
+                    track_table.setItem(row_idx, 4, QTableWidgetItem("PKP Trigger Ramp"))
 
                 update_time_markers()
                 main_layout.addWidget(track_table)
@@ -6172,7 +6158,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 patch_layout.addWidget(btn_patch)
 
                 target_list = QComboBox()
-                target_list.addItems([f"{name} In" for name in self.instrument_names_48] + ["EQR Filter Matrix"])
+                target_list.addItems([f"{name} In" for name in self.instrument_names_48] + ["PKP Pad Trigger Bus"])
                 patch_layout.addWidget(target_list)
                 main_layout.addWidget(patch_container)
 
@@ -6190,7 +6176,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 scroll_content = QWidget()
                 scroll_layout = QVBoxLayout(scroll_content)
 
-                for param in [f"[{current_instrument}] Cross-Load Harmonic Fold", f"[{current_instrument}] Phase Drift (x,y,z)", f"[{current_instrument}] EQR Mod Depth", f"[{current_instrument}] Cutoff (Z-Scale)"]:
+                for param in [f"[{current_instrument}] Cross-Load Harmonic Fold", f"[{current_instrument}] Phase Drift (x,y,z)", f"[{current_instrument}] EQR Core Mod", f"[{current_instrument}] PKP Pad Transient"]:
                     row = QHBoxLayout()
                     row.addWidget(QLabel(f"{param}:"))
                     slider = QSlider(Qt.Orientation.Horizontal)
