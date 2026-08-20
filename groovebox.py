@@ -5567,22 +5567,25 @@ class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        # 1. Initialize channel states for the 48 synths using the class method
+        # 1. Initialize channel states
         self.channel_states = [self.create_new_channel_state() for _ in range(48)]
         self.instrument_names = [f"Synth Node {i+1}" for i in range(48)]
 
-        # 2. UI Layout Initialization
+        # 2. Initialize your workspace modules FIRST so they exist when the layout builds
+        # (Uncomment or match these to whatever your actual class variables are named)
+        self.playlist_window = PlaylistGridWidget(self)
+        self.patch_bay_dialog = PatchBayCanvas(self)
+
+        # 3. UI Layout Initialization (Runs second so it can find the widgets above)
         self.main_widget = QWidget(self)
         self.main_layout = QVBoxLayout(self.main_widget)
 
-        # Setup basic controls/panels (Place your layout building functions here)
         self.init_ui_components()
 
-        # 3. Window properties & sizing (fixes the blank/minimum size screen issue)
+        # 4. Window properties & sizing
         self.setWindowTitle("Mathematician's Groovebox")
         self.resize(1280, 800)
         self.setMinimumSize(800, 600)
-
         self.setCentralWidget(self.main_widget)
 
     def create_new_channel_state(self):
@@ -5702,8 +5705,41 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 w.blockSignals(False)
 
     def randomize_single_instrument(self):
-        # Safe randomizer for active instrument
-        pass
+        """Randomizes the active channel state and assigns functional modulation origin/destination pairs."""
+        # 1. Randomize the 5 external panel parameters
+        state = {
+            "tuning": round(random.uniform(100.0, 1200.0), 2),
+            "amplitude": round(random.uniform(0.1, 1.0), 2),
+            "duration": round(random.uniform(0.1, 1.0), 2),
+            "fractalizer": round(random.uniform(0.0, 1.0), 2),
+            "eqr_effect": round(random.uniform(0.0, 1.0), 2),
+            "preset_idx": random.randint(0, 4),
+
+            # 2. Randomize internal synth sliding scale parameters (0.0 to 1.0)
+            "internal_p1": round(random.random(), 3),
+            "internal_p2": round(random.random(), 3),
+            "internal_p3": round(random.random(), 3),
+            "internal_p4": round(random.random(), 3),
+            "internal_p5": round(random.random(), 3),
+            "internal_p6": round(random.random(), 3),
+
+            "curvature_eq": "x * 1.5 + y - z"
+        }
+
+        # 3. Assign functional modulation origins and destinations
+        available_origins = ["LFO 1", "LFO 2", "Envelope Generator", "Fractal Matrix", "Audio Rate Input"]
+        available_destinations = ["tuning", "amplitude", "duration", "fractalizer", "eqr_effect", "internal_p1", "internal_p3"]
+
+        state["modulation_origin"] = random.choice(available_origins)
+        state["modulation_destination"] = random.choice(available_destinations)
+        state["modulation_depth"] = round(random.uniform(0.1, 0.9), 2)
+
+        # Apply back to the active channel if tracking indices
+        if hasattr(self, 'current_channel_idx') and 0 <= self.current_channel_idx < len(self.channel_states):
+            self.channel_states[self.current_channel_idx] = state
+            self.sync_ui_to_current_channel(self.current_channel_idx)
+
+        return state
 
 
 
