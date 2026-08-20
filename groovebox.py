@@ -5610,23 +5610,58 @@ class MathematiciansGrooveboxApp(QMainWindow):
         }
 
     def init_ui_components(self):
-        # Create a main vertical container layout for the entire window
-        content_layout = QVBoxLayout()
+        # Master Vertical Layout Container
+        master_container = QVBoxLayout()
+        master_container.setSpacing(6)
+        master_container.setContentsMargins(8, 8, 8, 8)
 
-        # 1. Top Control Bar (The 5 external knobs + preset dropdown)
+        # -------------------------------------------------------------
+        # 1. TOP TRANSPORT BAR (Play, Stop, BPM, Memory Banks, Export)
+        # -------------------------------------------------------------
+        self.transport_layout = QHBoxLayout()
+
+        self.btn_play = QPushButton("▶ Play")
+        self.btn_stop = QPushButton("⏹ Stop")
+        self.btn_record = QPushButton("⏺ Record")
+
+        self.lbl_bpm = QLabel("BPM:")
+        self.spin_bpm = QSpinBox()
+        self.spin_bpm.setRange(40, 240)
+        self.spin_bpm.setValue(120)
+
+        self.btn_randomize_all = QPushButton("🎲 Randomize Instrument")
+        self.btn_export = QPushButton("💾 Export Mixdown")
+
+        # Add widgets to Transport Bar
+        self.transport_layout.addWidget(self.btn_play)
+        self.transport_layout.addWidget(self.btn_stop)
+        self.transport_layout.addWidget(self.btn_record)
+        self.transport_layout.addWidget(self.lbl_bpm)
+        self.transport_layout.addWidget(self.spin_bpm)
+
+        # Embed Memory Bank Selector if class exists in script
+        if hasattr(self, 'memory_bank_selector') and self.memory_bank_selector:
+            self.transport_layout.addWidget(self.memory_bank_selector)
+
+        self.transport_layout.addStretch(1)
+        self.transport_layout.addWidget(self.btn_randomize_all)
+        self.transport_layout.addWidget(self.btn_export)
+
+        master_container.addLayout(self.transport_layout)
+
+        # -------------------------------------------------------------
+        # 2. ACTIVE SYNTH CHANNEL PARAMETER STRIP (5 Knobs + Presets)
+        # -------------------------------------------------------------
         self.top_layout = QHBoxLayout()
+
         self.spin_tuning = QSpinBox()
         self.spin_tuning.setRange(100, 1200)
-
         self.slider_amplitude = QSlider(Qt.Orientation.Horizontal)
         self.slider_amplitude.setRange(0, 100)
-
         self.slider_duration = QSlider(Qt.Orientation.Horizontal)
         self.slider_duration.setRange(0, 100)
-
         self.slider_fractalizer = QSlider(Qt.Orientation.Horizontal)
         self.slider_fractalizer.setRange(0, 100)
-
         self.slider_eqr = QSlider(Qt.Orientation.Horizontal)
         self.slider_eqr.setRange(0, 100)
 
@@ -5641,69 +5676,49 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         self.top_layout.addWidget(QLabel("Tuning:"))
         self.top_layout.addWidget(self.spin_tuning)
-        self.top_layout.addWidget(QLabel("Amplitude:"))
+        self.top_layout.addWidget(QLabel("Amp:"))
         self.top_layout.addWidget(self.slider_amplitude)
-        self.top_layout.addWidget(QLabel("Duration:"))
+        self.top_layout.addWidget(QLabel("Dur:"))
         self.top_layout.addWidget(self.slider_duration)
-        self.top_layout.addWidget(QLabel("Fractalizer:"))
+        self.top_layout.addWidget(QLabel("Fractal:"))
         self.top_layout.addWidget(self.slider_fractalizer)
-        self.top_layout.addWidget(QLabel("EQR Effect:"))
+        self.top_layout.addWidget(QLabel("EQR:"))
         self.top_layout.addWidget(self.slider_eqr)
         self.top_layout.addWidget(self.preset_combo)
 
-        content_layout.addLayout(self.top_layout)
-        # 1. Top Control Bar (The 5 external knobs + preset dropdown)
-        content_layout.addLayout(self.top_layout)
+        master_container.addLayout(self.top_layout)
 
-        # --- PASTE THIS BUTTON TOOLBAR BLOCK HERE ---
-        self.button_layout = QHBoxLayout()
-
-        self.btn_play = QPushButton("Play / Toggle Sequence")
-        self.btn_randomize = QPushButton("Randomize Current Node")
-        self.btn_export = QPushButton("Export Mixdown (WAV)")
-        self.btn_clear = QPushButton("Clear Tracks")
-
-        # Connect buttons to your app functions if they exist
-        self.btn_play.clicked.connect(getattr(self, 'toggle_playback', lambda: None))
-        self.btn_randomize.clicked.connect(getattr(self, 'randomize_single_instrument', lambda: None))
-        self.btn_export.clicked.connect(getattr(self, 'export_mixdown', lambda: None))
-        self.btn_clear.clicked.connect(getattr(self, 'clear_sequence', lambda: None))
-
-        self.button_layout.addWidget(self.btn_play)
-        self.button_layout.addWidget(self.btn_randomize)
-        self.button_layout.addWidget(self.btn_export)
-        self.button_layout.addWidget(self.btn_clear)
-
-        content_layout.addLayout(self.button_layout)
-        # ---------------------------------------------
-
-        # 2. Central Splitter for the Sequencer Grid & Workspace Canvas
-        workspace_splitter = QSplitter(Qt.Orientation.Vertical)
-        # 2. Central Splitter for the Sequencer Grid & Workspace Canvas
+        # -------------------------------------------------------------
+        # 3. WORKSPACE SPLITTER & TABBED PANELS
+        # -------------------------------------------------------------
         workspace_splitter = QSplitter(Qt.Orientation.Vertical)
 
-        # If your script initializes these elsewhere, make sure they are safely added.
-        # If they haven't been created yet at this point in __init__, we fallback to
-        # a primary workspace widget container so the window doesn't collapse.
-        added_widgets = False
+        # Tab 1: Sequencer & Playlist Grid
+        self.tabs = QTabWidget()
 
-        for attr_name in ['playlist_window', 'top_sequencer', 'patch_bay_dialog']:
-            if hasattr(self, attr_name) and getattr(self, attr_name) is not None:
-                widget = getattr(self, attr_name)
-                # If it's a standalone window, extract its central widget or add it if it's a QWidget
-                if isinstance(widget, QWidget):
-                    workspace_splitter.addWidget(widget)
-                    added_widgets = True
+        if hasattr(self, 'playlist_window') and self.playlist_window:
+            self.tabs.addTab(self.playlist_window, "Sequencer & Playlist Matrix")
 
-        if not added_widgets:
-            # Fallback container to ensure the splitter has a visible node while your scripts load
-            fallback_container = QWidget()
-            fallback_layout = QVBoxLayout(fallback_container)
-            fallback_layout.addWidget(QLabel("Workspace Initialized - Sequencer / Matrix Ready"))
-            workspace_splitter.addWidget(fallback_container)
-        workspace_splitter.setSizes([350, 450])
-        content_layout.addWidget(workspace_splitter)
-        self.main_layout.addLayout(content_layout)
+        if hasattr(self, 'patch_bay_dialog') and self.patch_bay_dialog:
+            self.tabs.addTab(self.patch_bay_dialog, "Node Patchbay Canvas")
+
+        if hasattr(self, 'formula_modulator') and self.formula_modulator:
+            self.tabs.addTab(self.formula_modulator, "Formula Modulator (x, y, z)")
+
+        if hasattr(self, 'modulation_matrix') and self.modulation_matrix:
+            self.tabs.addTab(self.modulation_matrix, "Modulation Matrix")
+
+        workspace_splitter.addWidget(self.tabs)
+
+        # Dock Visual Oscilloscope Canvas at the bottom of the workspace
+        if hasattr(self, 'visual_oscilloscope') and self.visual_oscilloscope:
+            workspace_splitter.addWidget(self.visual_oscilloscope)
+
+        workspace_splitter.setSizes([500, 200])
+        master_container.addWidget(workspace_splitter)
+
+        # Apply to main central layout
+        self.main_layout.addLayout(master_container)
 
     def sync_ui_to_current_channel(self, index):
         if 0 <= index < len(self.channel_states):
