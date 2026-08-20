@@ -5081,7 +5081,7 @@ class ModulationRoutingWindow(QMainWindow):
         super().__init__(parent)
         self.setWindowTitle("Global Modulation & LFO Hub")
         self.resize(700, 480)
-        self.setStyleSheet(TELETUBBY_STYLE)
+        self.setStyleSheet(DAW_STYLE)
 
         container = QWidget()
         layout = QVBoxLayout(container)
