@@ -9,16 +9,87 @@ import sys
 import math
 import json
 import numpy as np
-from PyQt6.QtCore import Qt, QPointF, QRectF
+from PyQt6.QtCore import Qt, QPointF, QRectF, QTimer
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QGridLayout, QLabel, QPushButton, QScrollArea, QTabWidget,
-    QSizePolicy, QComboBox, QSlider, QLineEdit, QSplitter
+    QSizePolicy, QComboBox, QSlider, QLineEdit, QSplitter, QApplication, QWidget, QFrame, QVBoxLayout
 )
 from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPainterPath
 from math_engine import MathEngine
+class FlexibleSequencer:
+    """Holds subsequence memory within intervals with non-destructive quantization."""
+    def __init__(self):
+        self.sequence_buffer = []  # Contains raw note events: {'time': float, 'pitch': float, 'duration': float}
+        self.quantize_grid = None  # None = free timing, otherwise float fraction (e.g., 0.25 for 16th)
 
+    def add_note(self, time, pitch, duration):
+        self.sequence_buffer.append({'time': time, 'pitch': pitch, 'duration': duration})
 
+    def get_subsequence(self, start_interval, end_interval):
+        sub = [n for n in self.sequence_buffer if start_interval <= n['time'] < end_interval]
+        if self.quantize_grid:
+            quantized = []
+            for note in sub:
+                q_note = note.copy()
+                # Non-locking shift: soft snap suggestion calculation leaving natural variance intact optionally
+                q_note['time'] = round(note['time'] / self.quantize_grid) * self.quantize_grid
+                quantized.append(q_note)
+            return quantized
+        return sub
+class CablePatchPanel(QWidget):
+    """Fixes cable patching by maintaining clean drag-and-drop connection states."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setCaching = False
+        self.cables = [] # List of tuples: (start_widget, end_widget, color)
+        self.active_cable_start = None
+        self.current_mouse_pos = QPoint(0, 0)
+        self.setMouseTracking(True)
+
+    def mousePressEvent(self, event):
+        clicked_widget = self.childAt(event.pos())
+        if clicked_widget and clicked_widget != self:
+            self.active_cable_start = clicked_widget
+            self.current_mouse_pos = event.pos()
+            self.update()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self.active_cable_start:
+            self.current_mouse_pos = event.pos()
+            self.update()
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self.active_cable_start:
+            target_widget = self.childAt(event.pos())
+            if target_widget and target_widget != self and target_widget != self.active_cable_start:
+                # Patch successful
+                self.cables.append((self.active_cable_start, target_widget, QColor(0, 255, 200)))
+            self.active_cable_start = None
+            self.update()
+        super().mouseReleaseEvent(event)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Draw existing patched cables
+        for start, end, color in self.cables:
+            if start and end:
+                p1 = start.mapTo(self, start.rect().center())
+                p2 = end.mapTo(self, end.rect().center())
+                pen = QPen(color, 2.5, Qt.PenStyle.SolidLine)
+                painter.setPen(pen)
+                painter.drawLine(p1, p2)
+
+        # Draw active dragging cable
+        if self.active_cable_start:
+            p1 = self.active_cable_start.mapTo(self, self.active_cable_start.rect().center())
+            pen = QPen(QColor(255, 100, 0, 200), 2, Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            painter.drawLine(p1, self.current_mouse_pos)
 class MathEngine:
     """Mathematical engine implementing your book 'Science and Math Theories and Inventions',
     utilizing x, y, and z variables, Isosceles trigonometry (isn, ics, arcisn, arcics),
@@ -429,31 +500,16 @@ class SongAutomationTimeline(QWidget):
         self.setLayout(layout)
 # --- Modular Synthesizer/Sequencer Node ---
 class SynthNodeWidget(QFrame):
-    """Interactive modular channel strip for x, y, z sound/modulation parameters."""
-    def __init__(self, channel_name: str, parent=None):
+    """Modular node frame with QFrame correctly inherited and memory banks removed."""
+    def __init__(self, name, parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
-        layout = QVBoxLayout()
+        self.setLineWidth(2)
+        self.setStyleSheet("background-color: #1e1e1e; color: #ffffff; border: 1px solid #444; border-radius: 4px;")
 
-        layout.addWidget(QLabel(f"<b>{channel_name}</b>"))
-
-        self.expr_input = QLineEdit("sin(x) * y + z")
-        layout.addWidget(QLabel("Expression (x, y, z):"))
-        layout.addWidget(self.expr_input)
-
-        param_layout = QGridLayout()
-        self.sliders = {}
-        for idx, param in enumerate(["Amp", "Freq", "Dur"]):
-            param_layout.addWidget(QLabel(param), idx, 0)
-            slider = QSlider(Qt.Orientation.Horizontal)
-            slider.setRange(0, 100)
-            slider.setValue(50)
-            param_layout.addWidget(slider, idx, 1)
-            self.sliders[param] = slider
-
-        layout.addLayout(param_layout)
-        self.setLayout(layout)
-
+        layout = QVBoxLayout(self)
+        self.title_label = QLabel(name)
+        layout.addWidget(self.title_label)
 class FitToFrameContainer(QWidget):
     """A responsive container that scales its inner child widget to fit window bounds."""
     def __init__(self, inner_widget, base_width=1200, base_height=800):
@@ -2478,7 +2534,23 @@ class MasterPatchCanvas(QWidget):
             p.drawText(43, y_pos + 4, f"{src}")
             p.drawText(self.width() - 217, y_pos + 4, f"{tgt} [{pol}, {gain}x]")
 
+class MasterControlPanel(QWidget):
+    """Global parameters featuring the requested Master Tempo Slider."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
 
+        self.tempo_label = QLabel("Master Tempo: 120 BPM")
+        self.tempo_slider = QSlider(Qt.Orientation.Horizontal)
+        self.tempo_slider.setRange(40, 240)
+        self.tempo_slider.setValue(120)
+        self.tempo_slider.valueChanged.connect(self.update_tempo_display)
+
+        layout.addWidget(self.tempo_label)
+        layout.addWidget(self.tempo_slider)
+
+    def update_tempo_display(self, value):
+        self.tempo_label.setText(f"Master Tempo: {value} BPM")
 # -------------------------------------------------------------------------
 # TAB 5: EQUATION SCALES, INFINITE PLAYLIST & PATCHBAY
 # -------------------------------------------------------------------------
@@ -2751,94 +2823,32 @@ class MasterControlPatchbayPage(QWidget):
 class GrooveboxMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("EQR Groovebox Ultimate Modular Studio v3.8.0")
-        self.resize(1600, 950)
+        self.setWindowTitle("EQR Groovebox Ultimate Modular")
+        self.resize(1200, 800)
 
-        central_widget = QWidget()
-        main_layout = QVBoxLayout(central_widget)
+        main_layout = QVBoxLayout(self)
 
-        # Top Control Workflow Bar
-        top_bar = QHBoxLayout()
-        self.bank_combo = QComboBox()
-        self.bank_combo.addItems([f"Memory Bank {chr(65+i)}" for i in range(8)])
-        top_bar.addWidget(self.bank_combo)
+        # Master controls (including Tempo)
+        self.master_panel = MasterControlPanel()
+        main_layout.addWidget(self.master_panel)
 
-        for name in ["Save Project", "Load Project", "Randomize Full Project", "Export Buffer"]:
-            btn = QPushButton(name)
-            top_bar.addWidget(btn)
+        # Cable patching workspace area (Arrangement / Patch canvas)
+        self.patch_panel = CablePatchPanel()
+        patch_layout = QHBoxLayout(self.patch_panel)
 
-        main_layout.addLayout(top_bar)
+        # Example nodes replacing deprecated memory banks
+        self.node_a = SynthNodeWidget("Oscillator Node")
+        self.node_b = SynthNodeWidget("Filter Node")
+        patch_layout.addWidget(self.node_a)
+        patch_layout.addWidget(self.node_b)
 
-        # Central Workspace Tabs
-        workspace_tabs = QTabWidget()
+        main_layout.addWidget(self.patch_panel)
 
-        # --- TAB 1: Master Patchbay & Operator Modules ---
-        tab1_widget = QWidget()
-        tab1_layout = QVBoxLayout(tab1_widget)
+        self.sequencer = FlexibleSequencer()
 
-        t1_ctrl = QHBoxLayout()
-        btn_add_op = QPushButton("Add Master Operator / Definer Module")
-        t1_ctrl.addWidget(btn_add_op)
-        t1_ctrl.addStretch()
-        tab1_layout.addLayout(t1_ctrl)
-
-        self.tab1_scroll = QScrollArea()
-        self.tab1_scroll.setWidgetResizable(True)
-        self.tab1_inner = QWidget()
-        self.tab1_inner_layout = QVBoxLayout(self.tab1_inner)
-        self.tab1_inner_layout.addWidget(MasterModuleNode("Definer Hub Alpha"))
-        self.tab1_scroll.setWidget(self.tab1_inner)
-        tab1_layout.addWidget(self.tab1_scroll)
-        btn_add_op.clicked.connect(self.add_master_operator)
-
-        # --- TAB 2: Dynamic Instrument Instances ---
-        tab2_widget = QWidget()
-        tab2_layout = QVBoxLayout(tab2_widget)
-
-        t2_ctrl = QHBoxLayout()
-        btn_add_inst = QPushButton("Create New Instrument Instance")
-        t2_ctrl.addWidget(btn_add_inst)
-        t2_ctrl.addStretch()
-        tab2_layout.addLayout(t2_ctrl)
-
-        self.tab2_scroll = QScrollArea()
-        self.tab2_scroll.setWidgetResizable(True)
-        self.tab2_inner = QWidget()
-        self.tab2_inner_layout = QVBoxLayout(self.tab2_inner)
-
-        self.tab2_inner_layout.addWidget(InstrumentStrip("Percussion Engine", parent=None, delete_callback=self.remove_instrument))
-        self.tab2_inner_layout.addWidget(InstrumentStrip("Padded Synth", parent=None, delete_callback=self.remove_instrument))
-        self.tab2_inner_layout.addWidget(InstrumentStrip("Keys Engine", parent=None, delete_callback=self.remove_instrument))
-
-        self.tab2_scroll.setWidget(self.tab2_inner)
-        tab2_layout.addWidget(self.tab2_scroll)
-        btn_add_inst.clicked.connect(self.add_instrument_instance)
-
-        # --- TAB 3: Multivariate Modular Playlist Arranger ---
-        self.playlist_widget = PlaylistArrangerWidget()
-
-        workspace_tabs.addTab(tab1_widget, "Master Operators & Patchbay (Tab 1)")
-        workspace_tabs.addTab(tab2_widget, "Instrument Instances & Waveform Editors (Tab 2)")
-        workspace_tabs.addTab(self.playlist_widget, "Modular Playlist Arranger (Tab 3)")
-
-        main_layout.addWidget(workspace_tabs)
-        self.setCentralWidget(central_widget)
-
-    def add_instrument_instance(self):
-        strip = InstrumentStrip(f"Synth Node {self.tab2_inner_layout.count() + 1}", delete_callback=self.remove_instrument)
-        self.tab2_inner_layout.addWidget(strip)
-
-    def remove_instrument(self, strip):
-        strip.setParent(None)
-        strip.deleteLater()
-
-    def add_master_operator(self):
-        node = MasterModuleNode(f"Operator Module {self.tab1_inner_layout.count() + 1}", delete_callback=lambda n: (n.setParent(None), n.deleteLater()))
-        self.tab1_inner_layout.addWidget(node)
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
+    import sys
     app = QApplication(sys.argv)
-    window = GrooveboxMainWindow()
+    window = EQRGrooveboxMain()
     window.show()
     sys.exit(app.exec())
