@@ -5758,7 +5758,7 @@ from PyQt6.QtCore import Qt
 class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Groovebox Nitrous O - Envelope PKP, EQR Modulation & Euclidean Engine")
+        self.setWindowTitle("Groovebox Nitrous O - Geometric Resonance Nullifier & Seeded Ecosystem")
         self.resize(1300, 950)
 
         self.playlist_window = None
@@ -5782,7 +5782,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
             "Magnetic Flux Modulator", "Eddy Current Oscillator", "Standing Wave Matrix", "Quantum Entanglement Node"
         ]
 
-        # Expanded step parameters to support probability and Euclidean states
         self.instrument_sequencer_memory = {
             name: {
                 "steps": [False] * 16,
@@ -5794,7 +5793,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         }
 
         self.instrument_scripts = {
-            name: f"# Script workspace for {name}\ndef evaluate_wave(x, y, z):\n    return np.sin(x * {(i%12)+1}.0) * np.cos(y) - z"
+            name: f"# Script workspace for {name} based on operator rules\ndef evaluate_wave(x, y, z):\n    return np.sin(x * {((i)%12)+1}.0) * np.cos(y) - z"
             for i, name in enumerate(self.instrument_names_48)
         }
 
@@ -5871,14 +5870,18 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.instrument_selector_dropdown.addItems(self.instrument_names_48)
         self.instrument_selector_dropdown.currentIndexChanged.connect(self.on_instrument_switched)
 
-        self.btn_idealize_rhythm = QPushButton("✨ Euclidean Rhythm & Tuning Idealize")
-        self.btn_randomize_all = QPushButton("🎲 Intensive Script & Module Randomizer")
+        self.btn_idealize_rhythm = QPushButton("✨ Euclidean & Geometry Lock")
+        self.btn_seeded_randomize = QPushButton("🎲 Seeded Harmonic Randomizer")
+        self.spin_seed_val = QSpinBox()
+        self.spin_seed_val.setRange(1, 9999)
+        self.spin_seed_val.setValue(42)
+
         self.btn_export = QPushButton("💾 Save & Export .wav...")
 
         self.btn_play.clicked.connect(self.toggle_playback)
         self.btn_stop.clicked.connect(self.stop_playback)
         self.btn_idealize_rhythm.clicked.connect(self.apply_euclidean_and_idealized_rhythms)
-        self.btn_randomize_all.clicked.connect(self.intensive_randomize_ecosystem)
+        self.btn_seeded_randomize.clicked.connect(self.apply_seeded_harmonic_randomization)
         self.btn_export.clicked.connect(self.export_mixdown_dialog)
 
         self.transport_layout.addWidget(self.btn_play)
@@ -5888,8 +5891,10 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.transport_layout.addWidget(QLabel("Active Operator:"))
         self.transport_layout.addWidget(self.instrument_selector_dropdown)
         self.transport_layout.addStretch(1)
+        self.transport_layout.addWidget(QLabel("Seed:"))
+        self.transport_layout.addWidget(self.spin_seed_val)
+        self.transport_layout.addWidget(self.btn_seeded_randomize)
         self.transport_layout.addWidget(self.btn_idealize_rhythm)
-        self.transport_layout.addWidget(self.btn_randomize_all)
         self.transport_layout.addWidget(self.btn_export)
 
         master_container.addLayout(self.transport_layout)
@@ -5936,9 +5941,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.btn_view_patchbay = QPushButton("🔌 Advanced Modular Patch Bay")
         self.btn_script_inst = QPushButton("📝 Instrument Script Editor")
 
-        self.btn_edit_synth = QPushButton("🛠 Edit Synth Settings & Wavetable")
-        # Simply connect it directly without the safeguarding ellipsis:
-        self.btn_edit_synth.clicked.connect(lambda: self.spawn_floating_window('synth_editor_window', "Synth Settings & Wavetable Interface"))
         self.btn_edit_synth.clicked.connect(lambda: self.spawn_floating_window('synth_editor_window', "Synth Settings & Wavetable Interface"))
         self.btn_view_playlist.clicked.connect(lambda: self.spawn_floating_window('playlist_window', "Unquantized Global Playlist Timeline"))
         self.btn_view_patchbay.clicked.connect(lambda: self.spawn_floating_window('patch_bay_dialog', "Advanced Modular Patch Bay & Visualizer"))
@@ -5978,7 +5980,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         seq_inner.setContentsMargins(0, 0, 0, 0)
 
         seq_header_layout = QHBoxLayout()
-        seq_header_layout.addWidget(QLabel("⚡ PKP Pad Grid with Probability & Envelope Follower Tracking"))
+        seq_header_layout.addWidget(QLabel("⚡ PKP Pad Grid with Geometric Phase-Lock & Nullifier Routing"))
 
         self.top_sequencer.instance_combo = QComboBox()
         self.top_sequencer.instance_combo.addItems(self.instrument_names_48)
@@ -5987,7 +5989,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         seq_header_layout.addWidget(self.top_sequencer.instance_combo)
 
         btn_trigger_seq = QPushButton("▶ Trigger PKP Pad Bank")
-        btn_trigger_seq.clicked.connect(lambda: print(f"[PKP Engine] Envelope follower active for {self.top_sequencer.instance_combo.currentText()}"))
+        btn_trigger_seq.clicked.connect(lambda: print(f"[Resonance Nullifier] Geometric phase-lock active for {self.top_sequencer.instance_combo.currentText()}"))
         seq_header_layout.addWidget(btn_trigger_seq)
         seq_inner.addLayout(seq_header_layout)
 
@@ -6082,42 +6084,49 @@ class MathematiciansGrooveboxApp(QMainWindow):
             self.seq_step_buttons.append(step_btn)
 
     def apply_euclidean_and_idealized_rhythms(self):
-        """Generates Euclidean rhythmic spacing combined with tuning frequency and probability variations."""
         curr_inst = self.top_sequencer.instance_combo.currentText() if hasattr(self, 'top_sequencer') else self.instrument_names_48[0]
         inst_idx = self.instrument_names_48.index(curr_inst) + 1
         base_tuning = self.spin_tuning.value() if hasattr(self, 'spin_tuning') else 440
 
-        patch_freq = base_tuning * (1.05946) ** (inst_idx % 36)
+        patch_freq = base_tuning * (MEUM_CONSTANT ** (inst_idx % 36))
         mem = self.instrument_sequencer_memory[curr_inst]
         count = len(mem["steps"])
 
-        # Bjorklund-style Euclidean pulse distribution approximation (e.g., 5 pulses in 16 steps)
         pulses = max(2, (inst_idx % 5) + 3)
         for s in range(count):
             is_euclidean = ((s * pulses) % count) < pulses
             mem["steps"][s] = is_euclidean
             mem["amplitudes"][s] = round(0.5 + 0.5 * abs(np.sin(s * np.pi / count)), 1)
-            # Conditional probability injection (70% to 100% chance per step)
             mem["probabilities"][s] = 100 if is_euclidean else int(np.random.choice([70, 85, 95, 100]))
 
         self.reload_active_instrument_sequencer_ui()
-        print(f"[Euclidean & Tuning Engine] Distributed {pulses} pulses across {count} steps for '{curr_inst}' at {patch_freq:.1f}Hz.")
+        print(f"[Euclidean & Geometry Engine] Applied harmonic pulse matrix to '{curr_inst}' at {patch_freq:.1f}Hz using updated Meum constant scale.")
+
+    def apply_seeded_harmonic_randomization(self):
+        """Applies seeded randomizations that maintain mathematical harmonic spacing to prevent destructive phase clashing."""
+        seed_val = self.spin_seed_val.value() if hasattr(self, 'spin_seed_val') else 42
+        np.random.seed(seed_val)
+
+        rand_idx = np.random.randint(0, len(self.instrument_names_48))
+        self.instrument_selector_dropdown.setCurrentIndex(rand_idx)
+
+        for i, name in enumerate(self.instrument_names_48):
+            harmonic_multiplier = float((i % 7) + 1) * (MEUM_CONSTANT / 1.5)
+
+            self.instrument_scripts[name] = (
+                f"# Seeded Geometric Resonance Script [{seed_val}] for {name}\n"
+                f"def evaluate_wave(x, y, z):\n"
+                f"    m = {harmonic_multiplier}\n"
+                f"    return np.sin(x * m) * np.cos(y / m) - np.tanh(z * 0.5)"
+            )
+
+        print(f"[Resonance Nullifier] Seed #{seed_val} applied with Meum ({MEUM_CONSTANT}) scaling weights.")
 
     def toggle_playback(self):
         print("[System] Live high-bitrate audio engine streaming active across cross-loaded operator matrix.")
 
     def stop_playback(self):
         print("[System] Live audio playback stopped.")
-
-    def intensive_randomize_ecosystem(self):
-        rand_idx = np.random.randint(0, len(self.instrument_names_48))
-        self.instrument_selector_dropdown.setCurrentIndex(rand_idx)
-
-        for name in self.instrument_names_48:
-            rnd_factor = np.random.randint(1, 48)
-            self.instrument_scripts[name] = f"# Intensively Randomized Script for {name}\ndef evaluate_wave(x, y, z):\n    return np.sin(x * {rnd_factor}.0) * np.cos(y * {np.random.randint(2,8)}.0) + np.tan(z / {rnd_factor})"
-
-        print(f"[System] Intensive module patch bay and 48-operator script randomizations successfully generated.")
 
     def export_mixdown_dialog(self):
         try:
@@ -6133,6 +6142,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
             sample_rate = 44100
             rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 32
+            seq_len = self.spin_seq_length.value() if hasattr(self, 'spin_seq_length') else 16
+
+            # Phase divisor using the updated Meum constant
+            phase_divisor = max(1.0, float(seq_len * rows) / MEUM_CONSTANT)
+
             row_duration = 4.0
             total_duration = rows * row_duration
 
@@ -6143,10 +6157,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
             pkp_decay = self.slider_pkp_decay.value() / 1000.0 if hasattr(self, 'slider_pkp_decay') else 0.25
             fractalizer_val = self.slider_fractalizer.value() / 100.0 if hasattr(self, 'slider_fractalizer') else 0.85
             pkp_auto = self.chk_pkp_automod.isChecked()
+            seed_val = self.spin_seed_val.value() if hasattr(self, 'spin_seed_val') else 42
 
-            print(f"[Engine] Rendering polyphonic mixdown with EQR modulation & envelope followers to '{file_path}' ({total_duration:.1f}s)...")
+            print(f"[Resonance Nullifier] Rendering mixdown with Seed #{seed_val} (Phase Divisor: {phase_divisor:.2f} derived from SeqLen:{seq_len} x Rows:{rows} / Meum:{MEUM_CONSTANT}) to '{file_path}'...")
 
-            np.random.seed(42 + self.export_counter)
+            np.random.seed(seed_val)
 
             for row_idx in range(rows):
                 start_time = row_idx * row_duration
@@ -6164,20 +6179,19 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 for op_idx in active_cluster:
                     op_name = self.instrument_names_48[op_idx]
 
-                    base_freq = 44.0 * (1.05946) ** (op_idx % 36)
-                    mod_freq = base_freq * (1.0 + (op_idx % 4) * 0.5)
+                    phase_offset = (op_idx * np.pi / phase_divisor)
+                    base_freq = 44.0 * (MEUM_CONSTANT ** (op_idx % 36))
+                    mod_freq = base_freq * MEUM_CONSTANT
 
-                    # Concurrent EQR modulation tracking across time
                     dynamic_eqr = base_eqr * (1.0 + 0.3 * np.sin(2.0 * np.pi * 0.2 * local_t + op_idx))
 
-                    carrier = np.sin(2 * np.pi * mod_freq * local_t)
-                    oscillator = np.sin(2 * np.pi * base_freq * local_t + carrier * (dynamic_eqr * 5.0 * fractalizer_val))
+                    carrier = np.sin(2 * np.pi * mod_freq * local_t + phase_offset)
+                    oscillator = np.sin(2 * np.pi * base_freq * local_t + phase_offset + carrier * (dynamic_eqr * MEUM_CONSTANT * fractalizer_val))
 
-                    # Envelope Follower / PKP transient response simulation
-                    env_follower = np.exp(-local_t / max(pkp_decay * (1.5 if pkp_auto else 1.0), 0.015))
-                    pkp_trigger = env_follower * np.sin(2 * np.pi * (base_freq * 2.0) * local_t)
+                    env_follower = np.exp(-local_t / max(pkp_decay * (MEUM_CONSTANT if pkp_auto else 1.0), 0.015))
+                    pkp_trigger = env_follower * np.sin(2 * np.pi * (base_freq * 2.0) * local_t + phase_offset)
 
-                    row_envelope = np.exp(-local_t / (row_duration * 0.6))
+                    row_envelope = np.exp(-local_t / (row_duration * (TRANSCENDENTAL_BASE / 4.0)))
                     row_mix += (oscillator * 0.4 + pkp_trigger * 0.6) * row_envelope
 
                 master_mixdown[mask] += row_mix / len(active_cluster)
@@ -6237,7 +6251,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     selection_text = time_scale_combo.currentText()
                     if "Unquantized" in selection_text:
                         for row_idx in range(rows):
-                            track_table.setItem(row_idx, 0, QTableWidgetItem(f"Free-Time [{row_idx * 1.33:.2f}s]"))
+                            track_table.setItem(row_idx, 0, QTableWidgetItem(f"Free-Time [{row_idx * (MEUM_CONSTANT / 1.0):.2f}s]"))
                     else:
                         step_seconds = 60.0 if "60.0s" in selection_text else (30.0 if "30.0s" in selection_text else (15.0 if "15.0s" in selection_text else (3.5 if "3.5s" in selection_text else 1.0)))
                         for row_idx in range(rows):
@@ -6255,14 +6269,14 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     track_table.setItem(row_idx, 1, item_inst)
                     track_table.setItem(row_idx, 2, QTableWidgetItem(f"Script::{op_name[:4].upper()}-X{row_idx}"))
                     track_table.setItem(row_idx, 3, QTableWidgetItem("95%"))
-                    track_table.setItem(row_idx, 4, QTableWidgetItem("PKP Envelope Follower Ramp"))
+                    track_table.setItem(row_idx, 4, QTableWidgetItem("Geometric Nullifier Lock"))
                     track_table.setItem(row_idx, 5, QTableWidgetItem(f"Multi-Load Active [{row_idx % 3 + 1}]"))
 
                 update_time_markers()
                 main_layout.addWidget(track_table)
 
             elif attr_name == 'patch_bay_dialog':
-                main_layout.addWidget(QLabel("🔌 Advanced Modular Patch Bay & Intensive Visualizer"))
+                main_layout.addWidget(QLabel("🔌 Advanced Modular Patch Bay & Resonance Nullifier Visualizer"))
                 patch_container = QWidget()
                 patch_layout = QHBoxLayout(patch_container)
 
@@ -6274,16 +6288,16 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 patch_layout.addWidget(btn_patch)
 
                 target_list = QComboBox()
-                target_list.addItems([f"{name} In" for name in self.instrument_names_48] + ["PKP Envelope Follower Bus", "EQR Dynamic Modulation Core"])
+                target_list.addItems([f"{name} In" for name in self.instrument_names_48] + ["PKP Envelope Follower Bus", "Geometric Resonance Nullifier Core"])
                 patch_layout.addWidget(target_list)
                 main_layout.addWidget(patch_container)
 
                 patch_log = QTextEdit()
                 patch_log.setReadOnly(True)
-                patch_log.setPlainText("# Advanced Modular Patch Matrix Visualizer:\n- Z-Pinch Resonator Out ---> Topological Fold In (Active Routing)\n- Stochastic Noise Matrix Out ---> PKP Envelope Follower Bus (Engaged)")
+                patch_log.setPlainText("# Resonance Nullifier Matrix:\n- Z-Pinch Resonator Out ---> Topological Fold In (Phase-Locked)\n- Stochastic Noise Matrix Out ---> Geometric Resonance Nullifier Core (Engaged)")
                 main_layout.addWidget(patch_log)
 
-                btn_patch.clicked.connect(lambda: patch_log.append(f"- {source_list.currentText()} ====> {target_list.currentText()} (Intensive Link Established)"))
+                btn_patch.clicked.connect(lambda: patch_log.append(f"- {source_list.currentText()} ====> {target_list.currentText()} (Geometric Link Established)"))
 
             elif attr_name == 'synth_editor_window':
                 main_layout.addWidget(QLabel(f"Interactive Wavetable & Vector Synthesis Interface: {current_instrument} (Node ID: {inst_index})"))
@@ -6292,12 +6306,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 scroll_content = QWidget()
                 scroll_layout = QVBoxLayout(scroll_content)
 
-                for param in [f"[{current_instrument}] Wavetable Morph Position", f"[{current_instrument}] Vector 3D Phase Spread (x,y,z)", f"[{current_instrument}] Fractalizer Core Gain", f"[{current_instrument}] PKP Envelope Dynamics"]:
+                for param in [f"[{current_instrument}] Wavetable Morph Position", f"[{current_instrument}] Vector 3D Phase Spread (x,y,z)", f"[{current_instrument}] Fractalizer Core Gain", f"[{current_instrument}] Geometric Nullifier Weight"]:
                     row = QHBoxLayout()
                     row.addWidget(QLabel(f"{param}:"))
                     slider = QSlider(Qt.Orientation.Horizontal)
                     slider.setRange(0, 100)
-                    slider.setValue((inst_index * 17) % 100)
+                    slider.setValue(int((inst_index * MEUM_CONSTANT * 10) % 100))
                     row.addWidget(slider)
                     scroll_layout.addLayout(row)
 
