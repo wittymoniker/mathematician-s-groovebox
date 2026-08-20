@@ -5865,7 +5865,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.top_layout.addWidget(self.slider_amplitude)
         self.top_layout.addWidget(QLabel("Envelope Synth Mix (0-100%):"))
         self.top_layout.addWidget(self.slider_mix_weight)
-self.top_layout = QHBoxLayout()
+        self.top_layout = QHBoxLayout()
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(["Mode: Single Instrument", "Mode: Global Ecosystem"])
 
