@@ -5868,8 +5868,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # 4. MAIN WORKSPACE PANEL (Sequencer, Scales, & Visualizers)
         # -------------------------------------------------------------
         scale_and_seq_layout = QHBoxLayout()
-        self.scale_combo = QComboBox()
-        self.scale_combo.addItems(["Microtonal Matrix", "Pythagorean Tuning", "Z-Pinch Harmonic Scale"])
+
+        # Ensure scale_combo matches your required native items format
+        if not hasattr(self, 'scale_combo'):
+            self.scale_combo = QComboBox()
+            self.scale_combo.addItems(["Microtonal Matrix", "Pythagorean Tuning", "Z-Pinch Harmonic Scale"])
+
         scale_and_seq_layout.addWidget(QLabel("Instrument Tonal Scale:"))
         scale_and_seq_layout.addWidget(self.scale_combo)
         scale_and_seq_layout.addStretch(1)
@@ -5878,7 +5882,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         scale_container.setLayout(scale_and_seq_layout)
         master_container.addWidget(scale_container)
 
-        # Re-attach or create the instrument sequencer pane on the main window
+        # Re-attach your native sequencer pane if it exists in your class, or fallback cleanly
         if hasattr(self, 'instrument_sequencer_pane') and self.instrument_sequencer_pane:
             master_container.addWidget(self.instrument_sequencer_pane)
         else:
