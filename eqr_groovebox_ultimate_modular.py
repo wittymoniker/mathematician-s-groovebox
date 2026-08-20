@@ -9,7 +9,7 @@ import math
 import json
 import numpy as np
 from PyQt6.QtCore import Qt, QPoint, QRectF, QTimer
-from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont,QAction
+from PyQt6.QtGui import QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont,QAction, QPalette
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
@@ -1198,22 +1198,19 @@ class FitToFrameContainer(QWidget):
         self.scale_factor = min(scale_x, scale_y)
 
 # Import Reality Synth and Music Fractallizer from synth_engine (with fallback stubs)
-try:
+class MusicFractallizer:
+    def __init__(self, dimensions=('x', 'y', 'z'), survival_mode=True):
+        self.dimensions = dimensions
+        self.survival_mode = survival_mode
+        self.active_patches = []
+    def generate_fractal_stream(self, seed_data):
+        return {dim: np.tanh(seed_data) for dim in self.dimensions}
 
-except ImportError:
-    class MusicFractallizer:
-        def __init__(self, dimensions=('x', 'y', 'z'), survival_mode=True):
-            self.dimensions = dimensions
-            self.survival_mode = survival_mode
-            self.active_patches = []
-        def generate_fractal_stream(self, seed_data):
-            return {dim: np.tanh(seed_data) for dim in self.dimensions}
-
-    class RealitySynthEngine:
-        def __init__(self, survival_mode=True):
-            self.fractallizer = MusicFractallizer(dimensions=('x', 'y', 'z'), survival_mode=survival_mode)
-        def render_reality_patch(self, base_patch_data):
-            return {coord: sig.tolist() for coord, sig in self.fractallizer.generate_fractal_stream(base_patch_data).items()}
+class RealitySynthEngine:
+    def __init__(self, survival_mode=True):
+        self.fractallizer = MusicFractallizer(dimensions=('x', 'y', 'z'), survival_mode=survival_mode)
+    def render_reality_patch(self, base_patch_data):
+        return {coord: sig.tolist() for coord, sig in self.fractallizer.generate_fractal_stream(base_patch_data).items()}
 
 
 class AdvancedWaveformVisualizerCanvas(QWidget):
@@ -3790,9 +3787,6 @@ class ScientificDAWWindow(QMainWindow):
         # --- LEFT PANEL: The 13 Workflow-Centric Tabs ---
         left_container = QWidget(self)
         left_layout = QVBoxLayout(left_container)
-        self.setCentralWidget(builder_widget)
-        self.builder_widget = EquationBuilderWidget(self)
-        self.setCentralWidget(self.builder_widget)
         central_container = QWidget(self)
         main_layout = QVBoxLayout(central_container)
         # Force the widget and window to calculate layout and display
@@ -4009,7 +4003,7 @@ class ScientificDAWWindow(QMainWindow):
         return panel
 
     def apply_stylesheet(self):
-        palette = QPalette()
+
         palette.setColor(QPalette.ColorRole.Window, QColor("#16181d"))
         palette.setColor(QPalette.ColorRole.WindowText, QColor("#e0e0e0"))
         palette.setColor(QPalette.ColorRole.Base, QColor("#0d0f12"))
@@ -4029,6 +4023,8 @@ class ScientificDAWWindow(QMainWindow):
 if __name__ == "__main__":
     import sys
     app = QApplication(sys.argv)
+    palette = QPalette()
     window = ScientificDAWWindow()
+
     window.show()
     sys.exit(app.exec())
