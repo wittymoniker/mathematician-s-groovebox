@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
     QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem
 )
+)
 import random
 from math_engine import MathEngine
 
@@ -455,58 +456,134 @@ class CablePatchPanel(QWidget):
             painter.setPen(pen)
             painter.drawLine(p1, self.current_mouse_pos)
 class MathEngine:
-    """Mathematical engine implementing your book 'Science and Math Theories and Inventions',
-    utilizing x, y, and z variables, Isosceles trigonometry (isn, ics, arcisn, arcics),
-    and accurate real-world modeling without artificial Meum scaling factors."""
-    def __init__(self, x=1.0, y=1.0, z=1.0, tempo=120.0):
-        self.x = x
-        self.y = y
-        self.z = z
-        self.tempo = tempo
-        self.t = 0.0
-
-    def update_tempo(self, new_tempo):
-        self.tempo = max(20.0, new_tempo)
-        self.t += (60.0 / self.tempo) * 0.01
-
+    """Core mathematical engine evaluated strictly on x, y, z variables without Meum factors."""
     @staticmethod
     def isn(val):
-        """Isosceles Sine definition from Science and Math Theories and Inventions."""
-        return math.sin(val) / (1.0 + abs(math.cos(val)))
+        return np.sin(val) / (1.0 + np.abs(np.cos(val)))
 
     @staticmethod
     def ics(val):
-        """Isosceles Cosine definition from Science and Math Theories and Inventions."""
-        return math.cos(val) / (1.0 + abs(math.sin(val)))
+        return np.cos(val) / (1.0 + np.abs(np.sin(val)))
 
     @staticmethod
-    def arcisn(val):
-        """Inverse Isosceles Sine."""
-        v = max(-1.0, min(1.0, val / 2.0))
-        return math.asin(v)
+    def eskivector(x, y, z):
+        return MathEngine.isn(x) * y, MathEngine.ics(y) * z, np.sin(x * y * z)
 
     @staticmethod
-    def arcics(val):
-        """Inverse Isosceles Cosine."""
-        v = max(-1.0, min(1.0, val / 2.0))
-        return math.acos(v)
+    def eskitable(x, y, z):
+        return np.clip((x + y) * 0.5, -1.0, 1.0) * MathEngine.ics(z)
 
-    def evaluate(self, equation_str="isn(x) + ics(y) * arcisn(z) + t"):
-        """Evaluates multivariate equations strictly across x, y, and z variables."""
-        try:
-            safe_dict = {
-                "__builtins__": None,
-                "x": self.x, "y": self.y, "z": self.z, "t": self.t,
-                "math": math, "isn": self.isn, "ics": self.ics,
-                "arcisn": self.arcisn, "arcics": self.arcics,
-                "sin": math.sin, "cos": math.cos, "sqrt": math.sqrt,
-                "log": math.log, "exp": math.exp, "abs": abs, "min": min, "max": max
-            }
-            return eval(equation_str, {"__builtins__": None}, safe_dict)
-        except Exception:
-            return 0.0
+class EQRDAWStudio(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Equation of Reality (EQR) - Modular DAW Studio")
+        self.resize(1100, 750)
 
+        # Main Layout & Tab Widget
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.main_layout = QVBoxLayout(self.central_widget)
 
+        self.tabs = QTabWidget()
+        self.main_layout.addWidget(self.tabs)
+
+        # Build Tabs
+        self.init_equation_editor_tab()
+        self.init_synth_spawners_tab()
+        self.init_track_filler_tab()
+        self.init_effects_rack_tab()
+
+    def init_equation_editor_tab(self):
+        """Tab 1: Equation Builder with Mouse-Click Helper Buttons"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        self.eq_input = QTextEdit()
+        self.eq_input.setPlaceholderText("Enter formula using x, y, z variables (e.g., isn(x) * y + ics(z))...")
+        layout.addWidget(QLabel("Coordinate Equation Evaluator:"))
+        layout.addWidget(self.eq_input)
+
+        # Mouse Helper Keypad
+        keypad_layout = QGridLayout()
+        buttons = [
+            ('x', 0, 0), ('y', 0, 1), ('z', 0, 2), ('+', 0, 3),
+            ('isn(', 1, 0), ('ics(', 1, 1), ('sin(', 1, 2), ('-', 1, 3),
+            ('*', 2, 0), ('/', 2, 1), ('(', 2, 2), (')', 2, 3),
+        ]
+        for label, r, c in buttons:
+            btn = QPushButton(label)
+            btn.clicked.connect(lambda checked, l=label: self.append_to_equation(l))
+            keypad_layout.addWidget(btn, r, c)
+
+        layout.addLayout(keypad_layout)
+        self.tabs.addTab(tab, "1. Equation Builder")
+
+    def init_synth_spawners_tab(self):
+        """Tab 2: Complex Synths Inspired by Experimental Physics & Work"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.addWidget(QLabel("<b>Complex Experimental Synthesizers & Spawners</b>"))
+
+        synths = [
+            ("Z-Pinch Wavefolder", "Drives coordinate feedback into an aggressive fold-back distortion."),
+            ("Capacitor Bank Resonant Drone", "Models high-voltage parallel discharge decay rates via x, y, z streams."),
+            ("Nanoparticle Formic Modulator", "Combines high-frequency granular scattering with isosceles operators.")
+        ]
+
+        for name, desc in synths:
+            box = QVBoxLayout()
+            box.addWidget(QLabel(f"<h3>{name}</h3>"))
+            box.addWidget(QLabel(desc))
+            spawn_btn = QPushButton(f"Spawn / Trigger {name}")
+            box.addWidget(spawn_btn)
+            layout.addLayout(box)
+
+        self.tabs.addTab(tab, "2. Complex Synths")
+
+    def init_track_filler_tab(self):
+        """Tab 3: Track Fillers & Instruments (Pads, Percussion, Keys)"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.addWidget(QLabel("<b>Main Music Track Fillers (Pads, Percussion, Keys)</b>"))
+
+        channels = [
+            ("Percussion Grid", "Fast transients, non-linear tanh shaping for rhythmic drive."),
+            ("Ambient Pad Generator", "Sustained coordinate morphing via isn/ics cross-modulation."),
+            ("Discrete Key Arpeggiator", "Punched coordinate steps mapped across z-planes.")
+        ]
+
+        for name, desc in channels:
+            layout.addWidget(QLabel(f"<b>{name}</b>: {desc}"))
+            fill_btn = QPushButton(f"Fill Sequence Buffer: {name}")
+            layout.addWidget(fill_btn)
+
+        self.tabs.addTab(tab, "3. Track Fillers")
+
+    def init_effects_rack_tab(self):
+        """Tab 4: Advanced Effects & Spatial Processing"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.addWidget(QLabel("<b>Modular Effects Rack</b>"))
+
+        effects = ["Bitcrusher-900", "Vector Field Rotator", "Chaos Waveform Shaper"]
+        for fx in effects:
+            h_layout = QHBoxLayout()
+            h_layout.addWidget(QLabel(fx))
+            slider = QSlider(Qt.Orientation.Horizontal)
+            slider.setRange(0, 100)
+            h_layout.addWidget(slider)
+            layout.addLayout(h_layout)
+
+        self.tabs.addTab(tab, "4. Effects Rack")
+
+    def append_to_equation(self, text):
+        self.eq_input.insertPlainText(text)
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = EQRDAWStudio()
+    window.show()
+    sys.exit(app.exec())
 # --- Universal Cross-Panel Patch Bus ---
 class GlobalPatchBus:
     def __init__(self):
@@ -665,64 +742,102 @@ class EQRVisualizerCanvas(QWidget):
         time_text = f"Time: {self.t_step:.2f}s / {self.total_duration_sec:.2f}s [MASTER WAV]"
         painter.drawText(15, 25, time_text)
 class MathEngine:
-    """Core mathematical engine supporting x, y, z, t coordinates, tempo-derived time shifts,
-    and custom Isosceles Triangle trigonometric functions (isn, ics, arcisn, arcics, inverses)."""
-    def __init__(self, x=1.0, y=1.0, z=1.0, tempo=120.0):
-        self.x = x
-        self.y = y
-        self.z = z
-        self.tempo = tempo
-        self.t = 0.0
+    def __init__(self):
+        # Core coordinate state evaluated strictly on x, y, z
+        self.x = 0.0
+        self.y = 0.0
+        self.z = 0.0
 
-    def update_tempo(self, new_tempo):
-        self.tempo = max(20.0, new_tempo)
-        self.t += (60.0 / self.tempo) * 0.01
+    # Custom Isosceles Trigonometric Operators
+    def isn(self, val):
+        return np.sin(val) / (1.0 + np.abs(np.cos(val)))
 
-    @staticmethod
-    def isn(val):
-        return math.sin(val) / (1.0 + abs(math.cos(val)))
+    def ics(self, val):
+        return np.cos(val) / (1.0 + np.abs(np.sin(val)))
 
-    @staticmethod
-    def ics(val):
-        return math.cos(val) / (1.0 + abs(math.sin(val)))
+    # Eskivector Vector Field Synthesizer Logic
+    def evaluate_eskivector(self, x, y, z):
+        # Vector transformation mapping based on x, y, z coordinates
+        vx = self.isn(x) * y
+        vy = self.ics(y) * z
+        vz = np.sin(x * y * z)
+        return vx, vy, vz
 
-    @staticmethod
-    def isn_inv(val):
-        v = max(-1.0, min(1.0, val))
-        return math.asin(v) * 1.414
-
-    @staticmethod
-    def ics_inv(val):
-        v = max(-1.0, min(1.0, val))
-        return math.acos(v) * 1.414
-
-    @staticmethod
-    def arcisn(val):
-        v = max(-1.0, min(1.0, val / 2.0))
-        return math.asin(v)
-
-    @staticmethod
-    def arcics(val):
-        v = max(-1.0, min(1.0, val / 2.0))
-        return math.acos(v)
-
-    def evaluate(self, equation_str="isn(x) + ics(y) * arcisn(z) + t"):
-        try:
-            safe_dict = {
-                "__builtins__": None,
-                "x": self.x, "y": self.y, "z": self.z, "t": self.t,
-                "math": math,
-                "isn": self.isn, "ics": self.ics,
-                "isn_inv": self.isn_inv, "ics_inv": self.ics_inv,
-                "arcisn": self.arcisn, "arcics": self.arcics,
-                "sin": math.sin, "cos": math.cos, "tan": math.tan,
-                "sqrt": math.sqrt, "log": math.log, "exp": math.exp, "abs": abs,
-                "min": min, "max": max
-            }
-            return eval(equation_str, {"__builtins__": None}, safe_dict)
-        except Exception:
-            return 0.0
+    # Eskitable Look-up / Procedural Table Synthesizer Logic
+    def evaluate_eskitable(self, x, y, z):
+        # Table wave-shaping lookup driven by coordinate state
+        table_index = np.clip((x + y) * 0.5, -1.0, 1.0)
+        amplitude_mod = self.ics(z * table_index)
+        return amplitude_mod
 # --- Memory Bank Selector Pane ---
+from math_engine import MathEngine
+import numpy as np
+class OperatorNode:
+    def __init__(self, op_type):
+        self.op_type = op_type  # e.g., 'isn', 'ics', 'eskivector', 'eskitable'
+
+    def compute(self, x, y, z):
+        engine = MathEngine()
+        if self.op_type == 'isn':
+            return engine.isn(x)
+        elif self.op_type == 'ics':
+            return engine.ics(y)
+        elif self.op_type == 'eskivector':
+            return engine.evaluate_eskivector(x, y, z)
+        elif self.op_type == 'eskitable':
+            return engine.evaluate_eskitable(x, y, z)
+        return x, y, z
+class InstrumentSpawner:
+    def __init__(self, inst_type):
+        self.inst_type = inst_type # 'percussion', 'pad', 'keys'
+        self.math_engine = MathEngine()
+        self.envelope = 1.0
+
+    def trigger_spawn(self, x, y, z):
+        """Spawns or evaluates an audio frame based on instrument type and x, y, z coordinates."""
+        # Evaluate base vector/table components
+        vx, vy, vz = self.math_engine.evaluate_eskivector(x, y, z)
+        table_val = self.math_engine.evaluate_eskitable(vx, vy, vz)
+
+        if self.inst_type == 'percussion':
+            # Fast decaying transient envelope with non-linear distortion
+            self.envelope *= 0.95
+            return np.tanh(table_val * self.envelope * 3.0)
+
+        elif self.inst_type == 'pad':
+            # Smooth, sustained harmonic evolution via isosceles trig
+            osc = self.math_engine.isn(vx) + self.math_engine.ics(vy)
+            return osc * 0.5
+
+        elif self.inst_type == 'keys':
+            # Punchy, discrete coordinate mapping
+            return table_val * np.cos(z)
+
+        return table_val
+from synth_spawners import InstrumentSpawner
+import numpy as np
+
+class EQRMasterController:
+    def __init__(self):
+        self.spawners = {
+            'kick_perc': InstrumentSpawner('percussion'),
+            'ambient_pad': InstrumentSpawner('pad'),
+            'lead_keys': InstrumentSpawner('keys')
+        }
+
+    def render_active_spawners(self, buffer_size, x_arr, y_arr, z_arr):
+        """Mixes active instrument spawners down to a master output buffer."""
+        master_buffer = np.zeros(buffer_size)
+
+        for name, spawner in self.spawners.items():
+            voice_buffer = np.zeros(buffer_size)
+            for i in range(buffer_size):
+                voice_buffer[i] = spawner.trigger_spawn(x_arr[i], y_arr[i], z_arr[i])
+
+            # Mix into master
+            master_buffer += voice_buffer
+
+        return master_buffer / len(self.spawners)
 class MemoryBankPane(QGroupBox):
     """Manages project states, memory banks, and quick preset switching."""
     def __init__(self, parent=None):
