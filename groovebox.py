@@ -15,7 +15,7 @@ from PyQt6.QtGui import (QPainter, QPen, QColor, QPainterPath, QLinearGradient, 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
-    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit, QDialog, QInputDialog,QListWidget,QTableWidgetItem, QHeaderView,QProgressBar,QSpinBox, QCheckBox
+    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit, QDialog, QInputDialog,QListWidget,QTableWidgetItem, QHeaderView,QProgressBar,QSpinBox, QCheckBox,QComboBox
 )
 import random
 
@@ -899,86 +899,53 @@ class AdvancedDSPEngine:
         self.sample_rate = sample_rate
 
     def compute_synth_waveform(self, track_idx, sub_t, freq, state):
-        # Extract 6 internal synth knobs
-        k1 = state.get("synth_knob1", 0.5)
-        k2 = state.get("synth_knob2", 0.5)
-        k3 = state.get("synth_knob3", 0.5)
-        k4 = state.get("synth_knob4", 0.5)
-        k5 = state.get("synth_knob5", 0.5)
-        k6 = state.get("synth_knob6", 0.5)
+    # Retrieve 6 internal sliding scale parameters
+    k1 = state.get("internal_p1", 0.5)
+    k2 = state.get("internal_p2", 0.5)
+    k3 = state.get("internal_p3", 0.5)
+    k4 = state.get("internal_p4", 0.5)
+    k5 = state.get("internal_p5", 0.5)
+    k6 = state.get("internal_p6", 0.5)
 
-        # Extract external panel controls
-        fractal = state.get("fractalizer", 0.5)
-        eqr = state.get("eqr_effect", 0.5)
+    # External controls & preset selector
+    fractal = state.get("fractalizer", 0.5)
+    eqr = state.get("eqr_effect", 0.5)
+    preset = state.get("preset_idx", 0)
 
-        phase = 2 * np.pi * freq * sub_t
+    phase = 2 * np.pi * freq * sub_t
 
-        # Switch mathematics based on synth/effect topology (0 to 47)
-        if track_idx == 0:
-            # 1. Meum Phase-Fold Oscillator
-            raw = np.sin(phase * (1.0 + k1) + k2 * np.sin(phase * 2.0))
-            return np.tanh(raw * (1.0 + fractal * 3.0)) * (1.0 + k3 * np.cos(phase * k4))
+    # Route math based on the Preset Dropdown selection (0 to 4)
+    if preset == 0:
+        # Preset 0: Non-Linear Wave-Folder Topology
+        raw = np.sin(phase * (1.0 + k1)) + k2 * np.sin(phase * 2.0 * k3)
+        folded = np.tanh(raw * (1.0 + fractal * 5.0))
+        return folded * (1.0 + k4 * np.cos(phase * k5)) * (1.0 - k6 * 0.5)
 
-        elif track_idx == 1:
-            # 2. Z-Pinch Waveguide Synth
-            pinched = np.sin(phase) * (1.0 + k1 * np.tan(sub_t * k2))
-            return np.arcsin(np.clip(pinched * (0.5 + eqr), -0.99, 0.99)) * k3
+    elif preset == 1:
+        # Preset 1: Z-Pinch / Quantum Field Resonance
+        pinched = np.sin(phase * (1.0 + track_idx * 0.05)) * (1.0 + k1 * np.tan(np.clip(sub_t * k2, -1.5, 1.5)))
+        resonance = np.arcsin(np.clip(pinched * (0.5 + eqr), -0.99, 0.99))
+        return resonance * k3 * (1.0 + k4 * np.sin(sub_t * k5 * 10.0)) * (1.0 - k6)
 
-        elif track_idx == 2:
-            # 3. Hyperbolic Attractor Generator
-            return np.sinh(k1 * np.sin(phase)) / (1.0 + np.cosh(k2 * np.cos(phase * k3))) * k4
+    elif preset == 2:
+        # Preset 2: Hyperbolic & Torus Phase-Space
+        hyp = np.sinh(k1 * np.sin(phase)) / (1.0 + np.cosh(k2 * np.cos(phase * k3)))
+        torus_mod = np.cos(phase * (1.0 + k4)) + 0.5 * np.sin(phase * (2.0 + k5))
+        return hyp * torus_mod * (1.0 + fractal * 3.0) * (1.0 - k6 * 0.2)
 
-        elif track_idx == 3:
-            # 4. Non-Linear Polynomial Folder
-            x_val = np.sin(phase)
-            poly = k1 * (x_val**3) - k2 * (x_val**2) + k3 * x_val
-            return np.clip(poly * (1.0 + fractal * 2.0), -1.0, 1.0)
+    elif preset == 3:
+        # Preset 3: Stochastic & Entropic Noise Lattice
+        stochastic_jitter = np.random.normal(0, 0.15, len(sub_t)) * k1
+        chaotic_wave = np.sin(phase * (1.0 + k2) + stochastic_jitter)
+        modulated = chaotic_wave / (1.0 + k3 * np.abs(np.sin(phase * k4)))
+        return modulated * k5 * (1.0 + eqr * 2.0) * (1.0 - k6 * 0.3)
 
-        elif track_idx == 4:
-            # 5. Strange Attractor Chaos Engine
-            chaos = np.sin(phase * k1) + k2 * np.sin(phase * k3 * sub_t)
-            return np.tanh(chaos * (1.0 + eqr * 4.0)) * k4
-
-        elif track_idx == 5:
-            # 6. Topological Torus Synthesizer
-            major = phase * (1.0 + k1)
-            minor = phase * (2.0 + k2)
-            return (np.cos(major) + 0.5 * np.sin(minor)) * k3 * (1.0 + fractal)
-
-        elif track_idx == 6:
-            # 7. Klein Bottle Surface Generator
-            mobius = np.sin(phase * 0.5) * k1
-            return np.sin(phase + mobius * np.cos(phase * k2)) * k3
-
-        elif track_idx == 7:
-            # 8. Crystalline Wavefolder Matrix
-            fold = np.sin(phase * k1) * (1.0 + k2 * np.sin(phase * k3))
-            return np.sign(fold) * (1.0 - np.exp(-np.abs(fold) * k4))
-
-        elif 8 <= track_idx < 16:
-            # Family 2: Multivectorial & Phase-Space Dynamics (9-16)
-            mult = 1.0 + (track_idx - 7) * 0.15
-            return np.sin(phase * mult * k1) * np.cos(sub_t * k2 * 10.0) * k3 * (1.0 + eqr)
-
-        elif 16 <= track_idx < 24:
-            # Family 3: Quantum, Soliton & Field-Coupling (17-24)
-            soliton = 1.0 / np.cosh((sub_t * 10.0 - k1 * 5.0))
-            return soliton * np.sin(phase * (1.0 + k2)) * k3 * (1.0 + fractal)
-
-        elif 24 <= track_idx < 32:
-            # Family 4: Stochastic, Thermodynamic & Entropic Noise (25-32)
-            stoch = np.random.normal(0, 0.1, len(sub_t)) * k1
-            return (np.sin(phase * k2) + stoch) * k3 * (1.0 + eqr)
-
-        elif 32 <= track_idx < 40:
-            # Family 5: Input-Dependent Spatial & Spectral Effects (33-40)
-            dispersion = phase * (1.0 + k1 * np.sin(sub_t * k2))
-            return np.sin(dispersion) * k3 * (1.0 + fractal)
-
-        else:
-            # Family 6: Input-Dependent Dynamic Waveform Resonators (41-48)
-            resonance = np.sin(phase * k1) / (1.0 + k2 * np.abs(np.sin(phase * k3)))
-            return resonance * k4 * (1.0 + eqr)
+    else:
+        # Preset 4: Custom Polynomial / Matrix Operator
+        # Uses the track index to scale harmonic spacing dynamically across the 48 synths
+        harmonic_offset = 1.0 + (track_idx % 12) * 0.08
+        poly = k1 * (np.sin(phase * harmonic_offset)**3) - k2 * (np.cos(phase * k3)**2) + k4 * np.sin(phase)
+        return np.tanh(poly * (1.0 + fractal * 4.0)) * (1.0 + eqr) * (1.0 - k6 * 0.1)
 class MathEngine:
     """Core mathematical engine evaluated strictly on x, y, z variables without Meum factors."""
     @staticmethod
@@ -5332,7 +5299,35 @@ class PermanentPatchBayPanel(QWidget):
         layout.addWidget(self.global_dest)
         layout.addWidget(QLabel("Repeaters:"))
         layout.addWidget(self.repeater_slider)
+        # Inside your main application or control panel __init__:
+# 1. Tuning (SpinBox or Slider)
+        self.spin_tuning = QSpinBox()
+        self.spin_tuning.setRange(100, 1200)
 
+        # 2. Amplitude Slider
+        self.slider_amplitude = QSlider(Qt.Orientation.Horizontal)
+        self.slider_amplitude.setRange(0, 100)
+
+        # 3. Duration / Percussive-Keylike-Padded Slider
+        self.slider_duration = QSlider(Qt.Orientation.Horizontal)
+        self.slider_duration.setRange(0, 100)
+
+        # 4. Fractalizer Slider
+        self.slider_fractalizer = QSlider(Qt.Orientation.Horizontal)
+        self.slider_fractalizer.setRange(0, 100)
+
+        # 5. EQR Effect Slider / Fifth Option Control Dropdown or Slider
+        self.slider_eqr = QSlider(Qt.Orientation.Horizontal)
+        self.slider_eqr.setRange(0, 100)
+
+        # Fifth Option Dropdown Preset Selector (shared or per instrument)
+        self.preset_combo = QComboBox()
+        self.preset_combo.currentIndexChanged.connect(self.on_preset_changed)
+
+    def on_preset_changed(self, index):
+        curr_idx = self.top_sequencer.instance_combo.currentIndex()
+        if 0 <= curr_idx < len(self.channel_states):
+            self.channel_states[curr_idx]["preset_idx"] = index
         connect_btn = QPushButton("Patch Global Bus")
         connect_btn.setStyleSheet("background-color: #0984e3; color: white;")
         connect_btn.clicked.connect(lambda: QMessageBox.information(self, "Global Bus Patched", "Global patch bus updated."))
@@ -5798,7 +5793,29 @@ class MathematiciansGrooveboxApp(QMainWindow):
             vst_vals = dialog.get_values()
             self.channel_states[curr_idx].update(vst_vals)
             QMessageBox.information(self, "VST Knobs Updated", f"Successfully updated custom VST parameters for channel {curr_idx + 1}.")
+    def create_new_channel_state():
+        return {
+            # 5 External Panel Controls
+            "tuning": 440.0,
+            "amplitude": 0.8,
+            "duration": 0.5,
+            "fractalizer": 0.5,
+            "eqr_effect": 0.5,
+            "preset_idx": 0,
 
+            # 6 Internal Synth Sliding Scale Parameters (0.0 to 1.0)
+            "internal_p1": 0.5,
+            "internal_p2": 0.5,
+            "internal_p3": 0.5,
+            "internal_p4": 0.5,
+            "internal_p5": 0.5,
+            "internal_p6": 0.5,
+
+            "curvature_eq": "x * 1.5 + y - z"
+        }
+
+    # When initializing channel states list:
+    self.channel_states = [create_new_channel_state() for _ in range(48)]
     def execute_script_instrument(self):
         curr_idx = self.top_sequencer.instance_combo.currentIndex()
         eq = self.top_sequencer.curvature_eq_input.text()
@@ -5821,24 +5838,29 @@ class MathematiciansGrooveboxApp(QMainWindow):
             QMessageBox.critical(self, "Script Error", f"Global script evaluation failed: {e}")
 
     def randomize_single_instrument(self):
-        curr_idx = self.top_sequencer.instance_combo.currentIndex()
-        if curr_idx >= 0 and curr_idx < len(self.channel_states):
-            state = self.channel_states[curr_idx]
+    curr_idx = self.top_sequencer.instance_combo.currentIndex()
+    if 0 <= curr_idx < len(self.channel_states):
+        state = self.channel_states[curr_idx]
 
-            # Randomize the 5 External Panel Controls
-            state["tuning"] = round(random.uniform(100.0, 1200.0), 2)
-            state["amplitude"] = round(random.uniform(0.1, 1.0), 2)
-            state["duration"] = round(random.uniform(0.1, 2.0), 2)
-            state["fractalizer"] = round(random.random(), 3)
-            state["eqr_effect"] = round(random.random(), 3)
+        # Randomize 5 External Controls
+        state["tuning"] = round(random.uniform(100.0, 1200.0), 2)
+        state["amplitude"] = round(random.uniform(0.1, 1.0), 2)
+        state["duration"] = round(random.uniform(0.1, 2.0), 2)
+        state["fractalizer"] = round(random.random(), 3)
+        state["eqr_effect"] = round(random.random(), 3)
+        state["preset_idx"] = random.randint(0, 4)
 
-            # Randomize the 6 internal synth knobs
-            for i in range(1, 7):
-                state[f"synth_knob{i}"] = round(random.random(), 3)
+        # Randomize the 6 Internal Sliding Parameters
+        state["internal_p1"] = round(random.random(), 3)
+        state["internal_p2"] = round(random.random(), 3)
+        state["internal_p3"] = round(random.random(), 3)
+        state["internal_p4"] = round(random.random(), 3)
+        state["internal_p5"] = round(random.random(), 3)
+        state["internal_p6"] = round(random.random(), 3)
 
-            self.sync_ui_to_current_channel(curr_idx)
-            QMessageBox.information(self, "Instrument Randomized", f"Randomized 5 external controls & 6 internal synth knobs for instrument #{curr_idx + 1}.")
-
+        # Sync UI safely
+        self.sync_ui_to_current_channel(curr_idx)
+        QMessageBox.information(self, "Instrument Randomized", f"Randomized instrument #{curr_idx + 1} (5 external controls & 6 internal parameters).")
     def randomize_entire_song(self):
         self.playlist_window.tempo_spin.setValue(random.randint(80, 160))
         for state in self.channel_states:
@@ -5863,7 +5885,54 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     grid.setItem(r, c, item)
 
         QMessageBox.information(self, "Global Randomizer", "Successfully randomized entire song ecosystem, playlist clips, tuners, and patch bay!")
+    def sync_ui_to_current_channel(self, index):
+        if 0 <= index < len(self.channel_states):
+            state = self.channel_states[index]
 
+            # Guard against uninitialized UI widgets
+            if not hasattr(self, 'slider_amplitude') or not hasattr(self, 'spin_tuning'):
+                return
+
+            widgets = [self.spin_tuning, self.slider_amplitude, self.slider_duration,
+                    self.slider_fractalizer, self.slider_eqr, self.preset_combo]
+
+            for w in widgets:
+                w.blockSignals(True)
+
+            self.spin_tuning.setValue(state["tuning"])
+            self.slider_amplitude.setValue(int(state["amplitude"] * 100))
+            self.slider_duration.setValue(int(state["duration"] * 50))
+            self.slider_fractalizer.setValue(int(state["fractalizer"] * 100))
+            self.slider_eqr.setValue(int(state["eqr_effect"] * 100))
+            self.preset_combo.setCurrentIndex(state.get("preset_idx", 0))
+
+            for w in widgets:
+                w.blockSignals(False)
+    def compute_synth_waveform(self, track_idx, sub_t, freq, state):
+    # Retrieve the 6 internal sliding scale parameters
+        k1 = state.get("internal_p1", 0.5)
+        k2 = state.get("internal_p2", 0.5)
+        k3 = state.get("internal_p3", 0.5)
+        k4 = state.get("internal_p4", 0.5)
+        k5 = state.get("internal_p5", 0.5)
+        k6 = state.get("internal_p6", 0.5)
+
+        fractal = state.get("fractalizer", 0.5)
+        eqr = state.get("eqr_effect", 0.5)
+        preset = state.get("preset_idx", 0)
+
+        phase = 2 * np.pi * freq * sub_t
+
+        # Preset offset modification based on dropdown selection
+        preset_mod = 1.0 + (preset * 0.25)
+
+        # Core mathematical wave shaping driven by the 6 parameters
+        raw = np.sin(phase * preset_mod * (1.0 + k1)) + k2 * np.sin(phase * k3 * 2.0)
+        folded = np.tanh(raw * (1.0 + fractal * 4.0)) * (1.0 + k4 * np.cos(phase * k5))
+
+        # Apply sixth parameter as a dynamic feedback envelope
+        output = folded * (1.0 - k6 * np.exp(-sub_t * 5.0)) * (1.0 + eqr)
+        return np.clip(output, -1.0, 1.0)
     def save_project_file(self):
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Mathematician's Project", "project.mathex", "Mathex Files (*.mathex)")
         if file_path:
