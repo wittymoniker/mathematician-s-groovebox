@@ -5923,9 +5923,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         self.btn_idealize_rhythm = QPushButton("✨ Euclidean & Geometry Global Lock")
         self.btn_seeded_randomize = QPushButton("🎲 Seeded Harmonic Global Randomizer")
-        self.spin_seed_val = QSpinBox()
-        self.spin_seed_val.setRange(1, 9999)
-        self.spin_seed_val.setValue(42)
+
+        # --- REPLACE SPINBOX WITH QLINEEDIT FOR IRRATIONAL SEEDS ---
+        self.input_seed_val = QLineEdit()
+        self.input_seed_val.setText(str(MEUM_CONSTANT))  # Default to Meum or np.pi
+        self.input_seed_val.setToolTip("Enter any irrational number, e.g., 3.14159, 2.71828, or 1.19758")
 
         self.btn_export = QPushButton("💾 Save & Export .wav...")
 
@@ -5943,7 +5945,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.transport_layout.addWidget(self.instrument_selector_dropdown)
         self.transport_layout.addStretch(1)
         self.transport_layout.addWidget(QLabel("Seed:"))
-        self.transport_layout.addWidget(self.spin_seed_val)
+        self.transport_layout.addWidget(self.input_seed_val)  # Updated from spin_seed_val
         self.transport_layout.addWidget(self.btn_seeded_randomize)
         self.transport_layout.addWidget(self.btn_idealize_rhythm)
         self.transport_layout.addWidget(self.btn_export)
@@ -6159,9 +6161,20 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.reload_active_instrument_sequencer_ui()
         print(f"[Euclidean & Geometry Engine] Applied global harmonic pulse matrix across all 48 instrument bays.")
 
+    def get_numeric_seed(self):
+        """Converts irrational string seeds into a stable integer hash for NumPy."""
+        seed_text = self.input_seed_val.text().strip() if hasattr(self, 'input_seed_val') else "42"
+        try:
+            # Try direct float conversion first (e.g. "3.1415")
+            val = float(seed_text)
+            return abs(hash(val)) % (2**31)
+        except ValueError:
+            # Fallback to string hash if it contains symbols or text
+            return abs(hash(seed_text)) % (2**31)
+
     def apply_seeded_harmonic_randomization(self):
-        seed_val = self.spin_seed_val.value() if hasattr(self, 'spin_seed_val') else 42
-        np.random.seed(seed_val)
+        numeric_seed = self.get_numeric_seed()
+        np.random.seed(numeric_seed)
 
         rand_idx = np.random.randint(0, len(self.instrument_names_48))
         self.instrument_selector_dropdown.setCurrentIndex(rand_idx)
@@ -6171,7 +6184,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             harmonic_multiplier = float((i % 7) + 1) * (MEUM_CONSTANT / 1.5)
 
             self.instrument_scripts[name] = (
-                f"# Seeded Geometric Resonance Script [{seed_val}] for {name}\n"
+                f"# Seeded Geometric Resonance Script [{self.input_seed_val.text()}] for {name}\n"
                 f"def evaluate_wave(x, y, z):\n"
                 f"    m = {harmonic_multiplier}\n"
                 f"    return np.sin(x * m) * np.cos(y / m) - np.tanh(z * 0.5)"
@@ -6182,10 +6195,9 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 active_state = bool(np.random.choice([True, False], p=[0.4, 0.6]))
                 if len(mem["steps"]) > s:
                     mem["steps"][s] = active_state
-                    mem["probabilities"][s] = int(np.random.choice([70, 85, 95, 100]))
 
         self.reload_active_instrument_sequencer_ui()
-        print(f"[Resonance Nullifier] Seed #{seed_val} globally applied across all operators with Meum ({MEUM_CONSTANT}) scaling.")
+        print(f"[Resonance Nullifier] Irrational Seed '{self.input_seed_val.text()}' globally applied across all operators.")
 
     def toggle_playback(self):
         print("[System] Live high-bitrate audio engine streaming active across cross-loaded operator matrix.")
@@ -6223,7 +6235,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             pkp_decay = self.slider_pkp_decay.value() / 1000.0 if hasattr(self, 'slider_pkp_decay') else 0.25
             fractalizer_val = self.slider_fractalizer.value() / 100.0 if hasattr(self, 'slider_fractalizer') else 0.85
             pkp_auto = self.chk_pkp_automod.isChecked()
-            seed_val = self.spin_seed_val.value() if hasattr(self, 'spin_seed_val') else 42
+            seed_val = self.get_numeric_seed() if hasattr(self, 'spin_seed_val') else 42
 
             print(f"[Resonance Nullifier] Rendering mixdown (Global Playlist Active: {global_playlist_enabled}) at {bpm} BPM to '{file_path}'...")
 
