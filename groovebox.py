@@ -940,7 +940,6 @@ class AdvancedDSPEngine:
         self.sample_rate = sample_rate
 
     def calculate_scale_freq(self, base_tuning, step_idx, mode):
-        # Default anchored to 432 Hz and user-selected mathematical curves
         if mode == "Exponential (12-TET)":
             return base_tuning * (2.0 ** (step_idx / 12.0))
         elif mode == "Linear Scaling":
@@ -953,7 +952,7 @@ class AdvancedDSPEngine:
             return base_tuning * (1.61803398875 ** (step_idx % 8))
         return base_tuning
 
-    def render_full_mixdown(self, filename, channel_states, grid_data, tempo_bpm=120, fractal_depth=3):
+    def render_full_mixdown(self, filename, channel_states, grid_data, instrument_names, tempo_bpm=120):
         seconds_per_beat = 60.0 / float(tempo_bpm)
         total_cols = len(grid_data[0]) if grid_data else 128
         total_duration = total_cols * seconds_per_beat * 0.25
