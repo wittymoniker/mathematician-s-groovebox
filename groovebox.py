@@ -5731,6 +5731,9 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.script_editor_window = None
         self.visual_oscilloscope = None
 
+        # Track export counter for automated file numbering
+        self.export_counter = 1
+
         self.init_ui_components()
 
     def init_ui_components(self):
@@ -5823,7 +5826,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.instrument_selector_dropdown.addItems(self.instrument_names_48)
 
         self.btn_randomize_all = QPushButton("🎲 Randomize Patch & Script")
-        self.btn_export = QPushButton("💾 Export Full Mixdown")
+        self.btn_export = QPushButton("💾 Export Numbered Mixdown")
 
         self.btn_play.clicked.connect(self.toggle_playback)
         self.btn_stop.clicked.connect(self.stop_playback)
@@ -6022,7 +6025,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         print(f"[System] Randomized patch & script to operator: {self.instrument_names_48[rand_idx]}")
 
     def export_mixdown(self):
-        """Renders an intricate generative audio mixdown utilizing separate EQR core parameters and PKP envelope triggers."""
+        """Renders a true polyphonic mixdown and automatically assigns a sequential number index to the file output."""
         try:
             if wavfile is None:
                 print("[System Error] Scipy is not available. Run `pip install scipy`.")
@@ -6036,50 +6039,53 @@ class MathematiciansGrooveboxApp(QMainWindow):
             t = np.linspace(0, total_duration, int(sample_rate * total_duration))
             master_mixdown = np.zeros_like(t)
 
-            # Isolated EQR and PKP variables
             eqr_val = self.slider_eqr.value() / 100.0 if hasattr(self, 'slider_eqr') else 0.5
             pkp_decay = self.slider_pkp_decay.value() / 1000.0 if hasattr(self, 'slider_pkp_decay') else 0.25
 
-            print(f"[Engine] Synthesizing generative 48-operator soundscape via EQR/PKP architecture ({total_duration:.1f}s)...")
+            print(f"[Engine] Rendering polyphonic multi-operator mixdown #{self.export_counter:03d} ({total_duration:.1f}s)...")
 
-            np.random.seed(1337)
-            active_operators = np.random.choice(len(self.instrument_names_48), size=rows * 2)
-            sub_step_duration = row_duration / 2.0
-            total_sub_steps = rows * 2
+            np.random.seed(42 + self.export_counter) # Vary random seed per export iteration for unique variations
 
-            for step_idx in range(total_sub_steps):
-                start_time = step_idx * sub_step_duration
-                end_time = start_time + sub_step_duration
+            for row_idx in range(rows):
+                start_time = row_idx * row_duration
+                end_time = start_time + row_duration
                 mask = (t >= start_time) & (t < end_time)
 
                 if not np.any(mask):
                     continue
 
                 local_t = t[mask] - start_time
-                op_idx = active_operators[step_idx]
+                row_mix = np.zeros_like(local_t)
 
-                root_freq = 55.0 * (1.12246) ** (op_idx % 24)
-                mod_freq = root_freq * 1.5
+                active_cluster = np.random.choice(len(self.instrument_names_48), size=6, replace=False)
 
-                # EQR-driven wave shaping
-                carrier = np.sin(2 * np.pi * mod_freq * local_t)
-                oscillator = np.sin(2 * np.pi * root_freq * local_t + carrier * (eqr_val * 4.0))
+                for op_idx in active_cluster:
+                    base_freq = 44.0 * (1.05946) ** (op_idx % 36)
+                    mod_freq = base_freq * (1.0 + (op_idx % 4) * 0.5)
 
-                # PKP Pad transient layer
-                transient = np.exp(-local_t / max(pkp_decay, 0.01)) * np.sin(2 * np.pi * (root_freq * 3.0) * local_t)
+                    carrier = np.sin(2 * np.pi * mod_freq * local_t)
+                    oscillator = np.sin(2 * np.pi * base_freq * local_t + carrier * (eqr_val * 5.0))
+                    pkp_trigger = np.exp(-local_t / max(pkp_decay, 0.015)) * np.sin(2 * np.pi * (base_freq * 2.0) * local_t)
+                    env = np.exp(-local_t / (row_duration * 0.6))
 
-                step_signal = (oscillator + transient * 0.6) * np.exp(-local_t / (row_duration * 0.8))
-                master_mixdown[mask] += step_signal
+                    row_mix += (oscillator * 0.4 + pkp_trigger * 0.6) * env
+
+                master_mixdown[mask] += row_mix / len(active_cluster)
 
             max_val = np.max(np.abs(master_mixdown))
             if max_val > 0:
                 master_mixdown = (master_mixdown / max_val) * 0.95
 
-            filename = "groovebox_eqr_pkp_mixdown.wav"
+            # Automatically generated numbered filename to prevent overwriting
+            filename = f"groovebox_mixdown_{self.export_counter:03d}.wav"
             wavfile.write(filename, sample_rate, (master_mixdown * 32767).astype(np.int16))
-            print(f"[System] Success: EQR/PKP mixdown exported to {filename}")
+            print(f"[System] Success: Exported polyphonic mixdown to '{filename}'")
+
+            # Increment output tracker counter for the next run
+            self.export_counter += 1
+
         except Exception as e:
-            print(f"[System] Error during export: {e}")
+            print(f"[System] Error during mixdown export: {e}")
 
     def spawn_floating_window(self, attr_name, window_title):
         window = getattr(self, attr_name, None)
