@@ -5838,29 +5838,29 @@ class MathematiciansGrooveboxApp(QMainWindow):
             QMessageBox.critical(self, "Script Error", f"Global script evaluation failed: {e}")
 
     def randomize_single_instrument(self):
-    curr_idx = self.top_sequencer.instance_combo.currentIndex()
-    if 0 <= curr_idx < len(self.channel_states):
-        state = self.channel_states[curr_idx]
+        curr_idx = self.top_sequencer.instance_combo.currentIndex()
+        if 0 <= curr_idx < len(self.channel_states):
+            state = self.channel_states[curr_idx]
 
         # Randomize 5 External Controls
-        state["tuning"] = round(random.uniform(100.0, 1200.0), 2)
-        state["amplitude"] = round(random.uniform(0.1, 1.0), 2)
-        state["duration"] = round(random.uniform(0.1, 2.0), 2)
-        state["fractalizer"] = round(random.random(), 3)
-        state["eqr_effect"] = round(random.random(), 3)
-        state["preset_idx"] = random.randint(0, 4)
+            state["tuning"] = round(random.uniform(100.0, 1200.0), 2)
+            state["amplitude"] = round(random.uniform(0.1, 1.0), 2)
+            state["duration"] = round(random.uniform(0.1, 2.0), 2)
+            state["fractalizer"] = round(random.random(), 3)
+            state["eqr_effect"] = round(random.random(), 3)
+            state["preset_idx"] = random.randint(0, 4)
 
         # Randomize the 6 Internal Sliding Parameters
-        state["internal_p1"] = round(random.random(), 3)
-        state["internal_p2"] = round(random.random(), 3)
-        state["internal_p3"] = round(random.random(), 3)
-        state["internal_p4"] = round(random.random(), 3)
-        state["internal_p5"] = round(random.random(), 3)
-        state["internal_p6"] = round(random.random(), 3)
+            state["internal_p1"] = round(random.random(), 3)
+            state["internal_p2"] = round(random.random(), 3)
+            state["internal_p3"] = round(random.random(), 3)
+            state["internal_p4"] = round(random.random(), 3)
+            state["internal_p5"] = round(random.random(), 3)
+            state["internal_p6"] = round(random.random(), 3)
 
         # Sync UI safely
-        self.sync_ui_to_current_channel(curr_idx)
-        QMessageBox.information(self, "Instrument Randomized", f"Randomized instrument #{curr_idx + 1} (5 external controls & 6 internal parameters).")
+            self.sync_ui_to_current_channel(curr_idx)
+            QMessageBox.information(self, "Instrument Randomized", f"Randomized instrument #{curr_idx + 1} (5 external controls & 6 internal parameters).")
     def randomize_entire_song(self):
         self.playlist_window.tempo_spin.setValue(random.randint(80, 160))
         for state in self.channel_states:
