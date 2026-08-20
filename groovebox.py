@@ -15,7 +15,7 @@ from PyQt6.QtGui import (QPainter, QPen, QColor, QPainterPath, QLinearGradient, 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
-    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit, QDialog, QInputDialog,QListWidget,QTableWidgetItem, QHeaderView,QProgressBar
+    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit, QDialog, QInputDialog,QListWidget,QTableWidgetItem, QHeaderView,QProgressBar,QSpinBox
 )
 import random
 
@@ -2655,7 +2655,18 @@ class DAWPlaylistGrid(QMainWindow):
 
         toolbar = QHBoxLayout()
         toolbar.addWidget(QLabel("<b>48-Instrument Master Arrangement Roll:</b>"))
+        toolbar.addWidget(QLabel("Playlist Length (Columns):"))
+        self.cols_spin = QSpinBox()
+        self.cols_spin.setRange(16, 512)
+        self.cols_spin.setValue(128)
+        self.cols_spin.valueChanged.connect(self.resize_playlist_grid)
+        toolbar.addWidget(self.cols_spin)
 
+        toolbar.addWidget(QLabel("Interval Length:"))
+        self.interval_spin = QSpinBox()
+        self.interval_spin.setRange(1, 16)
+        self.interval_spin.setValue(1)
+        toolbar.addWidget(self.interval_spin)
         self.tempo_box = QComboBox()
         self.tempo_box.addItems(["120 BPM", "130 BPM", "140 BPM", "174 BPM", "90 BPM"])
         toolbar.addWidget(QLabel("Tempo:"))
@@ -2691,7 +2702,30 @@ class DAWPlaylistGrid(QMainWindow):
 
         container.setLayout(layout)
         self.setCentralWidget(container)
+    def update_header_labels(self, cols):
+        self.grid_table.setColumnCount(cols)
+        self.grid_table.setHorizontalHeaderLabels([f"Bar {i+1}" for i in range(cols)])
 
+    def resize_playlist_grid(self, cols):
+        self.update_header_labels(cols)
+        self.status_bar.setText(f"Status: Playlist arrangement grid resized to {cols} columns.")
+
+    def paint_clip(self, row, col):
+        interval = self.interval_spin.value()
+        colors = [
+            QColor(255, 107, 0), QColor(0, 150, 255), QColor(150, 0, 255),
+            QColor(0, 255, 150), QColor(255, 0, 128), QColor(255, 200, 0)
+        ]
+        color = random.choice(colors)
+
+        for i in range(interval):
+            target_col = col + i
+            if target_col < self.grid_table.columnCount():
+                item = QTableWidgetItem("■ Seq")
+                item.setBackground(color)
+                item.setForeground(QColor(255, 255, 255))
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.grid_table.setItem(row, target_col, item)
     def paint_clip(self, row, col):
         current_item = self.grid_table.item(row, col)
         if current_item and current_item.text():
@@ -2709,9 +2743,18 @@ class DAWPlaylistGrid(QMainWindow):
         self.status_bar.setText("Status: Playlist grid cleared.")
 
     def run_master_randomizer_script(self):
-        self.grid_table.clearContents()
+        # Randomize the playlist column length (between 32 and 256 steps/bars)
+        random_cols = random.choice([32, 64, 96, 128, 192, 256])
+        self.cols_spin.setValue(random_cols)
+        self.resize_playlist_grid(random_cols)
 
-        # Master Script: Spreads clips across 48 instruments, up to 48 sequences, with 48 repetitions logic
+        # Randomize the interval length multiplier (between 1 and 8)
+        random_interval = random.randint(1, 8)
+        self.interval_spin.setValue(random_interval)
+
+        self.grid_table.clearContents()
+        total_cols = self.grid_table.columnCount()
+
         colors = [
             QColor(255, 107, 0), QColor(0, 150, 255), QColor(150, 0, 255),
             QColor(0, 255, 150), QColor(255, 0, 128), QColor(255, 200, 0)
@@ -2719,24 +2762,27 @@ class DAWPlaylistGrid(QMainWindow):
 
         placed_clips = 0
         for track_idx in range(48):
-            # Select up to 48 randomized sequence intervals for this track
-            num_sequences = random.randint(12, 48)
+            num_sequences = random.randint(8, 36)
             for _ in range(num_sequences):
-                start_col = random.randint(0, 120)
-                repetitions = random.randint(1, 6) # Repetition block
+                start_col = random.randint(0, max(0, total_cols - random_interval))
+                repetitions = random.randint(1, 6)
+                clip_color = random.choice(colors)
+
                 for r in range(repetitions):
-                    target_col = start_col + r
-                    if target_col < 128:
-                        item = QTableWidgetItem(f"Seq{track_idx+1}")
-                        item.setBackground(random.choice(colors))
-                        item.setForeground(QColor(255, 255, 255))
-                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                        self.grid_table.setItem(track_idx, target_col, item)
-                        placed_clips += 1
+                    base_col = start_col + (r * random_interval)
+                    for i in range(random_interval):
+                        target_col = base_col + i
+                        if target_col < total_cols:
+                            item = QTableWidgetItem(f"Seq{track_idx+1}")
+                            item.setBackground(clip_color)
+                            item.setForeground(QColor(255, 255, 255))
+                            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                            self.grid_table.setItem(track_idx, target_col, item)
+                            placed_clips += 1
 
         tempo_val = self.tempo_box.currentText()
-        self.status_bar.setText(f"Status: Generated 48-Instrument algorithmic song! Placed {placed_clips} clips across 48 tracks at {tempo_val} (Target span: up to 48 minutes computed layout).")
-        QMessageBox.information(self, "Infinite Randomizer Complete", f"Successfully executed full 48-instrument, 48-sequence randomization script!\nTotal placed clips: {placed_clips} across 48 tracks.")
+        self.status_bar.setText(f"Status: Randomized grid size to {random_cols} cols, interval to {random_interval}. Placed {placed_clips} clips.")
+        QMessageBox.information(self, "Infinite Randomizer Complete", f"Randomized parameters successfully!\n• Playlist Length: {random_cols} cols\n• Interval Length: {random_interval}\n• Total Clips Placed: {placed_clips}")
 class GrooveboxEngine:
     """Core groovebox engine supporting advanced x,y,z operator equations, stochastic micro-timing, and Rhythm Flux linking."""
     def __init__(self):
@@ -5319,12 +5365,7 @@ class DenseCoordinateVisualizer(QWidget):
 class TopSideInstrumentSequencerPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("""
-            background-color: #1a1a1a;
-            border: 1px solid #333333;
-            border-radius: 4px;
-            padding: 4px;
-        """)
+        self.setStyleSheet("background-color: #1a1a1a; border: 1px solid #333333; border-radius: 4px; padding: 4px;")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
 
@@ -5338,49 +5379,49 @@ class TopSideInstrumentSequencerPanel(QWidget):
         self.preset_combo.addItems(["Default Init", "Lead_Groove_A", "Bass_Stab_B", "Pad_Sweep_C"])
         row1.addWidget(self.preset_combo)
 
-        save_btn = QPushButton("Save Preset")
-        save_btn.clicked.connect(self.save_preset)
-        row1.addWidget(save_btn)
-
-        load_btn = QPushButton("Load Preset")
-        load_btn.clicked.connect(self.load_preset)
-        row1.addWidget(load_btn)
+        # Adjustable Sequence Steps Control
+        row1.addWidget(QLabel("Seq Steps:"))
+        self.seq_steps_spin = QSpinBox()
+        self.seq_steps_spin.setRange(4, 64)
+        self.seq_steps_spin.setValue(16)
+        self.seq_steps_spin.valueChanged.connect(self.rebuild_step_buttons)
+        row1.addWidget(self.seq_steps_spin)
         layout.addLayout(row1)
 
-        row2 = QHBoxLayout()
-        row2.addWidget(QLabel("<b>FL Step Sequencer (16-Steps):</b>"))
+        self.row2 = QHBoxLayout()
+        self.row2.addWidget(QLabel("<b>FL Step Sequencer:</b>"))
 
+        self.step_buttons_container = QWidget()
+        self.step_buttons_layout = QHBoxLayout(self.step_buttons_container)
+        self.step_buttons_layout.setContentsMargins(0, 0, 0, 0)
         self.step_buttons = []
-        for i in range(16):
+
+        self.rebuild_step_buttons(16)
+        self.row2.addWidget(self.step_buttons_container)
+
+        push_brush_btn = QPushButton("🎨 Send to Brush")
+        push_brush_btn.setStyleSheet("background-color: #007acc; color: white;")
+        self.row2.addWidget(push_brush_btn)
+
+        layout.addLayout(self.row2)
+
+    def rebuild_step_buttons(self, count):
+        for btn in self.step_buttons:
+            btn.deleteLater()
+        self.step_buttons = []
+
+        for i in range(count):
             btn = QPushButton(str(i+1))
             btn.setCheckable(True)
             btn.setChecked(i in [0, 4, 8, 12])
-            btn.setFixedWidth(28)
-            btn.setFixedHeight(26)
+            btn.setFixedWidth(26)
+            btn.setFixedHeight(24)
             btn.setStyleSheet("""
-                QPushButton { background-color: #262626; color: #888888; border-radius: 2px; font-size: 10px; font-weight: bold; border: 1px solid #3a3a3a; }
+                QPushButton { background-color: #262626; color: #888888; border-radius: 2px; font-size: 9px; font-weight: bold; border: 1px solid #3a3a3a; }
                 QPushButton:checked { background-color: #ff6b00; color: #ffffff; border: 1px solid #ff8533; }
             """)
-            row2.addWidget(btn)
+            self.step_buttons_layout.addWidget(btn)
             self.step_buttons.append(btn)
-
-        push_brush_btn = QPushButton("🎨 Send to Playlist Brush")
-        push_brush_btn.setStyleSheet("background-color: #007acc; color: white;")
-        push_brush_btn.clicked.connect(self.send_to_brush)
-        row2.addWidget(push_brush_btn)
-
-        layout.addLayout(row2)
-    def save_preset(self):
-        name = self.inst_name_edit.text()
-        active = [str(i+1) for i, b in enumerate(self.step_buttons) if b.isChecked()]
-        self.preset_combo.addItem(f"User_{name}")
-        QMessageBox.information(self, "Preset Saved", f"Saved sequence state for '{name}' with active steps: {', '.join(active)}")
-
-    def load_preset(self):
-        QMessageBox.information(self, "Preset Loaded", f"Loaded preset '{self.preset_combo.currentText()}' into step sequencer.")
-
-    def send_to_brush(self):
-        QMessageBox.information(self, "Brush Armed", f"Channel '{self.inst_name_edit.text()}' armed for playlist painting!")
 # ==========================================
 # 6. SEQUENCER PANE
 # ==========================================
