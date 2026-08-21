@@ -7,6 +7,7 @@
 import random
 import math
 import wave
+import time
 import json
 import numpy as np
 from PyQt6.QtCore import Qt, QPoint,QPointF, QRectF, QTimer
@@ -16,6 +17,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
     QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit, QDialog, QInputDialog,QListWidget,QTableWidgetItem, QHeaderView,QProgressBar,QSpinBox, QCheckBox,QComboBox,QPushButton
     )
+
 import random
 try:
     import scipy.io.wavfile as wavfile
@@ -1089,13 +1091,11 @@ class UIComponentManager(QWidget):
         # Transport & Decimal-Friendly Parameter Controls
         self.transport_layout = QHBoxLayout()
 
-        # Decimal-friendly Tempo
         self.spin_tempo = QDoubleSpinBox()
         self.spin_tempo.setRange(1.0, 999.99)
         self.spin_tempo.setDecimals(2)
         self.spin_tempo.setValue(120.0)
 
-        # Decimal-friendly Sequence Length & Rows
         self.spin_seq_length = QDoubleSpinBox()
         self.spin_seq_length.setRange(1.0, 128.0)
         self.spin_seq_length.setDecimals(2)
@@ -1106,13 +1106,14 @@ class UIComponentManager(QWidget):
         self.spin_row_count.setDecimals(2)
         self.spin_row_count.setValue(48.0)
 
-        # Irrational Seed Input
+        # Irrational Seed Input (Default to 0 for uninhibited composition carrier waves)
         self.input_seed_val = QLineEdit()
-        self.input_seed_val.setText(str(MEUM_CONSTANT))
-        self.input_seed_val.setToolTip("Enter any irrational number, e.g., pi, e, or Meum")
+        self.input_seed_val.setText("0")
+        self.input_seed_val.setToolTip("Enter any irrational number (e.g., pi, e, Meum). Set to 0 for raw user composition.")
 
         self.btn_seeded_randomizer = QPushButton("🎲 Phase-Locked Harmonic Randomizer")
 
+        # Add to transport layout
         self.transport_layout.addWidget(QLabel("Tempo:"))
         self.transport_layout.addWidget(self.spin_tempo)
         self.transport_layout.addWidget(QLabel("Seq Len:"))
@@ -5127,72 +5128,152 @@ class BottomToolboxesPane(QScrollArea):
         container.setLayout(layout)
         self.setWidget(container)
 TRANSCENDENTAL_BASE = np.e
-class PaintbrushTable(QTableWidget):
-    """Enhanced grid supporting unquantized cell painting, copy/paste buffers, and multi-sequence loading."""
-    def __init__(self, parent_app, rows, cols):
-        super().__init__(rows, cols)
-        self.parent_app = parent_app
-        self.setMouseTracking(True)
-        self.clipboard_data = []
+class PaintbrushTable(QWidget):
+    def __init__(self, parent=None, rows=0, cols=0):
+        super().__init__(parent)
+        self.app = parent
+        self.is_drawing_stroke = False
+        self.init_ui(rows, cols)
 
-    def mousePressEvent(self, event):
-        index = self.indexAt(event.position().toPoint())
-        if index.isValid():
-            self.paint_cell(index.row(), index.column())
-        super().mousePressEvent(event)
+    def init_ui(self, rows, cols):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(2, 2, 2, 2)
 
-    def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.MouseButton.LeftButton:
-            index = self.indexAt(event.position().toPoint())
-            if index.isValid():
-                self.paint_cell(index.row(), index.column())
-        super().mouseMoveEvent(event)
+        self.chk_draw_random_synth = QPushButton("🎨 Draw Random Synth: OFF")
+        self.chk_draw_random_synth.setCheckable(True)
+        self.chk_draw_random_synth.setStyleSheet(
+            "background-color: #121212; color: #ff5555; border: 1px solid #444; font-weight: bold; padding: 6px;"
+        )
+        self.chk_draw_random_synth.clicked.connect(self.toggle_draw_random_synth_style)
+        layout.addWidget(self.chk_draw_random_synth)
 
-    def paint_cell(self, row, col):
-        active_synth = self.parent_app.instrument_selector_dropdown.currentText()
-        item = self.item(row, col)
-        if item:
-            if col == 1:
-                item.setText(active_synth)
-                item.setBackground(QColor(0, 180, 180))
-            elif col == 2:
-                shuffled_tag = f"Script::{active_synth[:4].upper()}-X{(row*13)%99}"
-                item.setText(shuffled_tag)
-                item.setBackground(QColor(90, 30, 110))
-            elif col >= 3:
-                item.setText(f"Engage [{active_synth[:6]}]")
-                item.setBackground(QColor(20, 110, 60))
-        # Sync changes back to parent application's master playlist reference
-        self.parent_app.sync_playlist_grid_to_memory()
+        # Custom inner table to intercept raw mouse events for continuous drag-painting
+        class PaintTableWidget(QTableWidget):
+            def __init__(self, parent_table, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.parent_table = parent_table
+                self.setMouseTracking(True)
 
-    def keyPressEvent(self, event):
-        if event.matches(QKeySequence.StandardKey.Copy):
-            selected_ranges = self.selectedRanges()
-            self.clipboard_data = []
-            for r in selected_ranges:
-                for r_idx in range(r.topRow(), r.bottomRow() + 1):
-                    row_vals = []
-                    for c_idx in range(r.leftColumn(), r.rightColumn() + 1):
-                        it = self.item(r_idx, c_idx)
-                        row_vals.append(it.text() if it else "")
-                    self.clipboard_data.append(row_vals)
-            print(f"[Playlist] Copied {len(self.clipboard_data)} rows to clipboard buffer.")
-        elif event.matches(QKeySequence.StandardKey.Paste):
-            current_row = self.currentRow()
-            current_col = self.currentColumn()
-            for r_offset, row_vals in enumerate(self.clipboard_data):
-                for c_offset, val in enumerate(row_vals):
-                    target_r = current_row + r_offset
-                    target_c = current_col + c_offset
-                    if target_r < self.rowCount() and target_c < self.columnCount():
-                        it = self.item(target_r, target_c)
-                        if it:
-                            it.setText(val)
-                            it.setBackground(QColor(50, 110, 110))
-            print("[Playlist] Pasted buffer data into grid successfully.")
-            self.parent_app.sync_playlist_grid_to_memory()
+            def mousePressEvent(self, event):
+                self.parent_table.is_drawing_stroke = True
+                item = self.itemAt(event.pos())
+                if item:
+                    self.parent_table.engage_paint(item.row(), item.column())
+                else:
+                    index = self.indexAt(event.pos())
+                    if index.isValid():
+                        self.parent_table.engage_paint(index.row(), index.column())
+                super().mousePressEvent(event)
+
+            def mouseMoveEvent(self, event):
+                if self.parent_table.is_drawing_stroke:
+                    item = self.itemAt(event.pos())
+                    if item:
+                        self.parent_table.engage_paint(item.row(), item.column())
+                    else:
+                        index = self.indexAt(event.pos())
+                        if index.isValid():
+                            self.parent_table.engage_paint(index.row(), index.column())
+                super().mouseMoveEvent(event)
+
+            def mouseReleaseEvent(self, event):
+                self.parent_table.is_drawing_stroke = False
+                super().mouseReleaseEvent(event)
+
+        self.table_widget = PaintTableWidget(self, rows, cols)
+        layout.addWidget(self.table_widget)
+
+    def rowCount(self):
+        return self.table_widget.rowCount()
+
+    def columnCount(self):
+        return self.table_widget.columnCount()
+
+    def item(self, row, col):
+        return self.table_widget.item(row, col)
+
+    def set_cell_item(self, row, col, item_or_text, bg_color=None):
+        if isinstance(item_or_text, QTableWidgetItem):
+            text = item_or_text.text()
+            bg = item_or_text.background()
         else:
-            super().keyPressEvent(event)
+            text = str(item_or_text)
+            bg = bg_color
+
+        item = self.table_widget.item(row, col)
+        if item is None:
+            item = QTableWidgetItem(text)
+            if bg and bg.color().isValid():
+                item.setBackground(bg)
+            self.table_widget.setItem(row, col, item)
+        else:
+            item.setText(text)
+            if bg and bg.color().isValid():
+                item.setBackground(bg)
+
+    def setHorizontalHeaderLabels(self, labels):
+        self.table_widget.setHorizontalHeaderLabels(labels)
+
+    def toggle_draw_random_synth_style(self):
+        is_active = self.chk_draw_random_synth.isChecked()
+        if is_active:
+            self.chk_draw_random_synth.setText("🎨 Draw Random Synth: ON")
+            self.chk_draw_random_synth.setStyleSheet(
+                "background-color: #00ffff; color: #060606; border: 1px solid #fff; font-weight: bold; padding: 6px;"
+            )
+        else:
+            self.chk_draw_random_synth.setText("🎨 Draw Random Synth: OFF")
+            self.chk_draw_random_synth.setStyleSheet(
+                "background-color: #121212; color: #ff5555; border: 1px solid #444; font-weight: bold; padding: 6px;"
+            )
+
+    def engage_paint(self, row, col):
+        if not hasattr(self.app, 'instrument_names_48'):
+            return
+
+        # Check the toggle button state
+        random_synth_active = self.chk_draw_random_synth.isChecked()
+
+        seed_val = 42
+        if hasattr(self.app, 'input_seed_val'):
+            try:
+                seed_val = abs(hash(float(self.app.input_seed_val.text()))) % (2**31)
+            except ValueError:
+                pass
+
+        rng = np.random.default_rng(seed_val + row + col + int(time.time() * 1000) % 10000)
+
+        if col == 0:
+            return
+        elif col == 1:
+            if random_synth_active:
+                # Randomized mode: pick a random synth from the 48 list
+                target_operator_name = rng.choice(self.app.instrument_names_48)
+            else:
+                # OFF mode: use the currently selected instrument from the app dropdown (or a stable fallback)
+                if hasattr(self.app, 'instrument_selector_dropdown'):
+                    target_operator_name = self.app.instrument_selector_dropdown.currentText()
+                else:
+                    target_operator_name = self.app.instrument_names_48[0]
+
+            item = QTableWidgetItem(target_operator_name)
+            palette_colors = [
+                QColor(20, 90, 100), QColor(70, 30, 90), QColor(20, 90, 40),
+                QColor(90, 50, 20), QColor(90, 20, 30), QColor(30, 40, 90)
+            ]
+            item.setBackground(palette_colors[row % len(palette_colors)])
+            self.table_widget.setItem(row, col, item)
+        elif col == 2:
+            self.set_cell_item(row, col, f"Script::OP-X{row}")
+        elif col == 3:
+            self.set_cell_item(row, col, "95%")
+        elif col == 4:
+            self.set_cell_item(row, col, "Geometric Nullifier Lock")
+        elif col == 5:
+            self.set_cell_item(row, col, "Multi-Load Active")
+
+        if hasattr(self.app, 'reload_active_instrument_sequencer_ui'):
+            self.app.reload_active_instrument_sequencer_ui()
 # ==========================================
 # 4. MODULAR TAB MANAGER (TOP PANE)
 # ==========================================
@@ -5951,7 +6032,7 @@ from PyQt6.QtCore import Qt
 class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Groovebox Nitrous O - Geometric Resonance Nullifier & Seeded Ecosystem")
+        self.setWindowTitle("Groovebox")
         self.resize(1300, 950)
 
         self.playlist_window = None
@@ -5960,7 +6041,35 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.script_editor_window = None
         self.visual_oscilloscope = None
         self.wavefield_engine = PhaseLockedWavefieldEngine(self)
+
+        # Initialize the UI Manager as an independent floating control panel
+        # that stays attached to your main app window
         self.ui_manager = UIComponentManager(self)
+        self.ui_manager.setWindowTitle("EQR Phase-Locked Wavefield Controls")
+        self.ui_manager.resize(850, 120)
+
+        # Connect the randomizer button securely here
+        self.ui_manager.btn_seeded_randomizer.clicked.connect(
+            self.wavefield_engine.apply_phase_locked_randomization
+        )
+
+        # Force it to render and pop up on screen immediately
+        self.ui_manager.show()
+
+        # Connect the randomizer button here where self.wavefield_engine exists
+        self.ui_manager.btn_seeded_randomizer.clicked.connect(
+            self.wavefield_engine.apply_phase_locked_randomization
+        )
+        # Instantiate and add the UIComponentManager
+        if not self.centralWidget():
+            central_widget = QWidget(self)
+            self.setCentralWidget(central_widget)
+
+        if not hasattr(self, 'main_window_layout') or self.main_window_layout is None:
+            self.main_window_layout = QVBoxLayout(self.centralWidget())
+
+        # Instantiate and add the UIComponentManager to the main window layout
+        self.main_window_layout.addWidget(self.ui_manager)
 
         # Connect the seeded randomizer trigger
         self.ui_manager.btn_seeded_randomizer.clicked.connect(self.wavefield_engine.apply_phase_locked_randomization)
@@ -6582,24 +6691,44 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 32
                 track_table = PaintbrushTable(self, rows, 6)
                 self.active_paint_table = track_table
-                track_table.setHorizontalHeaderLabels(["Time Marker", "Cross-Loaded Operator", "Script Tag Shuffler", "Velocity", "Modulation Curve", "Multiple Seq Engage"])
+
+                track_table.setHorizontalHeaderLabels([
+                    "Time Marker", "Cross-Loaded Operator", "Script Tag Shuffler",
+                    "Velocity", "Modulation Curve", "Multiple Seq Engage"
+                ])
 
                 palette_colors = [
                     QColor(20, 90, 100), QColor(70, 30, 90), QColor(20, 90, 40),
                     QColor(90, 50, 20), QColor(90, 20, 30), QColor(30, 40, 90)
                 ]
 
+                def safe_set_cell(r, c, text, bg_color=None):
+                    # Safe helper to populate table cells bypassing binding strictness
+                    item = track_table.item(r, c)
+                    if item is None:
+                        item = QTableWidgetItem(text)
+                        if bg_color:
+                            item.setBackground(bg_color)
+                        track_table.model().setData(track_table.model().index(r, c), text, Qt.ItemDataRole.DisplayRole)
+                        # Ensure cell background is correctly set via model if item is created raw
+                        track_table.setItem(r, c, item)
+                    else:
+                        item.setText(text)
+                        if bg_color:
+                            item.setBackground(bg_color)
+
                 def update_time_markers():
                     selection_text = time_scale_combo.currentText()
                     if "Unquantized" in selection_text:
                         for row_idx in range(rows):
-                            track_table.setItem(row_idx, 0, QTableWidgetItem(f"Free-Time [{row_idx * (MEUM_CONSTANT / 1.0):.2f}s]"))
+                            time_str = f"Free-Time [{row_idx * (MEUM_CONSTANT / 1.0):.2f}s]"
+                            track_table.set_cell_item(row_idx, 0, QTableWidgetItem(time_str))
                     else:
                         step_seconds = 60.0 if "60.0s" in selection_text else (30.0 if "30.0s" in selection_text else (15.0 if "15.0s" in selection_text else (3.5 if "3.5s" in selection_text else 1.0)))
                         for row_idx in range(rows):
                             total_seconds = row_idx * step_seconds
                             time_label = f"T + {int(total_seconds // 60)}m {int(total_seconds % 60)}s" if total_seconds >= 60 else f"T + {total_seconds:.1f}s"
-                            track_table.setItem(row_idx, 0, QTableWidgetItem(time_label))
+                            track_table.set_cell_item(row_idx, 0, QTableWidgetItem(time_label))
                     self.sync_playlist_grid_to_memory()
 
                 time_scale_combo.currentIndexChanged.connect(update_time_markers)
@@ -6614,15 +6743,15 @@ class MathematiciansGrooveboxApp(QMainWindow):
                         "multi_seq": "Multi-Load Active"
                     }
 
-                    item_inst = QTableWidgetItem(data_entry["operator"])
+                    item_inst = QTableWidgetItem(str(data_entry["operator"]))
                     item_inst.setBackground(palette_colors[row_idx % len(palette_colors)])
 
-                    track_table.setItem(row_idx, 0, QTableWidgetItem(data_entry["time_marker"]))
-                    track_table.setItem(row_idx, 1, item_inst)
-                    track_table.setItem(row_idx, 2, QTableWidgetItem(data_entry["script_tag"]))
-                    track_table.setItem(row_idx, 3, QTableWidgetItem("95%"))
-                    track_table.setItem(row_idx, 4, QTableWidgetItem(data_entry["modulation"]))
-                    track_table.setItem(row_idx, 5, QTableWidgetItem(data_entry["multi_seq"]))
+                    track_table.set_cell_item(row_idx, 0, QTableWidgetItem(str(data_entry["time_marker"])))
+                    track_table.set_cell_item(row_idx, 1, item_inst)
+                    track_table.set_cell_item(row_idx, 2, QTableWidgetItem(str(data_entry["script_tag"])))
+                    track_table.set_cell_item(row_idx, 3, QTableWidgetItem("95%"))
+                    track_table.set_cell_item(row_idx, 4, QTableWidgetItem(str(data_entry["modulation"])))
+                    track_table.set_cell_item(row_idx, 5, QTableWidgetItem(str(data_entry["multi_seq"])))
 
                 update_time_markers()
                 main_layout.addWidget(track_table)
