@@ -9,20 +9,34 @@ import math
 import wave
 import time
 import json
+import os
+import threading
 import numpy as np
-from PyQt6.QtCore import Qt, QPoint,QPointF, QRectF, QTimer
-from PyQt6.QtGui import (QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont,QAction, QPalette, QAction, QKeyEvent,QBrush,QColor, QKeySequence)
+from PyQt6.QtCore import Qt, QPoint, QPointF, QRectF, QTimer
+from PyQt6.QtGui import (
+    QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont,
+    QAction, QPalette, QKeyEvent, QKeySequence
+)
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout,
     QHBoxLayout, QLabel, QSlider, QPushButton, QComboBox, QScrollArea,
-    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QGridLayout, QFileDialog, QSplitter, QGroupBox,QTextEdit,QMenu, QMessageBox,QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox, QCheckBox, QDial, QTabWidget, QScrollArea, QSlider,QMenuBar, QMessageBox, QFileDialog, QFileDialog, QTextEdit, QDialog, QInputDialog,QListWidget,QTableWidgetItem, QHeaderView,QProgressBar,QSpinBox, QCheckBox,QComboBox,QPushButton
-    )
+    QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox,
+    QGridLayout, QFileDialog, QSplitter, QGroupBox, QTextEdit, QMenu,
+    QMessageBox, QTableWidget, QTableWidgetItem, QCheckBox, QDial, QMenuBar,
+    QDialog, QInputDialog, QHeaderView, QProgressBar
+)
 
-import random
 try:
     import scipy.io.wavfile as wavfile
 except ImportError:
     wavfile = None
+
+try:
+    import sounddevice as sd
+    HAS_SOUNDDEVICE = True
+except ImportError:
+    sd = None
+    HAS_SOUNDDEVICE = False
 MEUM_CONSTANT = 1.1975807343385265188
 DAW_STYLE = """
     QMainWindow, QWidget { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; }
@@ -1079,6 +1093,7 @@ class UIComponentManager(QWidget):
         self.slider_pkp_decay = QSlider(Qt.Orientation.Horizontal)
         self.slider_pkp_decay.setRange(0, 100)
         self.slider_pkp_decay.setValue(60)
+
 
         self.top_layout.addWidget(QLabel("EQR Mod:"))
         self.top_layout.addWidget(self.slider_eqr)
@@ -5231,7 +5246,6 @@ class PaintbrushTable(QWidget):
         if not hasattr(self.app, 'instrument_names_48'):
             return
 
-        # Check the toggle button state
         random_synth_active = self.chk_draw_random_synth.isChecked()
 
         seed_val = 42
@@ -5247,10 +5261,8 @@ class PaintbrushTable(QWidget):
             return
         elif col == 1:
             if random_synth_active:
-                # Randomized mode: pick a random synth from the 48 list
                 target_operator_name = rng.choice(self.app.instrument_names_48)
             else:
-                # OFF mode: use the currently selected instrument from the app dropdown (or a stable fallback)
                 if hasattr(self.app, 'instrument_selector_dropdown'):
                     target_operator_name = self.app.instrument_selector_dropdown.currentText()
                 else:
@@ -5266,11 +5278,38 @@ class PaintbrushTable(QWidget):
         elif col == 2:
             self.set_cell_item(row, col, f"Script::OP-X{row}")
         elif col == 3:
-            self.set_cell_item(row, col, "95%")
+            self.set_cell_item(row, col, "100%")
         elif col == 4:
             self.set_cell_item(row, col, "Geometric Nullifier Lock")
         elif col == 5:
             self.set_cell_item(row, col, "Multi-Load Active")
+
+        # Transfer painted operator + script head into the correct instrument sequencer
+        if col == 1 and hasattr(self.app, 'instrument_sequencer_memory'):
+            op_name = target_operator_name
+            if op_name in self.app.instrument_sequencer_memory:
+                if not (hasattr(self.app, 'instrument_scripts') and op_name in self.app.instrument_scripts):
+                    op_idx = self.app.instrument_names_48.index(op_name) if op_name in self.app.instrument_names_48 else 0
+                    script = (
+                        f"# Script workspace for {op_name}\n"
+                        f"def evaluate_wave(x, y, z):\n"
+                        f"    return np.sin(x * {(op_idx % 12) + 1}.0) * np.cos(y) - z"
+                    )
+                    if hasattr(self.app, 'instrument_scripts'):
+                        self.app.instrument_scripts[op_name] = script
+                short_tag = f"Script::{op_name[:4].upper()}-X{row}"
+                self.set_cell_item(row, 2, short_tag)
+                self.set_cell_item(row, 3, "100%")
+                if hasattr(self.app, 'top_sequencer') and hasattr(self.app.top_sequencer, 'instance_combo'):
+                    try:
+                        idx = self.app.instrument_names_48.index(op_name)
+                        self.app.top_sequencer.instance_combo.setCurrentIndex(idx)
+                        if hasattr(self.app, 'instrument_selector_dropdown'):
+                            self.app.instrument_selector_dropdown.setCurrentIndex(idx)
+                    except ValueError:
+                        pass
+                if hasattr(self.app, 'sync_playlist_grid_to_memory'):
+                    self.app.sync_playlist_grid_to_memory()
 
         if hasattr(self.app, 'reload_active_instrument_sequencer_ui'):
             self.app.reload_active_instrument_sequencer_ui()
@@ -6159,10 +6198,17 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     "time_marker": table.item(r, 0).text() if table.item(r, 0) else "",
                     "operator": table.item(r, 1).text() if table.item(r, 1) else self.instrument_names_48[0],
                     "script_tag": table.item(r, 2).text() if table.item(r, 2) else "",
-                    "velocity": 0.95,
+                    "velocity": 1.0,
                     "modulation": table.item(r, 4).text() if table.item(r, 4) else "",
                     "multi_seq": table.item(r, 5).text() if table.item(r, 5) else ""
                 }
+                if table.item(r, 3):
+                    try:
+                        vtxt = table.item(r, 3).text().replace("%", "").strip()
+                        v = float(vtxt)
+                        row_dict["velocity"] = (v / 100.0) if v > 1.0 else v
+                    except Exception:
+                        row_dict["velocity"] = 1.0
                 self.master_playlist_data.append(row_dict)
 
     def init_ui_components(self):
@@ -6378,31 +6424,109 @@ class MathematiciansGrooveboxApp(QMainWindow):
         seq_inner.addWidget(self.steps_layout_widget)
         master_container.addWidget(self.top_sequencer)
 
-        if self.visual_oscilloscope is None:
-            self.visual_oscilloscope = QPushButton("📊 Phase-Space Vector Oscilloscope & Wavetable Canvas [Status: Live Active]")
-            self.visual_oscilloscope.setCheckable(True)
-            self.visual_oscilloscope.setStyleSheet("""
-                QPushButton {
-                    background-color: #050505;
-                    color: #00ffff;
-                    border: 2px solid #00ffff;
-                    padding: 10px;
-                    text-align: left;
-                    font-weight: bold;
-                }
-                QPushButton:checked {
-                    background-color: #1a051a;
-                    color: #ff55ff;
-                    border: 2px solid #ff55ff;
-                }
-            """)
-            self.visual_oscilloscope.toggled.connect(lambda checked: self.visual_oscilloscope.setText(
-                "📊 Phase-Space Vector Oscilloscope [Status: FROZEN / Wavetable Captured]" if checked
-                else "📊 Phase-Space Vector Oscilloscope & Wavetable Canvas [Status: Live Active]"
-            ))
+        # Real-time oscilloscope + transport status + master volume
+        if not isinstance(getattr(self, 'visual_oscilloscope', None), VisualOscilloscope):
+            self.visual_oscilloscope = VisualOscilloscope(self)
+            self.visual_oscilloscope.setMinimumHeight(140)
 
+        scope_bar = QHBoxLayout()
+        self.scope_status_label = QLabel("📊 Phase-Space Oscilloscope  |  Status: Idle")
+        self.scope_status_label.setStyleSheet("color: #00ffff; font-weight: bold;")
+        scope_bar.addWidget(self.scope_status_label, stretch=3)
+
+        scope_bar.addWidget(QLabel("Master Vol:"))
+        self.slider_master_vol = QSlider(Qt.Orientation.Horizontal)
+        self.slider_master_vol.setRange(0, 100)
+        self.slider_master_vol.setValue(80)
+        self.slider_master_vol.setFixedWidth(140)
+        self.slider_master_vol.valueChanged.connect(self._on_master_vol_changed)
+        scope_bar.addWidget(self.slider_master_vol)
+        self.lbl_master_vol = QLabel("80%")
+        self.lbl_master_vol.setStyleSheet("color: #f5d97d;")
+        scope_bar.addWidget(self.lbl_master_vol)
+
+        master_container.addLayout(scope_bar)
         master_container.addWidget(self.visual_oscilloscope)
 
+        # Realtime audio engine state (sounddevice stream)
+        self.is_playing = False
+        self.play_buffer = None
+        self.play_sample_rate = 44100
+        self.play_cursor = 0
+        self.play_lock = threading.Lock()
+        self.audio_stream = None
+        self.master_volume = 0.80
+        self._scope_update_timer = QTimer(self)
+        self._scope_update_timer.setInterval(33)
+        self._scope_update_timer.timeout.connect(self._update_scope_from_playhead)
+        self._last_scope_chunk = np.zeros(100, dtype=np.float32)
+
+        master_container.addWidget(self.visual_oscilloscope)
+    def _pkp_step_tick(self):
+        if not self.pkp_pad_bank_active:
+            return
+        bpm = self.spin_bpm.value() if hasattr(self, 'spin_bpm') else 120
+        interval_ms = max(20, int(60000.0 / max(bpm, 1) / 4.0))
+        if self.pkp_step_timer.interval() != interval_ms:
+            self.pkp_step_timer.setInterval(interval_ms)
+
+        count = len(self.seq_step_buttons) if self.seq_step_buttons else (
+            self.spin_seq_length.value() if hasattr(self, 'spin_seq_length') else 16
+        )
+        if count <= 0:
+            return
+        self.pkp_current_step = (self.pkp_current_step + 1) % count
+        self._refresh_pad_playhead()
+
+        curr_inst = self.top_sequencer.instance_combo.currentText() if hasattr(self, 'top_sequencer') else None
+        if curr_inst and curr_inst in self.instrument_sequencer_memory:
+            mem = self.instrument_sequencer_memory[curr_inst]
+            s = self.pkp_current_step
+            if s < len(mem.get("steps", [])) and mem["steps"][s]:
+                amp = mem.get("amplitudes", [1.0] * 16)
+                amp = amp[s] if s < len(amp) else 1.0
+                self._pkp_fire_step_hit(curr_inst, s, amp)
+    def _pkp_fire_step_hit(self, inst_name, step_idx, amp=1.0):
+        """Generate a short percussive hit for the active pad and push it to scope (+ optional audio)."""
+        try:
+            sr = 44100
+            bpm = self.spin_bpm.value() if hasattr(self, 'spin_bpm') else 120
+            hit_dur = max(0.02, min(0.12, (60.0 / max(bpm, 1) / 4.0) * 0.85))
+            n = int(sr * hit_dur)
+            t = np.linspace(0.0, hit_dur, n, endpoint=False)
+
+            try:
+                op_idx = self.instrument_names_48.index(inst_name)
+            except ValueError:
+                op_idx = step_idx
+            base_freq = 44.0 * (MEUM_CONSTANT ** (op_idx % 36))
+            freq = base_freq * (1.0 + (step_idx % 12) * 0.03)
+
+            env = np.exp(-t / max(hit_dur * 0.35, 0.01))
+            click = np.exp(-t / 0.004) * np.sin(2 * np.pi * freq * 4.0 * t)
+            body = np.sin(2 * np.pi * freq * t)
+            pkp_mod = self.slider_pkp_decay.value() / 1000.0 if hasattr(self, 'slider_pkp_decay') else 0.25
+            hit = (body * 0.7 + click * 0.3) * env * float(amp) * (0.5 + pkp_mod)
+
+            peak = np.max(np.abs(hit))
+            if peak > 0:
+                hit = (hit / peak) * 0.7 * getattr(self, 'master_volume', 0.8)
+
+            if isinstance(getattr(self, 'visual_oscilloscope', None), VisualOscilloscope):
+                idx = np.linspace(0, len(hit) - 1, 100).astype(int)
+                self.visual_oscilloscope.update_waveform(hit[idx])
+                if hasattr(self, 'scope_status_label'):
+                    self.scope_status_label.setText(
+                        f"📊 PKP Hit  ·  {inst_name[:18]}  Pad {step_idx+1}  ·  {freq:.1f} Hz"
+                    )
+
+            if HAS_SOUNDDEVICE:
+                try:
+                    sd.play(hit.astype(np.float32), sr, blocking=False)
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"[PKP] step hit error: {e}")
     def on_instrument_switched(self, idx):
         inst_name = self.instrument_names_48[idx]
         if hasattr(self, 'top_sequencer') and self.top_sequencer.instance_combo.currentIndex() != idx:
@@ -6551,112 +6675,263 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 assigned_inputs.add(target_idx)
 
         print(f"[Patch Bay Optimizer] Generated {len(self.patch_connections)} non-redundant links for seed: {self.input_seed_val.text()}")
+    def _on_master_vol_changed(self, val):
+        self.master_volume = val / 100.0
+        if hasattr(self, 'lbl_master_vol'):
+            self.lbl_master_vol.setText(f"{val}%")
+
+    def _render_mixdown_buffer(self, max_rows=None):
+        """Shared float32 mono render used by both realtime Play and WAV Export."""
+        sample_rate = 44100
+        bpm = self.spin_bpm.value() if hasattr(self, 'spin_bpm') else 120
+        rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 32
+        if max_rows is not None:
+            rows = min(rows, int(max_rows))
+        seq_len = self.spin_seq_length.value() if hasattr(self, 'spin_seq_length') else 16
+        global_playlist_enabled = self.chk_global_playlist.isChecked() if hasattr(self, 'chk_global_playlist') else True
+
+        if hasattr(self, 'sync_playlist_grid_to_memory'):
+            try:
+                self.sync_playlist_grid_to_memory()
+            except Exception:
+                pass
+
+        seconds_per_beat = 60.0 / max(float(bpm), 1.0)
+        step_duration = seconds_per_beat / 4.0
+        row_duration = step_duration * seq_len
+        total_duration = max(0.25, rows * row_duration)
+
+        n_samples = int(sample_rate * total_duration)
+        t = np.linspace(0.0, total_duration, n_samples, endpoint=False)
+        master = np.zeros(n_samples, dtype=np.float32)
+
+        base_eqr = self.slider_eqr.value() / 100.0 if hasattr(self, 'slider_eqr') else 0.5
+        pkp_decay = self.slider_pkp_decay.value() / 1000.0 if hasattr(self, 'slider_pkp_decay') else 0.25
+        fractalizer_val = self.slider_fractalizer.value() / 100.0 if hasattr(self, 'slider_fractalizer') else 0.85
+        pkp_auto = self.chk_pkp_automod.isChecked() if hasattr(self, 'chk_pkp_automod') else True
+        seed_val = self.get_numeric_seed()
+        np.random.seed(seed_val)
+
+        for row_idx in range(rows):
+            start_time = row_idx * row_duration
+            end_time = start_time + row_duration
+            mask = (t >= start_time) & (t < end_time)
+            if not np.any(mask):
+                continue
+            local_t = t[mask] - start_time
+            row_mix = np.zeros_like(local_t, dtype=np.float32)
+            velocity_scale = 1.0
+
+            if global_playlist_enabled and row_idx < len(getattr(self, 'master_playlist_data', [])):
+                entry = self.master_playlist_data[row_idx]
+                primary_op = entry.get("operator", self.instrument_names_48[0])
+                velocity_scale = float(entry.get("velocity", 1.0))
+                op_indices = [self.instrument_names_48.index(primary_op)] if primary_op in self.instrument_names_48 else [0]
+                remaining = [i for i in range(len(self.instrument_names_48)) if i != op_indices[0]]
+                n_comp = min(3, len(remaining))
+                companions = np.random.choice(remaining, size=n_comp, replace=False).tolist() if n_comp else []
+                active_cluster = op_indices + companions
+            else:
+                active_cluster = np.random.choice(len(self.instrument_names_48), size=4, replace=False).tolist()
+
+            for op_idx in active_cluster:
+                op_name = self.instrument_names_48[op_idx]
+                mem = self.instrument_sequencer_memory.get(op_name, {"steps": [False] * 16, "amplitudes": [1.0] * 16})
+                base_freq = 44.0 * (MEUM_CONSTANT ** (op_idx % 36))
+                mod_freq = base_freq * MEUM_CONSTANT
+                dynamic_eqr = base_eqr * (1.0 + 0.3 * np.sin(2.0 * np.pi * 0.2 * local_t + op_idx))
+
+                step_env = np.zeros_like(local_t)
+                steps = mem.get("steps", [])
+                amps = mem.get("amplitudes", [1.0] * 16)
+                for s_idx in range(min(seq_len, len(steps))):
+                    if steps[s_idx]:
+                        s_start = s_idx * step_duration
+                        s_end = s_start + step_duration
+                        s_mask = (local_t >= s_start) & (local_t < s_end)
+                        if np.any(s_mask):
+                            s_local = local_t[s_mask] - s_start
+                            amp = amps[s_idx] if s_idx < len(amps) else 1.0
+                            step_env[s_mask] += amp * np.exp(-s_local / max(step_duration * 0.5, 0.01))
+
+                carrier = np.sin(2 * np.pi * mod_freq * local_t)
+                osc = np.sin(2 * np.pi * base_freq * local_t + carrier * (dynamic_eqr * MEUM_CONSTANT * fractalizer_val))
+                env_f = np.exp(-local_t / max(pkp_decay * (MEUM_CONSTANT if pkp_auto else 1.0), 0.015))
+                pkp = env_f * np.sin(2 * np.pi * (base_freq * 2.0) * local_t)
+                gate = np.maximum(step_env, 0.1)
+                row_mix += (osc * 0.4 + pkp * 0.6) * gate * velocity_scale
+
+            master[mask] += row_mix / max(len(active_cluster), 1)
+
+        peak = np.max(np.abs(master))
+        if peak > 0:
+            master = (master / peak) * 0.98
+        return master.astype(np.float32), sample_rate
+
+    def _audio_callback(self, outdata, frames, time_info, status):
+        """sounddevice stream callback — pulls from play_buffer under lock."""
+        if status:
+            pass
+        with self.play_lock:
+            if self.play_buffer is None or not self.is_playing:
+                outdata.fill(0)
+                return
+            remaining = len(self.play_buffer) - self.play_cursor
+            n = min(frames, remaining)
+            if n > 0:
+                chunk = self.play_buffer[self.play_cursor:self.play_cursor + n] * self.master_volume
+                outdata[:n, 0] = chunk
+                if n >= 100:
+                    self._last_scope_chunk = chunk[::max(1, n // 100)][:100].copy()
+                else:
+                    pad = np.zeros(100, dtype=np.float32)
+                    pad[:n] = chunk
+                    self._last_scope_chunk = pad
+                self.play_cursor += n
+            if n < frames:
+                outdata[n:, 0] = 0
+            if self.play_cursor >= len(self.play_buffer):
+                self.is_playing = False
+
+    def _update_scope_from_playhead(self):
+        """UI-thread timer: push latest audio chunk into the oscilloscope and handle end-of-play."""
+        if not self.is_playing:
+            self.stop_playback()
+            return
+        if isinstance(getattr(self, 'visual_oscilloscope', None), VisualOscilloscope):
+            self.visual_oscilloscope.update_waveform(self._last_scope_chunk)
+        if self.play_buffer is not None and len(self.play_buffer) > 0:
+            pct = int(100 * self.play_cursor / len(self.play_buffer))
+            if hasattr(self, 'scope_status_label'):
+                self.scope_status_label.setText(
+                    f"📊 Phase-Space Oscilloscope  |  LIVE  {pct}%  ·  Vol {int(self.master_volume*100)}%"
+                )
+
     def toggle_playback(self):
-        print("[System] Live high-bitrate audio engine streaming active across cross-loaded operator matrix.")
+        if self.is_playing:
+            self.stop_playback()
+            return
+
+        if not HAS_SOUNDDEVICE:
+            QMessageBox.warning(
+                self, "Audio Engine",
+                "sounddevice is not available.\nInstall with:  pip install sounddevice\n"
+                "Falling back to visualizer-only preview."
+            )
+
+        try:
+            if hasattr(self, 'scope_status_label'):
+                self.scope_status_label.setText("📊 Rendering mixdown for realtime play…")
+            QApplication.processEvents()
+
+            buf, sr = self._render_mixdown_buffer()
+            with self.play_lock:
+                self.play_buffer = buf
+                self.play_sample_rate = sr
+                self.play_cursor = 0
+                self.is_playing = True
+
+            if HAS_SOUNDDEVICE:
+                if self.audio_stream is not None:
+                    try:
+                        self.audio_stream.stop()
+                        self.audio_stream.close()
+                    except Exception:
+                        pass
+                self.audio_stream = sd.OutputStream(
+                    samplerate=sr,
+                    channels=1,
+                    dtype='float32',
+                    callback=self._audio_callback,
+                    blocksize=1024,
+                    latency='low'
+                )
+                self.audio_stream.start()
+
+            self.btn_play.setText("⏸ Stop / Playing")
+            self.btn_play.setStyleSheet("background-color: #00aa55; color: white; font-weight: bold;")
+            self._scope_update_timer.start()
+            if hasattr(self, 'scope_status_label'):
+                self.scope_status_label.setText("📊 Phase-Space Oscilloscope  |  LIVE PLAYING")
+            print(f"[Audio] Realtime stream started ({len(buf)/sr:.1f}s @ {sr} Hz, sounddevice={HAS_SOUNDDEVICE})")
+        except Exception as e:
+            self.is_playing = False
+            print(f"[Audio] Playback start failed: {e}")
+            if hasattr(self, 'scope_status_label'):
+                self.scope_status_label.setText(f"📊 Playback error: {e}")
+            QMessageBox.critical(self, "Playback Error", str(e))
 
     def stop_playback(self):
-        print("[System] Live audio playback stopped.")
+        was = self.is_playing
+        self.is_playing = False
+        if hasattr(self, '_scope_update_timer') and self._scope_update_timer.isActive():
+            self._scope_update_timer.stop()
+        if getattr(self, 'audio_stream', None) is not None:
+            try:
+                self.audio_stream.stop()
+                self.audio_stream.close()
+            except Exception:
+                pass
+            self.audio_stream = None
+        with getattr(self, 'play_lock', threading.Lock()):
+            self.play_cursor = 0
+        if hasattr(self, 'btn_play'):
+            self.btn_play.setText("▶ Live Audio Play")
+            self.btn_play.setStyleSheet("")
+        if hasattr(self, 'scope_status_label'):
+            self.scope_status_label.setText("📊 Phase-Space Oscilloscope  |  Status: Stopped")
+        if isinstance(getattr(self, 'visual_oscilloscope', None), VisualOscilloscope):
+            self.visual_oscilloscope.update_waveform(np.zeros(100))
+        if was:
+            print("[Audio] Realtime playback stopped.")
 
     def export_mixdown_dialog(self):
         try:
-            if wavfile is None:
-                print("[System Error] Scipy is not available. Run `pip install scipy`.")
-                return
-
             default_filename = f"groovebox_mixdown_{self.export_counter:03d}.wav"
-            file_path, _ = QFileDialog.getSaveFileName(self, "Save Mixdown Audio", default_filename, "WAV Audio Files (*.wav)")
-
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, "Save Mixdown Audio", default_filename, "WAV Audio Files (*.wav)"
+            )
             if not file_path:
                 return
 
-            sample_rate = 44100
-            bpm = self.spin_bpm.value() if hasattr(self, 'spin_bpm') else 120
-            rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 32
-            seq_len = self.spin_seq_length.value() if hasattr(self, 'spin_seq_length') else 16
-            global_playlist_enabled = self.chk_global_playlist.isChecked() if hasattr(self, 'chk_global_playlist') else True
+            if hasattr(self, 'scope_status_label'):
+                self.scope_status_label.setText("📊 Rendering full mixdown for export…")
+            QApplication.processEvents()
 
-            seconds_per_beat = 60.0 / bpm
-            step_duration = seconds_per_beat / 4.0
-            row_duration = step_duration * seq_len
-            total_duration = rows * row_duration
+            master, sample_rate = self._render_mixdown_buffer()
+            pcm = (master * 32767.0).astype(np.int16)
 
-            t = np.linspace(0, total_duration, int(sample_rate * total_duration))
-            master_mixdown = np.zeros_like(t)
+            if wavfile is not None:
+                wavfile.write(file_path, sample_rate, pcm)
+            else:
+                with wave.open(file_path, 'w') as wf:
+                    wf.setnchannels(1)
+                    wf.setsampwidth(2)
+                    wf.setframerate(sample_rate)
+                    wf.writeframes(pcm.tobytes())
 
-            base_eqr = self.slider_eqr.value() / 100.0 if hasattr(self, 'slider_eqr') else 0.5
-            pkp_decay = self.slider_pkp_decay.value() / 1000.0 if hasattr(self, 'slider_pkp_decay') else 0.25
-            fractalizer_val = self.slider_fractalizer.value() / 100.0 if hasattr(self, 'slider_fractalizer') else 0.85
-            pkp_auto = self.chk_pkp_automod.isChecked()
-            seed_val = self.get_numeric_seed() if hasattr(self, 'spin_seed_val') else 42
+            if isinstance(getattr(self, 'visual_oscilloscope', None), VisualOscilloscope):
+                prev = master[: min(len(master), sample_rate // 2)]
+                idx = np.linspace(0, len(prev) - 1, 100).astype(int)
+                self.visual_oscilloscope.update_waveform(prev[idx])
 
-            print(f"[Resonance Nullifier] Rendering mixdown (Global Playlist Active: {global_playlist_enabled}) at {bpm} BPM to '{file_path}'...")
-
-            np.random.seed(seed_val)
-
-            for row_idx in range(rows):
-                start_time = row_idx * row_duration
-                end_time = start_time + row_duration
-                mask = (t >= start_time) & (t < end_time)
-
-                if not np.any(mask):
-                    continue
-
-                local_t = t[mask] - start_time
-                row_mix = np.zeros_like(local_t)
-
-                # Determine active operators for this row based on Global Playlist Mode or random cluster
-                if global_playlist_enabled and row_idx < len(self.master_playlist_data):
-                    playlist_row_entry = self.master_playlist_data[row_idx]
-                    primary_op = playlist_row_entry.get("operator", self.instrument_names_48[0])
-                    # Pick primary operator from the playlist timeline plus 3 companion harmony units
-                    op_indices = [self.instrument_names_48.index(primary_op)] if primary_op in self.instrument_names_48 else [0]
-                    companion_indices = np.random.choice([i for i in range(len(self.instrument_names_48)) if i != op_indices[0]], size=3, replace=False).tolist()
-                    active_cluster = op_indices + companion_indices
-                else:
-                    active_cluster = np.random.choice(len(self.instrument_names_48), size=4, replace=False)
-
-                for op_idx in active_cluster:
-                    op_name = self.instrument_names_48[op_idx]
-                    mem = self.instrument_sequencer_memory[op_name]
-
-                    base_freq = 44.0 * (MEUM_CONSTANT ** (op_idx % 36))
-                    mod_freq = base_freq * MEUM_CONSTANT
-
-                    dynamic_eqr = base_eqr * (1.0 + 0.3 * np.sin(2.0 * np.pi * 0.2 * local_t + op_idx))
-
-                    step_trigger_envelope = np.zeros_like(local_t)
-                    for s_idx in range(min(seq_len, len(mem["steps"]))):
-                        if mem["steps"][s_idx]:
-                            s_start = s_idx * step_duration
-                            s_end = s_start + step_duration
-                            s_mask = (local_t >= s_start) & (local_t < s_end)
-                            if np.any(s_mask):
-                                s_local = local_t[s_mask] - s_start
-                                amp = mem["amplitudes"][s_idx]
-                                step_trigger_envelope[s_mask] += amp * np.exp(-s_local / max(step_duration * 0.5, 0.01))
-
-                    carrier = np.sin(2 * np.pi * mod_freq * local_t)
-                    oscillator = np.sin(2 * np.pi * base_freq * local_t + carrier * (dynamic_eqr * MEUM_CONSTANT * fractalizer_val))
-
-                    env_follower = np.exp(-local_t / max(pkp_decay * (MEUM_CONSTANT if pkp_auto else 1.0), 0.015))
-                    pkp_trigger = env_follower * np.sin(2 * np.pi * (base_freq * 2.0) * local_t)
-
-                    combined_gate = np.maximum(step_trigger_envelope, 0.1)
-                    row_mix += (oscillator * 0.4 + pkp_trigger * 0.6) * combined_gate
-
-                master_mixdown[mask] += row_mix / len(active_cluster)
-
-            max_val = np.max(np.abs(master_mixdown))
-            if max_val > 0:
-                master_mixdown = (master_mixdown / max_val) * 0.98
-
-            wavfile.write(file_path, sample_rate, (master_mixdown * 32767).astype(np.int16))
-            print(f"[System] Success: High-bitrate audio exported to {file_path}")
+            print(f"[System] Success: exported → {file_path}")
             self.export_counter += 1
-
+            if hasattr(self, 'scope_status_label'):
+                self.scope_status_label.setText(f"📊 Export complete → {os.path.basename(file_path)}")
         except Exception as e:
-            print(f"[System] Error during audio export: {e}")
+            print(f"[System] Export error: {e}")
+            if hasattr(self, 'scope_status_label'):
+                self.scope_status_label.setText(f"📊 Export error: {e}")
+            QMessageBox.critical(self, "Export Error", str(e))
 
+    def closeEvent(self, event):
+        """Ensure audio stream is torn down when the main window closes."""
+        try:
+            self.stop_playback()
+        except Exception:
+            pass
+        super().closeEvent(event)
     def spawn_floating_window(self, attr_name, window_title):
         window = getattr(self, attr_name, None)
 
