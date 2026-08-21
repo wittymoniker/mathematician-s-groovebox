@@ -4,7 +4,7 @@
 # maximum initial harmonic diversity; simple and complex projects with equal ease.
 #
 # Credits / collaboration:
-#   - Core architecture & original EQR design: project author
+#   - Core architecture & original EQR/fractallizer design: project author
 #   - Implementation assistance (realtime audio, additive engines, domain
 #     partitions, bootstrap/simplify, Help system): Grok (xAI) and Gemini (Google)
 #
