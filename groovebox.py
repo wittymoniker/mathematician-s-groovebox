@@ -1,5 +1,5 @@
 # =============================================================================
-# EQR Groovebox Engine v3.6.8+
+# Fractal/EQR/Idealized Groovebox Engine v3.6.8+
 # Mathematician's / Scientist's Groovebox — mathematical specification for
 # maximum initial harmonic diversity; simple and complex projects with equal ease.
 #
