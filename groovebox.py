@@ -1,3 +1,14 @@
+"""
+EQR GROOVEBOX — v3 STABLE — YOUR EDITION + UNIFIED MEDIA CARRIER
+
+This build preserves the stable v3 application as the source edition and adds
+one shared WAV/VIDEO carrier contract for Randomizer, Phase-Locker, Convolve-Fit,
+audio rendering, and audiovisual reconversion.
+
+MEDIA CONTRACT:
+  WAV or VIDEO import -> normalized media_carrier_slot -> per-sequence media field
+  -> Randomizer/Phase-Locker guidance -> enhanced render master -> WAV and/or MP4.
+"""
 # =============================================================================
 # EQR Groovebox Engine v3.6.8+ — stable media/convolve-fit build
 # Mathematician's / Scientist's Groovebox — mathematical specification for
@@ -1782,6 +1793,7 @@ class PhaseLockedWavefieldEngine:
         numeric_seed = self.get_numeric_seed()
         names = list(getattr(app, 'instrument_names_48', []))
         self.wavefield = {}
+        media_field = app._media_slot_field(count) if hasattr(app, "_media_slot_field") else np.full(count, 0.5, dtype=np.float32)
 
         for i, name in enumerate(names):
             pulses = max(1, int((i * MEUM_CONSTANT + (numeric_seed % 5) + 2) % 7) + 1)
@@ -1792,8 +1804,10 @@ class PhaseLockedWavefieldEngine:
             for s in range(count):
                 phase = (s / max(count, 1)) * 2.0 * np.pi + (numeric_seed * 0.05) + i * 0.11
                 env = 0.5 * (1.0 + np.sin(phase))
-                # Seed-harmonic partial: Meum-scaled overtone bias per step
                 harm = 0.5 + 0.5 * np.sin(phase * MEUM_CONSTANT + (numeric_seed % 97) * 0.01)
+                media = float(media_field[s])
+                env = 0.65 * env + 0.35 * media
+                harm = 0.65 * harm + 0.35 * media
                 envelope.append(float(env))
                 seed_harmonics.append(float(harm))
             self.wavefield[name] = {
@@ -2542,7 +2556,8 @@ class ReadmeGuideDialog(QDialog):
 
     HELP_TEXT = r"""
 ================================================================================
-  EQR GROOVEBOX — Mathematician's / Scientist's Groovebox
+  EQR GROOVEBOX — v3 STABLE — YOUR EDITION + UNIFIED MEDIA CARRIER
+  Mathematician's / Scientist's Groovebox
   Full Documentation, Scripting Syntax & Design Philosophy
 ================================================================================
   Credits: core EQR design — project author; implementation assistance —
@@ -2596,7 +2611,30 @@ generative structure, and mathematically guided composition.
      to additive-fill empty structure around your carrier.
 
 --------------------------------------------------------------------------------
-4. SEED RULES
+4. UNIFIED WAV / VIDEO MEDIA CARRIER
+--------------------------------------------------------------------------------
+WAV and VIDEO imports use the same normalized carrier slot. Video audio is
+decoded to mono 44.1 kHz for the carrier; the visual stream remains a separate
+visual reference for MP4 reconversion. The slot is shared by all enhancement
+engines, so the same source position drives both audio and audiovisual paths.
+
+For sequence length N, each slot receives one normalized RMS value:
+    r_k = sqrt(mean(carrier_segment_k^2))
+    m_k = clip((r_k-min(r))/(max(r)-min(r)), 0, 1)
+If the carrier is flat, m_k = 0.5 for every slot.
+
+Phase-Locker guidance uses:
+    envelope' = 0.65*envelope + 0.35*m_k
+    harmonic' = 0.65*harmonic + 0.35*m_k
+The Randomizer reads these same per-slot hints. It does not maintain a separate
+video randomizer or audio randomizer. This guarantees uniform slot correspondence.
+
+Reconversion rule:
+    source WAV/VIDEO -> ONE carrier slot -> enhancement -> ONE render master
+    -> WAV export and/or MP4 export on the same timeline.
+
+--------------------------------------------------------------------------------
+5. SEED RULES
 --------------------------------------------------------------------------------
   • Empty field, 0, and 0.0 all mean **no seed** (same treatment).
   • Any non-zero number is a real geometric anchor.
@@ -7348,6 +7386,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # CONVOLVE_FIT_FEATURE to restore the previous behavior.
         # =====================================================================
         self.imported_waveform = None
+        self.media_carrier_slot = {"kind": "none", "path": "", "sample_rate": 44100, "waveform": None, "duration": 0.0, "video_meta": {}}
         self.imported_sample_rate = 44100
         self.imported_wav_path = ""
         # MEDIA_IMPORT_FEATURE: optional video carrier + parsed stream metadata.
@@ -9322,12 +9361,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         peak = float(np.max(np.abs(arr)))
         if peak > 1e-9:
             arr /= peak
-        self.imported_waveform = arr
-        self.imported_sample_rate = int(sample_rate)
-        self.imported_wav_path = file_path
-        # A new WAV carrier supersedes a previous video carrier, but keeps its audio behavior.
-        self.imported_video_path = ""
-        self.imported_video_meta = {}
+        self._set_media_carrier_slot(arr, int(sample_rate), file_path, kind="audio")
         self._update_imported_media_ui(file_path, sample_rate, arr.size, is_video=False)
         print(f"[WAV Carrier] Loaded {file_path} ({sample_rate} Hz, {arr.size} samples)")
 
@@ -9382,13 +9416,48 @@ class MathematiciansGrooveboxApp(QMainWindow):
         peak = float(np.max(np.abs(arr)))
         if peak > 1e-9:
             arr /= peak
-        self.imported_waveform = arr
-        self.imported_sample_rate = 44100
-        self.imported_wav_path = file_path
-        self.imported_video_path = file_path
-        self.imported_video_meta = meta
+        self._set_media_carrier_slot(arr, 44100, file_path, kind="video", video_meta=meta)
         self._update_imported_media_ui(file_path, 44100, arr.size, is_video=True)
         print(f"[Video Carrier] Parsed {file_path}: {meta}; audio samples={arr.size}")
+
+    def _set_media_carrier_slot(self, waveform, sample_rate, file_path, kind="audio", video_meta=None):
+        """Normalize WAV/video into the single carrier slot shared by every engine."""
+        arr = np.asarray(waveform, dtype=np.float32).ravel()
+        arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
+        peak = float(np.max(np.abs(arr))) if arr.size else 0.0
+        if peak > 1e-9:
+            arr = arr / peak
+        sr = max(int(sample_rate), 1)
+        meta = dict(video_meta or {})
+        self.imported_waveform = arr
+        self.imported_sample_rate = sr
+        self.imported_wav_path = file_path
+        self.imported_video_path = file_path if kind == "video" else ""
+        self.imported_video_meta = meta if kind == "video" else {}
+        self.media_carrier_slot = {"kind": str(kind), "path": file_path, "sample_rate": sr,
+                                   "waveform": arr, "duration": float(arr.size / sr),
+                                   "video_meta": meta}
+
+    def _media_slot_field(self, count):
+        """One deterministic normalized RMS value per sequence slot for WAV or VIDEO."""
+        count = max(int(count), 1)
+        slot = getattr(self, "media_carrier_slot", {})
+        arr = slot.get("waveform")
+        if arr is None or np.asarray(arr).size < 2:
+            return np.full(count, 0.5, dtype=np.float32)
+        arr = np.asarray(arr, dtype=np.float32).ravel()
+        edges = np.linspace(0, arr.size, count + 1).astype(int)
+        vals = np.empty(count, dtype=np.float32)
+        for i in range(count):
+            a, b = edges[i], max(edges[i+1], edges[i] + 1)
+            seg = arr[a:min(b, arr.size)]
+            vals[i] = float(np.sqrt(np.mean(seg * seg))) if seg.size else 0.0
+        lo, hi = float(vals.min()), float(vals.max())
+        if hi - lo > 1e-7:
+            vals = (vals - lo) / (hi - lo)
+        else:
+            vals.fill(0.5)
+        return np.clip(vals, 0.0, 1.0).astype(np.float32)
 
     def _update_imported_media_ui(self, file_path, sample_rate, sample_count, is_video=False):
         name = os.path.basename(file_path)
