@@ -1,14 +1,3 @@
-"""
-EQR GROOVEBOX — v3 STABLE — YOUR EDITION + UNIFIED MEDIA CARRIER
-
-This build preserves the stable v3 application as the source edition and adds
-one shared WAV/VIDEO carrier contract for Randomizer, Phase-Locker, Convolve-Fit,
-audio rendering, and audiovisual reconversion.
-
-MEDIA CONTRACT:
-  WAV or VIDEO import -> normalized media_carrier_slot -> per-sequence media field
-  -> Randomizer/Phase-Locker guidance -> enhanced render master -> WAV and/or MP4.
-"""
 # =============================================================================
 # EQR Groovebox Engine v3.6.8+ — stable media/convolve-fit build
 # Mathematician's / Scientist's Groovebox — mathematical specification for
@@ -1793,7 +1782,6 @@ class PhaseLockedWavefieldEngine:
         numeric_seed = self.get_numeric_seed()
         names = list(getattr(app, 'instrument_names_48', []))
         self.wavefield = {}
-        media_field = app._media_slot_field(count) if hasattr(app, "_media_slot_field") else np.full(count, 0.5, dtype=np.float32)
 
         for i, name in enumerate(names):
             pulses = max(1, int((i * MEUM_CONSTANT + (numeric_seed % 5) + 2) % 7) + 1)
@@ -1804,10 +1792,8 @@ class PhaseLockedWavefieldEngine:
             for s in range(count):
                 phase = (s / max(count, 1)) * 2.0 * np.pi + (numeric_seed * 0.05) + i * 0.11
                 env = 0.5 * (1.0 + np.sin(phase))
+                # Seed-harmonic partial: Meum-scaled overtone bias per step
                 harm = 0.5 + 0.5 * np.sin(phase * MEUM_CONSTANT + (numeric_seed % 97) * 0.01)
-                media = float(media_field[s])
-                env = 0.65 * env + 0.35 * media
-                harm = 0.65 * harm + 0.35 * media
                 envelope.append(float(env))
                 seed_harmonics.append(float(harm))
             self.wavefield[name] = {
@@ -2556,8 +2542,7 @@ class ReadmeGuideDialog(QDialog):
 
     HELP_TEXT = r"""
 ================================================================================
-  EQR GROOVEBOX — v3 STABLE — YOUR EDITION + UNIFIED MEDIA CARRIER
-  Mathematician's / Scientist's Groovebox
+  EQR GROOVEBOX — Mathematician's / Scientist's Groovebox
   Full Documentation, Scripting Syntax & Design Philosophy
 ================================================================================
   Credits: core EQR design — project author; implementation assistance —
@@ -2611,30 +2596,7 @@ generative structure, and mathematically guided composition.
      to additive-fill empty structure around your carrier.
 
 --------------------------------------------------------------------------------
-4. UNIFIED WAV / VIDEO MEDIA CARRIER
---------------------------------------------------------------------------------
-WAV and VIDEO imports use the same normalized carrier slot. Video audio is
-decoded to mono 44.1 kHz for the carrier; the visual stream remains a separate
-visual reference for MP4 reconversion. The slot is shared by all enhancement
-engines, so the same source position drives both audio and audiovisual paths.
-
-For sequence length N, each slot receives one normalized RMS value:
-    r_k = sqrt(mean(carrier_segment_k^2))
-    m_k = clip((r_k-min(r))/(max(r)-min(r)), 0, 1)
-If the carrier is flat, m_k = 0.5 for every slot.
-
-Phase-Locker guidance uses:
-    envelope' = 0.65*envelope + 0.35*m_k
-    harmonic' = 0.65*harmonic + 0.35*m_k
-The Randomizer reads these same per-slot hints. It does not maintain a separate
-video randomizer or audio randomizer. This guarantees uniform slot correspondence.
-
-Reconversion rule:
-    source WAV/VIDEO -> ONE carrier slot -> enhancement -> ONE render master
-    -> WAV export and/or MP4 export on the same timeline.
-
---------------------------------------------------------------------------------
-5. SEED RULES
+4. SEED RULES
 --------------------------------------------------------------------------------
   • Empty field, 0, and 0.0 all mean **no seed** (same treatment).
   • Any non-zero number is a real geometric anchor.
@@ -7386,7 +7348,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # CONVOLVE_FIT_FEATURE to restore the previous behavior.
         # =====================================================================
         self.imported_waveform = None
-        self.media_carrier_slot = {"kind": "none", "path": "", "sample_rate": 44100, "waveform": None, "duration": 0.0, "video_meta": {}}
         self.imported_sample_rate = 44100
         self.imported_wav_path = ""
         # MEDIA_IMPORT_FEATURE: optional video carrier + parsed stream metadata.
@@ -7396,8 +7357,10 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         self.playlist_automation = []
         self.instrument_param_state = {}
-        self.init_ui_components()
+        # Build the initial program state before rendering the sequencer.
+        # This prevents the first selection click from revealing hidden gates.
         self.apply_hardcoded_compositions()
+        self.init_ui_components()
         self.initialize_default_playlist_memory()
 
     def apply_hardcoded_compositions(self):
@@ -7537,16 +7500,18 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # preferred again. All code reads the field through _seed_text().
         # =====================================================================
         self.input_seed_val = QTextEdit()
-        self.input_seed_val.setPlainText("0.0")
+        # USER-CONTROLLED FIELD: never assign a random/default seed here.
+        self.input_seed_val.setPlainText("")
         self.input_seed_val.setToolTip(
             "Global parametric/script seed. Enter expressions, multiline scripts, "
             "irrational constants, or symbolic geometry. The field scrolls."
         )
         self.input_seed_val.setAcceptRichText(False)
         self.input_seed_val.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
-        self.input_seed_val.setMinimumSize(360, 250)
+        self.input_seed_val.setMinimumSize(360, 110)
         self.input_seed_val.setMaximumWidth(520)
-        self.input_seed_val.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.input_seed_val.setMaximumHeight(150)
+        self.input_seed_val.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         self.btn_export = QPushButton("💾 Export .wav...")
 
@@ -7556,15 +7521,18 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # Left: square-ish script editor. Right: all other global controls.
         self.global_geometry_layout = QHBoxLayout()
         seed_panel = QVBoxLayout()
-        seed_panel.addWidget(QLabel("GLOBAL SEED / PARAMETRIC SCRIPT:"))
+        seed_panel.addWidget(QLabel("GLOBAL SEED / PARAMETRIC SCRIPT (USER CONTROLLED):"))
         seed_panel.addWidget(self.input_seed_val, 1)
         seed_panel.addWidget(self.btn_help)
         self.global_geometry_layout.addLayout(seed_panel, 1)
 
         self.global_controls_side = QVBoxLayout()
         self.global_controls_side.setSpacing(6)
-        self.global_controls_side.addWidget(QLabel("GLOBAL CONTROLS"))
+        self.global_controls_side.setContentsMargins(0, 0, 0, 0)
+        self.global_controls_side.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.global_controls_side.addWidget(QLabel("GLOBAL CONTROLS"), 0, Qt.AlignmentFlag.AlignTop)
         self.global_geometry_layout.addLayout(self.global_controls_side, 1)
+        self.global_geometry_layout.setAlignment(self.global_controls_side, Qt.AlignmentFlag.AlignTop)
 
         self.btn_play.clicked.connect(self.toggle_playback)
         self.btn_stop.clicked.connect(self.stop_playback)
@@ -7643,17 +7611,23 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.spin_base_frequency.setValue(432.0)
         self.spin_tuning = self.spin_base_frequency  # compatibility alias
         self.top_layout.addWidget(self.spin_base_frequency)
-        self.top_layout.addWidget(QLabel("EQR Mod:"))
-        self.top_layout.addWidget(self.slider_eqr)
+        # Keep the primary effect sliders in their own visible row so they cannot
+        # be squeezed out by the long global transport/media controls.
+        global_fx_group = QGroupBox("GLOBAL EFFECTS")
+        global_fx_group.setToolTip("Global EQR, Fractallizer, and PKP effect controls.")
+        global_fx_layout = QHBoxLayout(global_fx_group)
+        global_fx_layout.setContentsMargins(8, 4, 8, 4)
+        global_fx_layout.setSpacing(8)
+        global_fx_layout.addWidget(QLabel("EQR:"))
+        global_fx_layout.addWidget(self.slider_eqr, 1)
+        global_fx_layout.addWidget(QLabel("Fractallizer:"))
+        global_fx_layout.addWidget(self.slider_fractalizer, 1)
+        global_fx_layout.addWidget(QLabel("PKP Decay:"))
+        global_fx_layout.addWidget(self.slider_pkp_decay, 1)
+        global_fx_layout.addWidget(self.chk_pkp_automod)
+        self.global_effects_group = global_fx_group
 
-        # --- ADD TO LAYOUT HERE ---
-        self.top_layout.addWidget(QLabel("Fractalizer:"))
-        self.top_layout.addWidget(self.slider_fractalizer)
-
-        self.top_layout.addWidget(QLabel("PKP Decay:"))
-        self.top_layout.addWidget(self.slider_pkp_decay)
-        self.top_layout.addWidget(self.chk_pkp_automod)
-
+        self.global_controls_side.addWidget(self.global_effects_group, 0, Qt.AlignmentFlag.AlignTop)
         self.global_controls_side.addLayout(self.top_layout)
 
         # =====================================================================
@@ -7760,13 +7734,22 @@ class MathematiciansGrooveboxApp(QMainWindow):
         seq_header_layout = QHBoxLayout()
         seq_header_layout.addWidget(QLabel("⚡ PKP STEP Sequencer — Global Geometric Phase-Lock / Nullifier"))
 
-        seq_header_layout.addWidget(QLabel("Selected Instrument / Global PKP NullLock:"))
+        # The instrument selector chooses WHICH instrument the PKP NullLock play button auditions.
+        seq_header_layout.addWidget(QLabel("Selected Instrument:"))
         seq_header_layout.addWidget(self.instrument_selector_dropdown, stretch=1)
 
-        seq_header_layout.addWidget(QLabel("PKP NullLock: GLOBAL / note-triggered at Base Frequency"))
+        self.btn_pkp_null_lock_play = QPushButton("▶ PKP NullLock — BOOST")
+        self.btn_pkp_null_lock_play.setToolTip(
+            "Boost the PKP NullLock layer for the currently selected instrument. "
+            "This does not change the selected instrument, its steps, the seed, or the playlist."
+        )
+        self.btn_pkp_null_lock_play.setCheckable(False)
+        self.btn_pkp_null_lock_play.clicked.connect(self._play_selected_instrument_pkp)
+        seq_header_layout.addWidget(self.btn_pkp_null_lock_play)
+
         seq_inner.addLayout(seq_header_layout)
 
-        # PKP NullLock is global, not a separate timeline or step clock.
+        # PKP NullLock is an audition/play action, not a dropdown, timeline event, or independent clock.
         self.pkp_pad_bank_active = False
         self.pkp_current_step = 0
 
@@ -7792,8 +7775,17 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.steps_scroll.setMinimumHeight(112)
         seq_inner.addWidget(self.steps_scroll, stretch=1)
 
-        # Step select → Amp (velocity) + Pitch (Hz ratio) sliders
-        step_edit = QHBoxLayout()
+        # Step editor is a floating/teleporting inspector. It follows the selected
+        # pad and places itself above or below the pad so the controls remain visible.
+        self.step_editor_popup = QWidget(self.steps_scroll.viewport())
+        self.step_editor_popup.setObjectName("stepEditorPopup")
+        self.step_editor_popup.setStyleSheet(
+            "#stepEditorPopup { background:#0b1116; border:2px solid #f5d97d; "
+            "border-radius:8px; padding:6px; } QLabel { color:#ffffff; font-weight:bold; }"
+        )
+        self.step_editor_popup.setFixedHeight(74)
+        step_edit = QHBoxLayout(self.step_editor_popup)
+        step_edit.setContentsMargins(8, 6, 8, 6)
         self.lbl_selected_step = QLabel("Step: —")
         self.lbl_selected_step.setStyleSheet("color: #f5d97d; font-weight: bold;")
         step_edit.addWidget(self.lbl_selected_step)
@@ -7808,15 +7800,14 @@ class MathematiciansGrooveboxApp(QMainWindow):
         step_edit.addWidget(self.lbl_step_amp)
         step_edit.addWidget(QLabel("Pitch:"))
         self.slider_step_pitch = QSlider(Qt.Orientation.Horizontal)
-        self.slider_step_pitch.setRange(25, 400)  # 0.25x .. 4.0x frequency ratio * 100
+        self.slider_step_pitch.setRange(25, 400)
         self.slider_step_pitch.setValue(100)
         self.slider_step_pitch.setFixedWidth(120)
         self.slider_step_pitch.valueChanged.connect(self._on_step_pitch_slider)
         step_edit.addWidget(self.slider_step_pitch)
         self.lbl_step_pitch = QLabel("1.00×")
         step_edit.addWidget(self.lbl_step_pitch)
-        step_edit.addStretch(1)
-        seq_inner.addLayout(step_edit)
+        self.step_editor_popup.hide()
         self.selected_step_idx = None
 
         # Visualizer focus dropdown
@@ -7936,6 +7927,27 @@ class MathematiciansGrooveboxApp(QMainWindow):
             btn.setStyleSheet(
                 "background-color: #121212; color: #00ffff; border: 2px solid #444444;"
             )
+
+    def _play_selected_instrument_pkp(self):
+        """One-shot audition of a modified PKP/Null-Lock instance of the selected instrument."""
+        try:
+            inst_name = self.instrument_selector_dropdown.currentText()
+            mem = self.instrument_sequencer_memory.get(inst_name, {})
+            steps = mem.get("steps", [])
+            active = [i for i, on in enumerate(steps) if on]
+            if not active:
+                active = [self.selected_step_idx if self.selected_step_idx is not None else 0]
+            step_idx = active[0] % max(1, int(self.spin_seq_length.value()))
+            amp = 1.0
+            if self.selected_step_idx is not None and self.selected_step_idx < len(mem.get("amplitudes", [])):
+                amp = float(mem["amplitudes"][self.selected_step_idx])
+            elif step_idx < len(mem.get("amplitudes", [])):
+                amp = float(mem["amplitudes"][step_idx])
+            self._pkp_fire_step_hit(inst_name, step_idx, amp=max(0.0, min(1.0, amp)))
+            if hasattr(self, "scope_status_label"):
+                self.scope_status_label.setText(f"▶ PKP NullLock audition · {inst_name[:24]} · step {step_idx + 1}")
+        except Exception as e:
+            print(f"[PKP NullLock] audition error: {e}")
 
     def toggle_pkp_pad_bank(self, checked):
         """Compatibility hook: PKP NullLock is global and never owns a timeline clock."""
@@ -8153,31 +8165,60 @@ class MathematiciansGrooveboxApp(QMainWindow):
     # a two-click state machine, which prevents a Step 3 click from visually
     # propagating activation across the sequence.
     # =====================================================================
+    def _position_step_editor(self, s_idx):
+        """Teleport the selected-step editor above/below the selected pad."""
+        if not hasattr(self, 'step_editor_popup') or s_idx >= len(getattr(self, 'seq_step_buttons', [])):
+            return
+        btn = self.seq_step_buttons[s_idx]
+        viewport = self.steps_scroll.viewport()
+        self.steps_scroll.ensureWidgetVisible(btn, 24, 24)
+        # Geometry is valid after the scroll adjustment; clamp popup into viewport.
+        pos = btn.mapTo(viewport, btn.rect().topLeft())
+        pw = self.step_editor_popup.width()
+        ph = self.step_editor_popup.height()
+        vw = viewport.width()
+        vh = viewport.height()
+        x = max(4, min(pos.x() + (btn.width() - pw) // 2, max(4, vw - pw - 4)))
+        above_y = pos.y() - ph - 6
+        below_y = pos.y() + btn.height() + 6
+        y = above_y if above_y >= 4 else below_y
+        y = max(4, min(y, max(4, vh - ph - 4)))
+        self.step_editor_popup.move(x, y)
+        self.step_editor_popup.raise_()
+        self.step_editor_popup.show()
+
     def _on_step_pad_clicked(self, s_idx):
         curr_i = self.instrument_selector_dropdown.currentText()
         mem = self.instrument_sequencer_memory[curr_i]
         self._ensure_seq_mem_length(mem, max(s_idx + 1, len(mem.get("steps", []))))
 
-        # STEP_ISOLATION_FIX_V3: select first, then toggle exactly one stored gate.
-        # Never write amplitude/pitch merely because a pad was selected.
+        # STEP SELECTION CONTRACT:
+        #   first click on a different cell = SELECT ONLY; never touch gates.
+        #   second click on that same selected cell = TOGGLE ONLY THAT CELL.
+        # Randomizer/Phase-Locker are the only engines permitted to change other cells.
+        same_step = (self.selected_step_idx == s_idx)
         self.selected_step_idx = s_idx
-        mem["steps"][s_idx] = not bool(mem["steps"][s_idx])
+        if same_step:
+            mem["steps"][s_idx] = not bool(mem["steps"][s_idx])
 
         if hasattr(self, 'lbl_selected_step'):
             self.lbl_selected_step.setText(f"Step: {s_idx + 1}")
+        amp = float(mem["amplitudes"][s_idx]) if s_idx < len(mem.get("amplitudes", [])) else 1.0
+        pitch = float(mem["pitches"][s_idx]) if s_idx < len(mem.get("pitches", [])) else 1.0
         if hasattr(self, 'slider_step_amp'):
             self.slider_step_amp.blockSignals(True)
-            self.slider_step_amp.setValue(int(round(mem["amplitudes"][s_idx] * 100)))
+            self.slider_step_amp.setValue(int(round(amp * 100)))
             self.slider_step_amp.blockSignals(False)
-            self.lbl_step_amp.setText(f'{int(round(mem["amplitudes"][s_idx] * 100))}%')
+            self.lbl_step_amp.setText(f"{int(round(amp * 100))}%")
         if hasattr(self, 'slider_step_pitch'):
             self.slider_step_pitch.blockSignals(True)
-            self.slider_step_pitch.setValue(int(round(mem["pitches"][s_idx] * 100)))
+            self.slider_step_pitch.setValue(int(round(pitch * 100)))
             self.slider_step_pitch.blockSignals(False)
-            self.lbl_step_pitch.setText(f'{mem["pitches"][s_idx]:.2f}×')
+            self.lbl_step_pitch.setText(f"{pitch:.2f}×")
 
-        # Redraw every button from the same memory state, without modifying it.
+        # A normal click never invokes Randomizer/Phase-Locker or changes other pads.
         self.reload_active_instrument_sequencer_ui()
+        self._position_step_editor(s_idx)
 
     # =====================================================================
     # PLAYLIST_VELOCITY_PHASELOCK — playlist velocity participates in the same
@@ -8615,66 +8656,28 @@ class MathematiciansGrooveboxApp(QMainWindow):
         return False
 
     def bootstrap_seed_and_program_parameters(self):
+        """Return an engine seed without ever writing the USER seed field.
+
+        The global seed field is strictly user-owned. Empty means "no explicit seed".
+        Randomizer/Phase-Locker may use a transient runtime seed, but that value is
+        never written into the UI and bootstrap never changes sequencer gates.
         """
-        Hydrate missing seed and/or program parameters so playlist superwrite stays simple:
+        if not self._seed_is_absent():
+            return self.get_numeric_seed()
 
-        - No seed + no program  → assign both randomly (kit baseline)
-        - Program only, no seed → derive seed from program fingerprint (simplifies superwrite)
-        - Seed only, no program → provide seed-derived program parameters into pads + playlist
-        - Both present         → no bootstrap changes
+        # Explicitly seed-free program: derive a transient engine seed only.
+        # No UI mutation and no automatic program generation.
+        try:
+            fingerprint = self._fingerprint_program()
+        except Exception:
+            fingerprint = 0
+        if fingerprint:
+            return int(fingerprint % (2**31))
 
-        "Program" means net-effect user input only (playlist-effective + audible steps).
-        """
-        seed_absent = self._seed_is_absent()
-        program_present = self._program_has_net_effect()
-
-        actions = []
-
-        if seed_absent and not program_present:
-            # Free assignment: 50% both seed+program, 50% only one (then 50/50 seed vs program)
-            # Uses time-based entropy so successive boots differ without a fixed seed.
-            coin = (int(time.time() * 1000) ^ (int(time.time()) * 2654435761)) & 0xFFFFFFFF
-            assign_both = (coin % 2) == 0          # 50% both
-            alone_seed = ((coin >> 1) % 2) == 0    # when alone: 50% seed-only vs program-only
-
-            def _kit_pick_seed():
-                kit_seeds = [MEUM_CONSTANT, float(np.pi), float(np.e), 1.61803398875, 0.5772156649]
-                chosen = float(kit_seeds[coin % len(kit_seeds)])
-                chosen = chosen + (coin % 1000) * 1e-7
-                if hasattr(self, 'input_seed_val'):
-                    self.input_seed_val.setText(f"{chosen:.12g}")
-                return chosen
-
-            if assign_both:
-                chosen = _kit_pick_seed()
-                actions.append(f"50/50→BOTH: random seed→{chosen:.6g}")
-                self._provide_seed_program_parameters(self.get_numeric_seed())
-                actions.append("kit program parameters")
-            elif alone_seed:
-                chosen = _kit_pick_seed()
-                actions.append(f"50/50→SEED ONLY: random seed→{chosen:.6g}")
-            else:
-                # Program only — use a transient numeric seed for structure, do not write seed field
-                transient = (coin % 1000003) + 1
-                self._provide_seed_program_parameters(transient)
-                actions.append("50/50→PROGRAM ONLY: kit program parameters (seed field left empty)")
-
-        elif seed_absent and program_present:
-            fp = self._fingerprint_program()
-            derived = (fp % 1000003) / 1000003.0 * MEUM_CONSTANT + (fp % 97) * 1e-5
-            if hasattr(self, 'input_seed_val'):
-                self.input_seed_val.setText(f"{derived:.12g}")
-            actions.append(f"seed derived from program→{derived:.6g}")
-
-        elif (not seed_absent) and (not program_present):
-            self._provide_seed_program_parameters(self.get_numeric_seed())
-            actions.append("seed program parameters into pads+playlist")
-
-        else:
-            actions.append("no bootstrap needed")
-
-        print(f"[Bootstrap] seed_absent={seed_absent}, program_present={program_present} → {', '.join(actions)}")
-        return actions
+        # Runtime-only entropy for an explicitly invoked randomizing engine.
+        if not hasattr(self, '_runtime_engine_seed'):
+            self._runtime_engine_seed = int((time.time_ns() ^ id(self)) & 0x7fffffff)
+        return int(self._runtime_engine_seed)
 
     def _provide_seed_program_parameters(self, numeric_seed):
         """
@@ -8899,12 +8902,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
           the carrier (user) pattern.
         - Sporadic spectrum commutation via probability only on non-user slots.
         """
-        # Bootstrap missing seed/program, then simplify redundancies before fill
-        self.bootstrap_seed_and_program_parameters()
+        # Explicit engine action may use a transient seed, but never writes the user field.
+        seed = self.bootstrap_seed_and_program_parameters()
         self.simplify_redundant_user_definitions()
 
         count = int(self.spin_seq_length.value()) if hasattr(self, 'spin_seq_length') else 16
-        seed = self.get_numeric_seed()
         rng = np.random.default_rng(seed)
 
         filled = 0
@@ -9006,11 +9008,9 @@ class MathematiciansGrooveboxApp(QMainWindow):
           at seed-derived scales).
         - Only writes parameters the user has not specified.
         """
-        # Bootstrap missing seed/program, then simplify redundancies before fill
-        self.bootstrap_seed_and_program_parameters()
+        # Explicit engine action may use a transient seed, but never writes the user field.
+        numeric_seed = self.bootstrap_seed_and_program_parameters()
         self.simplify_redundant_user_definitions()
-
-        numeric_seed = self.get_numeric_seed()
         rng = np.random.default_rng(numeric_seed)
         count = int(self.spin_seq_length.value()) if hasattr(self, 'spin_seq_length') else 16
 
@@ -9361,7 +9361,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
         peak = float(np.max(np.abs(arr)))
         if peak > 1e-9:
             arr /= peak
-        self._set_media_carrier_slot(arr, int(sample_rate), file_path, kind="audio")
+        self.imported_waveform = arr
+        self.imported_sample_rate = int(sample_rate)
+        self.imported_wav_path = file_path
+        # A new WAV carrier supersedes a previous video carrier, but keeps its audio behavior.
+        self.imported_video_path = ""
+        self.imported_video_meta = {}
         self._update_imported_media_ui(file_path, sample_rate, arr.size, is_video=False)
         print(f"[WAV Carrier] Loaded {file_path} ({sample_rate} Hz, {arr.size} samples)")
 
@@ -9416,48 +9421,13 @@ class MathematiciansGrooveboxApp(QMainWindow):
         peak = float(np.max(np.abs(arr)))
         if peak > 1e-9:
             arr /= peak
-        self._set_media_carrier_slot(arr, 44100, file_path, kind="video", video_meta=meta)
+        self.imported_waveform = arr
+        self.imported_sample_rate = 44100
+        self.imported_wav_path = file_path
+        self.imported_video_path = file_path
+        self.imported_video_meta = meta
         self._update_imported_media_ui(file_path, 44100, arr.size, is_video=True)
         print(f"[Video Carrier] Parsed {file_path}: {meta}; audio samples={arr.size}")
-
-    def _set_media_carrier_slot(self, waveform, sample_rate, file_path, kind="audio", video_meta=None):
-        """Normalize WAV/video into the single carrier slot shared by every engine."""
-        arr = np.asarray(waveform, dtype=np.float32).ravel()
-        arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
-        peak = float(np.max(np.abs(arr))) if arr.size else 0.0
-        if peak > 1e-9:
-            arr = arr / peak
-        sr = max(int(sample_rate), 1)
-        meta = dict(video_meta or {})
-        self.imported_waveform = arr
-        self.imported_sample_rate = sr
-        self.imported_wav_path = file_path
-        self.imported_video_path = file_path if kind == "video" else ""
-        self.imported_video_meta = meta if kind == "video" else {}
-        self.media_carrier_slot = {"kind": str(kind), "path": file_path, "sample_rate": sr,
-                                   "waveform": arr, "duration": float(arr.size / sr),
-                                   "video_meta": meta}
-
-    def _media_slot_field(self, count):
-        """One deterministic normalized RMS value per sequence slot for WAV or VIDEO."""
-        count = max(int(count), 1)
-        slot = getattr(self, "media_carrier_slot", {})
-        arr = slot.get("waveform")
-        if arr is None or np.asarray(arr).size < 2:
-            return np.full(count, 0.5, dtype=np.float32)
-        arr = np.asarray(arr, dtype=np.float32).ravel()
-        edges = np.linspace(0, arr.size, count + 1).astype(int)
-        vals = np.empty(count, dtype=np.float32)
-        for i in range(count):
-            a, b = edges[i], max(edges[i+1], edges[i] + 1)
-            seg = arr[a:min(b, arr.size)]
-            vals[i] = float(np.sqrt(np.mean(seg * seg))) if seg.size else 0.0
-        lo, hi = float(vals.min()), float(vals.max())
-        if hi - lo > 1e-7:
-            vals = (vals - lo) / (hi - lo)
-        else:
-            vals.fill(0.5)
-        return np.clip(vals, 0.0, 1.0).astype(np.float32)
 
     def _update_imported_media_ui(self, file_path, sample_rate, sample_count, is_video=False):
         name = os.path.basename(file_path)
