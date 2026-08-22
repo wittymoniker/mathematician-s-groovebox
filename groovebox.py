@@ -8,6 +8,8 @@
 #   - Implementation assistance (realtime audio, additive engines, domain
 #     partitions, bootstrap/simplify, Help system): Grok (xAI), Gemini (Google),
 #     Claude (Anthropic) and ChatGPT (OpenAI)
+#   - UI layout fix (export button placement) and user-touched-step tracking
+#     bug fix (see USER_TOUCHED_TRACKING below):
 #
 # Notable systems in this build:
 #   sounddevice realtime I/O, PKP pad bank, additive Euclidean/seeded engines,
@@ -1252,6 +1254,7 @@ class DomainEquationEditorDialog(QDialog):
         self.table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.table)
         self._reload_table()
+        self.table.itemChanged.connect(self._schedule_live_apply)
 
         btn_row = QHBoxLayout()
         add_btn = QPushButton("+ Add Domain")
@@ -1320,6 +1323,18 @@ class DomainEquationEditorDialog(QDialog):
         self.engine._load_defaults()
         self._reload_table()
 
+    def _schedule_live_apply(self, *args):
+        QTimer.singleShot(80, self._apply_live)
+
+    def _apply_live(self):
+        domains=[]
+        for r in range(self.table.rowCount()):
+            try:
+                d=self._parse_row(r); d["user_defined"]=True; domains.append(d)
+            except Exception: continue
+        generated=[d for d in getattr(self.engine,"domains",[]) if isinstance(d,dict) and d.get("user_defined") is False]
+        self.engine.domains=domains+generated
+
     def _parse_row(self, r):
         def cell(c, default=""):
             item = self.table.item(r, c)
@@ -1345,15 +1360,7 @@ class DomainEquationEditorDialog(QDialog):
         }
 
     def _apply(self):
-        domains = []
-        for r in range(self.table.rowCount()):
-            try:
-                domains.append(self._parse_row(r))
-            except Exception as e:
-                QMessageBox.warning(self, "Parse Error", f"Row {r+1}: {e}")
-                return
-        self.engine.domains = domains
-        QMessageBox.information(self, "Domains Applied", f"{len(domains)} domain partition(s) active.")
+        self._apply_live()
         self.accept()
 
 
@@ -1728,95 +1735,47 @@ class UIComponentManager(QWidget):
                 obj.blockSignals(False)
 
     def _mark_generated_synth_context(self, source="randomizer", rng=None):
-        """Generate/extend non-user synth context without overwriting user state."""
+        """Generate algorithmic synth/script context in the shared state; user values remain authoritative."""
         rng = rng or np.random.default_rng(self.get_numeric_seed())
-        if not hasattr(self, "instrument_param_generated"):
-            self.instrument_param_generated = {}
-        scripts = getattr(self, "instrument_scripts", None)
-        if scripts is None:
-            self.instrument_scripts = {}
-            scripts = self.instrument_scripts
-        if not hasattr(self, "generated_script_overlays"):
-            self.generated_script_overlays = {}
-        if not hasattr(self, "generated_patch_connections"):
-            self.generated_patch_connections = []
-
-        for i, name in enumerate(getattr(self, "instrument_names_48", [])):
-            user_params = self.instrument_param_state.setdefault(name, {})
-            generated = self.instrument_param_generated.setdefault(name, {})
-            # These are deliberately local/operator parameters. Global EQR,
-            # Fractallizer and PKP Decay are never touched here.
-            ctx = float(self._contextual_numerology(name, i, i))
-            targets = {
-                "tuning": float(np.clip(0.92 + 0.16*ctx, 0.80, 1.10)),
-                "filter": float(np.clip(0.30 + 0.55*ctx, 0.05, 0.95)),
-                "drive": float(np.clip(0.08 + 0.45*ctx, 0.0, 0.8)),
-                "amplitude": float(np.clip(0.35 + 0.55*ctx, 0.05, 1.0)),
-                "duration": float(np.clip(0.20 + 0.70*(1.0-ctx), 0.05, 1.0)),
-            }
-            for key, value in targets.items():
-                # A user-defined value is authoritative; generated detail is
-                # retained separately so the engine can still reason over it.
-                if key not in user_params or key not in generated:
-                    generated[key] = value
-
-            script = str(scripts.get(name, "") or "")
-            generated_comment = (
-                f"# {source} generated detail: ctx={ctx:.6f}; "
-                f"tuning={generated['tuning']:.4f}; filter={generated['filter']:.4f}; "
-                f"drive={generated['drive']:.4f}; duration={generated['duration']:.4f}"
-            )
-            if not script.strip():
-                op_idx = i % 48
-                scripts[name] = (
-                    f"# Generated {source} scaffold for {name}\n"
-                    f"{generated_comment}\n"
-                    f"def evaluate_wave(x, y, z, t=0.0, seed=0.0):\n"
-                    f"    phase = (x * {(op_idx % 12)+1}.0 + y * 0.5 + z * 0.25 + t)\n"
-                    f"    return np.sin(phase) * (0.55 + 0.45*np.cos(y))\n"
-                )
-            else:
-                # Do not mutate the user's script. Keep an adjacent generated
-                # suffix that can be composed by the script/editor layer.
-                self.generated_script_overlays[name] = generated_comment
-
-            # Add generated modular detail only when it doesn't collide with a
-            # user cable. Existing user cables remain byte-for-byte untouched.
-            user_cables = getattr(self, "patch_connections", []) or []
-            existing = {(c.get("origin"), c.get("target"), c.get("src_node"), c.get("tgt_node"))
-                       for c in user_cables if isinstance(c, dict)}
-            cable = {
-                "origin": name, "target": "PKP Envelope Follower Bus",
-                "src_node": "Generated Context", "tgt_node": "Amplitude Envelope",
-                "weight": float(generated["amplitude"]), "mode": f"generated:{source}",
-                "user_defined": False,
-            }
-            key = (cable["origin"], cable["target"], cable["src_node"], cable["tgt_node"])
-            if key not in existing and not any(c.get("origin") == name and not c.get("user_defined", False)
-                                               for c in self.generated_patch_connections):
-                self.generated_patch_connections.append(cable)
-
-        # Expose generated routing as a separate layer; never rewrite user cables.
-        return len(getattr(self, "instrument_names_48", []))
+        self.instrument_param_generated = getattr(self, "instrument_param_generated", {})
+        if not hasattr(self, "instrument_scripts") or self.instrument_scripts is None: self.instrument_scripts = {}
+        for i,name in enumerate(getattr(self,"instrument_names_48",[])):
+            user=self.instrument_param_state.setdefault(name,{})
+            ctx=float(self._contextual_numerology(name,i,i))
+            gen={"tuning":float(np.clip(.9+.2*ctx,.75,1.15)),"filter":float(np.clip(.2+.7*ctx,.02,.98)),"drive":float(np.clip(.05+.55*ctx,0,.9)),"amplitude":float(np.clip(.3+.65*ctx,.05,1.0)),"duration":float(np.clip(.15+.8*(1-ctx),.03,1.0))}
+            self.instrument_param_generated[name]=gen
+            for k,v in gen.items(): user.setdefault(k,v)
+            marker=f"# --- GENERATED {source.upper()} CONTEXT: {name} ---"
+            old=str(self.instrument_scripts.get(name,"") or "")
+            if marker not in old:
+                self.instrument_scripts[name]=old.rstrip()+"\n\n"+marker+f"\ngenerated_ctx={ctx:.8f}\ngenerated_tuning={gen['tuning']:.8f}\ngenerated_filter={gen['filter']:.8f}\ngenerated_drive={gen['drive']:.8f}\ngenerated_amplitude={gen['amplitude']:.8f}\ngenerated_duration={gen['duration']:.8f}\n"
+        return len(getattr(self,"instrument_names_48",[]))
 
     def _write_generated_domain_context(self, source="randomizer"):
-        """Add a generated domain expression while preserving every user domain."""
-        if not hasattr(self, "generated_domains"):
-            self.generated_domains = []
-        seed = self.get_numeric_seed()
-        for i, name in enumerate(getattr(self, "instrument_names_48", [])):
-            generated = {
-                "name": f"{source}::{name}::context",
-                "axis": "time",
-                "t0": 0.0, "t1": 1.0,
-                "x0": -1.0, "x1": 1.0, "y0": -1.0, "y1": 1.0,
-                "logic": f"((t*{(i%7)+1}) + seed*0.000001) % 1.0 < 0.5",
-                "equation": f"sin({(i%11)+1}*x + seed*0.00001) * cos({(i%7)+1}*y + t*MEUM)",
-                "limits": [-1.0, 1.0], "weight": 0.15 + 0.35*((i+seed)%11)/10.0,
-                "seed_weight": 0.0, "user_defined": False, "source": source,
-            }
-            self.generated_domains.append(generated)
-        return len(self.generated_domains)
+        engine=getattr(self,"domain_eq_engine",None)
+        if engine is None: return 0
+        seed=self.get_numeric_seed(); n=getattr(self,"_composition_generation_counter",0)
+        generated=[]
+        for i,name in enumerate(getattr(self,"instrument_names_48",[])):
+            q=(seed+n*7919+i*104729)%1000003
+            generated.append({"name":f"{source}::{name}::{n}","axis":"time","t0":0.0,"t1":1.0,"x0":-1.0,"x1":1.0,"y0":-1.0,"y1":1.0,"logic":f"sin(t*{i%11+1}+{q}e-5)>0","equation":f"sin({i%13+1}*x+{q}e-6)*cos({i%7+1}*y+t*MEUM)","limit_lo":-1.0,"limit_hi":1.0,"weight":.2+.55*((i+n)%17)/16.0,"seed_weight":((i+n)%9)/8.0,"user_defined":False,"source":source})
+        engine.domains=[d for d in engine.domains if d.get("user_defined",True)]+generated
+        self.generated_domains=generated
+        return len(generated)
+
+    def _write_generated_patch_context(self, source="randomizer"):
+        if not hasattr(self,"patch_connections") or self.patch_connections is None: self.patch_connections=[]
+        names=list(getattr(self,"instrument_names_48",[])); n=getattr(self,"_composition_generation_counter",0)
+        if not names: return 0
+        existing={(c.get("source"),c.get("target")) for c in self.patch_connections if isinstance(c,dict)}
+        added=0
+        for i,name in enumerate(names):
+            target=names[(i*7+n+1)%len(names)]
+            if target==name: target=names[(i+1)%len(names)]
+            if (name,target) in existing: continue
+            self.patch_connections.append({"source":name,"target":target,"weight":.2+.55*((i+n)%13)/12.0,"origin":f"generated_{source}","user_defined":False})
+            existing.add((name,target)); added+=1
+        return added
 
     def _paint_operator_pattern_to_playlist(self, source="randomizer", rng=None):
         """Fully paint the Playlist as a generated overlay while preserving user data.
@@ -1887,7 +1846,8 @@ class UIComponentManager(QWidget):
     def _run_composition_context_engine(self, source="randomizer", rng=None):
         self._mark_generated_synth_context(source=source, rng=rng)
         self._write_generated_domain_context(source=source)
-        return self._paint_operator_pattern_to_playlist(source=source, rng=rng)
+        self._write_generated_patch_context(source=source)
+        return self._paint_operator_pattern_to_playlist(source=source)
 
     def _randomize_local_context(self, checked=True):
         if not checked:
@@ -7667,6 +7627,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # musical material only when explicitly invoked.
         self.init_ui_components()
         self.initialize_default_playlist_memory()
+        self._composition_generation_counter = 0
 
     def apply_hardcoded_compositions(self):
         # POWER_V3_EMPTY_BOOT: compatibility hook intentionally does nothing.
@@ -7914,31 +7875,41 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.reload_active_instrument_sequencer_ui()
         return changed
 
-    def _randomize_local_context(self):
-        """Safe local randomization: preserve explicit user gates, vary free material and playlist velocity."""
+    def _randomize_local_context(self, checked=True):
+        if hasattr(self, 'btn_local_randomize') and self.btn_local_randomize.isCheckable() and not checked and "randomizer"=="randomizer": return
+        if hasattr(self, 'btn_local_phase_lock') and self.btn_local_phase_lock.isCheckable() and not checked and "randomizer"=="phase-lock": return
+        self._composition_generation_counter=getattr(self,"_composition_generation_counter",0)+1
+        snap=self._snapshot_global_effect_sliders()
         try:
-            # Existing seeded engine already respects the protected/user-mask policy.
-            self.apply_seeded_harmonic_randomization()
-            rng = np.random.default_rng(self.get_numeric_seed())
-            self._paint_step_parameters(rng=rng, randomize=True, strength=0.55, include_velocity=True, include_pitch=True, include_probability=True)
-            self._paint_generated_parameters(rng=rng, source='randomizer')
-            self._phase_lock_playlist_velocity(rng, strength=0.35, randomize=True)
+            live_seed=self.get_numeric_seed()+self._composition_generation_counter*104729
+            rng=np.random.default_rng(live_seed)
+            if "randomizer"=="randomizer": self.apply_seeded_harmonic_randomization()
+            elif hasattr(self,"wavefield_engine") and self.wavefield_engine is not None: self.wavefield_engine.apply_phase_locked_randomization()
+            self._paint_step_parameters(rng=rng, randomize=("randomizer"=="randomizer"), strength=.55 if "randomizer"=="randomizer" else .70, include_velocity=True, include_pitch=True, include_probability=True)
+            self._paint_generated_parameters(rng=rng, source="randomizer")
+            self._phase_lock_playlist_velocity(rng,strength=.35 if "randomizer"=="randomizer" else .70,randomize=("randomizer"=="randomizer"))
+            self._run_composition_context_engine(source="randomizer",rng=rng)
             self.reload_active_instrument_sequencer_ui()
-        except Exception as e:
-            print(f"[Local Randomize] skipped: {e}")
+        except Exception as e: print(f"[randomizer] skipped: {e}")
+        finally: self._restore_global_effect_sliders(snap)
 
-    def _phase_lock_local_context(self):
-        """Phase-lock local instrument context + playlist velocity without rewriting user gates."""
+    def _phase_lock_local_context(self, checked=True):
+        if hasattr(self, 'btn_local_randomize') and self.btn_local_randomize.isCheckable() and not checked and "phase-lock"=="randomizer": return
+        if hasattr(self, 'btn_local_phase_lock') and self.btn_local_phase_lock.isCheckable() and not checked and "phase-lock"=="phase-lock": return
+        self._composition_generation_counter=getattr(self,"_composition_generation_counter",0)+1
+        snap=self._snapshot_global_effect_sliders()
         try:
-            if hasattr(self, "wavefield_engine") and self.wavefield_engine is not None:
-                self.wavefield_engine.apply_phase_locked_randomization()
-            rng = np.random.default_rng(self.get_numeric_seed())
-            self._paint_step_parameters(rng=rng, randomize=False, strength=0.70, include_velocity=True, include_pitch=True, include_probability=True)
-            self._paint_generated_parameters(rng=rng, source='phase-lock')
-            self._phase_lock_playlist_velocity(rng, strength=0.70, randomize=False)
+            live_seed=self.get_numeric_seed()+self._composition_generation_counter*130363
+            rng=np.random.default_rng(live_seed)
+            if "phase-lock"=="randomizer": self.apply_seeded_harmonic_randomization()
+            elif hasattr(self,"wavefield_engine") and self.wavefield_engine is not None: self.wavefield_engine.apply_phase_locked_randomization()
+            self._paint_step_parameters(rng=rng, randomize=("phase-lock"=="randomizer"), strength=.55 if "phase-lock"=="randomizer" else .70, include_velocity=True, include_pitch=True, include_probability=True)
+            self._paint_generated_parameters(rng=rng, source="phase-lock")
+            self._phase_lock_playlist_velocity(rng,strength=.35 if "phase-lock"=="randomizer" else .70,randomize=("phase-lock"=="randomizer"))
+            self._run_composition_context_engine(source="phase-lock",rng=rng)
             self.reload_active_instrument_sequencer_ui()
-        except Exception as e:
-            print(f"[Local Phase Lock] skipped: {e}")
+        except Exception as e: print(f"[phase-lock] skipped: {e}")
+        finally: self._restore_global_effect_sliders(snap)
 
     def init_ui_components(self):
         high_contrast_stylesheet = """
@@ -8365,16 +8336,16 @@ class MathematiciansGrooveboxApp(QMainWindow):
         seq_inner.setContentsMargins(0, 0, 0, 0)
 
         seq_header_layout = QHBoxLayout()
-        seq_header_layout.addWidget(QLabel("⚡ PKP STEP Sequencer — Global Geometric Phase-Lock / Nullifier"))
+        seq_header_layout.addWidget(QLabel("⚡ PKP STEP Sequencer — Global Geometric Phase-Lock"))
 
-        # The instrument selector chooses WHICH instrument the PKP NullLock play button auditions.
+        # The instrument selector chooses WHICH instrument the PKP play button auditions.
         seq_header_layout.addWidget(QLabel("Selected Instrument:"))
         seq_header_layout.addWidget(self.instrument_selector_dropdown, stretch=1)
 
-        # PKP NullLock BOOST — arm global note-triggered NullLock layer + one-shot audition.
+        # PKP BOOST — arm global note-triggered NullLock layer + one-shot audition.
         # Boost amount scales the global PKP layer in the mixdown (0.5× … 2.0×).
         self.pkp_boost_amount = 1.0
-        self.btn_pkp_nullock_boost = QPushButton("⚡ PKP NullLock BOOST")
+        self.btn_pkp_nullock_boost = QPushButton("⚡ PKP BOOST")
         self.btn_pkp_nullock_boost.setCheckable(False)
         self.btn_pkp_nullock_boost.setToolTip("Momentary one-shot PKP remix burst; never arms a sustained layer.")
         self.btn_pkp_nullock_boost.setStyleSheet(
@@ -8399,13 +8370,14 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         seq_inner.addLayout(seq_header_layout)
 
-        # PKP NullLock is an audition/play action, not a dropdown, timeline event, or independent clock.
+        # PKP is an audition/play action, not a dropdown, timeline event, or independent clock.
         self.pkp_pad_bank_active = False
         self.pkp_current_step = 0
 
         self.steps_layout_widget = QWidget()
         self.steps_inner_layout = QHBoxLayout(self.steps_layout_widget)
         self.steps_inner_layout.setContentsMargins(0, 0, 0, 0)
+        self.steps_inner_layout.setSpacing(3)
         self.seq_step_buttons = []
 
         self.rebuild_sequencer_steps(self.spin_seq_length.value())
@@ -8418,7 +8390,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # it must never re-randomize or phase-fill the sequence.
 
         self.steps_scroll = QScrollArea()
-        self.steps_scroll.setWidgetResizable(False)
+        self.steps_scroll.setWidgetResizable(True)
         self.steps_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.steps_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.steps_scroll.setWidget(self.steps_layout_widget)
@@ -8433,7 +8405,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             "#stepEditorPopup { background:#0b1116; border:2px solid #f5d97d; "
             "border-radius:8px; padding:6px; } QLabel { color:#ffffff; font-weight:bold; }"
         )
-        self.step_editor_popup.setFixedHeight(74)
+        self.step_editor_popup.setFixedHeight(52)
         step_edit = QHBoxLayout(self.step_editor_popup)
         step_edit.setContentsMargins(8, 6, 8, 6)
         self.lbl_selected_step = QLabel("Step: —")
@@ -8521,11 +8493,16 @@ class MathematiciansGrooveboxApp(QMainWindow):
         export_video_audio_action.triggered.connect(lambda: self.export_video_dialog(include_audio=True))
         self.btn_export.setMenu(export_menu)
         self.btn_export_video = self.btn_export  # compatibility alias
+        self.btn_clear_memory = QPushButton("🧹 CLEAR MEMORY")
+        self.btn_clear_memory.setFixedSize(160, 32)
+        self.btn_clear_memory.setToolTip("Clear user data and reset the user-edit tracker.")
+        self.btn_clear_memory.clicked.connect(self.clear_user_memory)
+        utility_bar=QHBoxLayout(); utility_bar.addStretch(1);
+        master_container.insertLayout(0, utility_bar)
         self.scope_status_label = QLabel("📊 2.5D Video Synth + Oscilloscope  |  Status: Idle")
         self.scope_status_label.setStyleSheet("color: #00ffff; font-weight: bold;")
         scope_bar.addWidget(self.scope_status_label, stretch=1)
         scope_bar.addStretch(1)
-        scope_bar.addWidget(self.btn_export, stretch=0, alignment=Qt.AlignmentFlag.AlignRight)
 
         # POWER_V3_VISUAL_LAYOUT: master volume lives above Visualizer settings.
 
@@ -8533,11 +8510,13 @@ class MathematiciansGrooveboxApp(QMainWindow):
         visual_pair = QHBoxLayout()
         visual_pair.setSpacing(8)
         visual_left = QVBoxLayout()
+        visual_left.addWidget(self.btn_clear_memory)
         visual_left.addWidget(QLabel("LIVE AUDIO VISUALIZER"))
         self.visual_oscilloscope.setMinimumSize(260, 180)
         self.visual_oscilloscope.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         visual_left.addWidget(self.visual_oscilloscope, stretch=1)
         visual_right = QVBoxLayout()
+        visual_right.addWidget(self.btn_export)
         visual_right.addWidget(QLabel("2.5D VIDEO GEOMETRY"))
         self.video_synth_viewer.setMinimumSize(320, 320)
         self.video_synth_viewer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -8611,7 +8590,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self._play_selected_instrument_pkp()
         if hasattr(self, "scope_status_label"):
             boost=int(getattr(self,"pkp_boost_amount",1.0)*100)
-            self.scope_status_label.setText(f"⚡ PKP NullLock one-shot remix · {boost}%")
+            self.scope_status_label.setText(f"⚡ PKP one-shot remix · {boost}%")
 
     def _play_selected_instrument_pkp(self):
         """One-shot audition of a modified PKP/Null-Lock instance of the selected instrument."""
@@ -8630,17 +8609,17 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 amp = float(mem["amplitudes"][step_idx])
             self._pkp_fire_step_hit(inst_name, step_idx, amp=max(0.0, min(1.0, amp)))
             if hasattr(self, "scope_status_label"):
-                self.scope_status_label.setText(f"▶ PKP NullLock audition · {inst_name[:24]} · step {step_idx + 1}")
+                self.scope_status_label.setText(f"▶ PKP audition · {inst_name[:24]} · step {step_idx + 1}")
         except Exception as e:
-            print(f"[PKP NullLock] audition error: {e}")
+            print(f"[PKP] audition error: {e}")
 
     def toggle_pkp_pad_bank(self, checked):
-        """Compatibility hook: PKP NullLock is global and never owns a timeline clock."""
+        """Compatibility hook: PKP is global and never owns a timeline clock."""
         self.pkp_pad_bank_active = bool(checked)
-        print(f"[PKP NullLock] {'ARMED' if checked else 'DISARMED'} — global note-triggered layer")
+        print(f"[PKP] {'ARMED' if checked else 'DISARMED'} — global note-triggered layer")
 
     def _pkp_step_tick(self):
-        """Retained for compatibility; PKP NullLock is not a timeline event."""
+        """Retained for compatibility; PKP is not a timeline event."""
         return
 
     def _estimate_other_47_rms(self, selected_step, step_duration, n_samples, sample_rate):
@@ -8750,8 +8729,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
             pitch = mem["pitches"][s] if s < len(mem["pitches"]) else 1.0
             step_btn = QPushButton(f"STEP {s+1}\nV:{amp:.2f} P:{pitch:.2f}×")
             step_btn.setCheckable(False)  # selection vs toggle handled in click
-            step_btn.setMinimumSize(86, 70)
-            step_btn.setMaximumWidth(110)
+            step_btn.setMinimumSize(42, 52)
+            step_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             self._style_pad_button(step_btn, s, mem["steps"][s])
 
             def make_handler(s_idx):
@@ -9073,10 +9052,15 @@ class MathematiciansGrooveboxApp(QMainWindow):
             return
         self._live_engine_update_guard = True
         try:
+            self._composition_generation_counter=getattr(self,"_composition_generation_counter",0)+1
+            live_seed=self.get_numeric_seed()+self._composition_generation_counter*(130363 if which=="euclidean" else 104729)
+            rng=np.random.default_rng(live_seed)
             if which == "euclidean":
                 self.apply_euclidean_and_idealized_rhythms()
+                self._run_composition_context_engine(source="phase-lock", rng=rng)
             else:
                 self.apply_seeded_harmonic_randomization()
+                self._run_composition_context_engine(source="randomizer", rng=rng)
         finally:
             self._live_engine_update_guard = False
         self._live_engine_signatures[which] = self._live_engine_signature(which)
@@ -9093,15 +9077,36 @@ class MathematiciansGrooveboxApp(QMainWindow):
     def _live_engine_tick(self, which):
         if getattr(self, 'chk_user_program_only', None) and self.chk_user_program_only.isChecked():
             return
+        self._composition_generation_counter=getattr(self,"_composition_generation_counter",0)+1
         if which == "euclidean" and self.btn_idealize_rhythm.isChecked():
-            self.apply_euclidean_and_idealized_rhythms()
+            rng=np.random.default_rng(self.get_numeric_seed()+self._composition_generation_counter*130363)
+            self.apply_euclidean_and_idealized_rhythms(); self._run_composition_context_engine(source="phase-lock",rng=rng)
         elif which == "seeded" and self.btn_seeded_randomize.isChecked():
-            self.apply_seeded_harmonic_randomization()
+            rng=np.random.default_rng(self.get_numeric_seed()+self._composition_generation_counter*104729)
+            self.apply_seeded_harmonic_randomization(); self._run_composition_context_engine(source="randomizer",rng=rng)
+
+    def clear_user_memory(self):
+        rows=int(self.spin_playlist_length.value()) if hasattr(self,"spin_playlist_length") else 96
+        self.master_playlist_data=[{} for _ in range(rows)]; self.playlist_automation=[{} for _ in range(rows)]
+        for mem in getattr(self,"instrument_sequencer_memory",{}).values():
+            n=int(self.spin_seq_length.value()) if hasattr(self,"spin_seq_length") else len(mem.get("steps",[]))
+            mem["steps"]=[False]*n; mem["amplitudes"]=[1.0]*n; mem["pitches"]=[1.0]*n; mem["probabilities"]=[100]*n; mem["touched"]=set()
+        self.instrument_scripts={name:"" for name in getattr(self,"instrument_names_48",[])}
+        self.instrument_param_state={}; self.instrument_param_generated={}; self.patch_connections=[]
+        try:
+            if hasattr(GLOBAL_BUS,"global_cables"): GLOBAL_BUS.global_cables=[]
+        except Exception: pass
+        if getattr(self,"domain_eq_engine",None): self.domain_eq_engine._load_defaults()
+        self.generated_domains=[]; self.playlist_generated_overlay={}; self._composition_generation_counter=0
+        self.reload_active_instrument_sequencer_ui()
+        if getattr(self,"active_paint_table",None): self.active_paint_table.clearContents(); self.active_paint_table.viewport().update()
 
     def save_project_dialog(self):
         path, _ = QFileDialog.getSaveFileName(self, "Save EQR Project", "", "EQR Project (*.json)")
         if not path:
             return
+        if not path.lower().endswith(".json"):
+            path += ".json"
         data = {
             "version": "3.6.8+",
             "seed": self._seed_text() if hasattr(self, 'input_seed_val') else "",
@@ -9123,6 +9128,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
             "instrument_param_state": getattr(self, 'instrument_param_state', {}),
             "patch_connections": getattr(self, 'patch_connections', []),
             "domain_eq": self.domain_eq_engine.to_json() if hasattr(self, 'domain_eq_engine') and self.domain_eq_engine else {},
+            "instrument_param_generated": getattr(self, 'instrument_param_generated', {}),
+            "generation_counter": getattr(self, '_composition_generation_counter', 0),
         }
         try:
             with open(path, "w", encoding="utf-8") as f:
@@ -9167,6 +9174,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 self.instrument_scripts.update(data.get("instrument_scripts", {}))
             self.instrument_param_state = data.get("instrument_param_state", {})
             self.patch_connections = data.get("patch_connections", [])
+            self.instrument_param_generated = data.get("instrument_param_generated", {})
+            self._composition_generation_counter = int(data.get("generation_counter", 0))
             if hasattr(self, 'domain_eq_engine') and data.get("domain_eq"):
                 self.domain_eq_engine.from_json(data["domain_eq"])
             self.reload_active_instrument_sequencer_ui()
@@ -10418,7 +10427,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                         )
                 row_mix += voice
 
-            # PKP NullLock is global and is never a separate timeline event.
+            # PKP is global and is never a separate timeline event.
             # It is triggered only by notes in the currently selected instrument, at the global base frequency.
             try:
                 selected = self.instrument_selector_dropdown.currentText()
