@@ -8,8 +8,6 @@
 #   - Implementation assistance (realtime audio, additive engines, domain
 #     partitions, bootstrap/simplify, Help system): Grok (xAI), Gemini (Google),
 #     Claude (Anthropic) and ChatGPT (OpenAI)
-#   - UI layout fix (export button placement) and user-touched-step tracking
-#     bug fix (see USER_TOUCHED_TRACKING below):
 #
 # Notable systems in this build:
 #   sounddevice realtime I/O, PKP pad bank, additive Euclidean/seeded engines,
@@ -7875,6 +7873,29 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.reload_active_instrument_sequencer_ui()
         return changed
 
+    def _snapshot_global_effect_sliders(self):
+        """Capture user-owned global macro values before composition operators run."""
+        snap = {}
+        for attr in ("slider_eqr", "slider_fractalizer", "slider_pkp_decay"):
+            obj = getattr(self, attr, None)
+            if obj is not None and hasattr(obj, "value"):
+                try:
+                    snap[attr] = int(obj.value())
+                except Exception:
+                    pass
+        return snap
+
+    def _restore_global_effect_sliders(self, snap):
+        """Restore global macro values without retriggering their signals."""
+        for attr, value in (snap or {}).items():
+            obj = getattr(self, attr, None)
+            if obj is not None and hasattr(obj, "setValue"):
+                try:
+                    obj.blockSignals(True)
+                    obj.setValue(int(value))
+                finally:
+                    obj.blockSignals(False)
+
     def _randomize_local_context(self, checked=True):
         if hasattr(self, 'btn_local_randomize') and self.btn_local_randomize.isCheckable() and not checked and "randomizer"=="randomizer": return
         if hasattr(self, 'btn_local_phase_lock') and self.btn_local_phase_lock.isCheckable() and not checked and "randomizer"=="phase-lock": return
@@ -7910,6 +7931,121 @@ class MathematiciansGrooveboxApp(QMainWindow):
             self.reload_active_instrument_sequencer_ui()
         except Exception as e: print(f"[phase-lock] skipped: {e}")
         finally: self._restore_global_effect_sliders(snap)
+
+    def _mark_generated_synth_context(self, source="randomizer", rng=None):
+        """Generate algorithmic synth/script context in the shared state; user values remain authoritative."""
+        rng = rng or np.random.default_rng(self.get_numeric_seed())
+        self.instrument_param_generated = getattr(self, "instrument_param_generated", {})
+        if not hasattr(self, "instrument_scripts") or self.instrument_scripts is None: self.instrument_scripts = {}
+        for i,name in enumerate(getattr(self,"instrument_names_48",[])):
+            user=self.instrument_param_state.setdefault(name,{})
+            ctx=float(self._contextual_numerology(name,i,i))
+            gen={"tuning":float(np.clip(.9+.2*ctx,.75,1.15)),"filter":float(np.clip(.2+.7*ctx,.02,.98)),"drive":float(np.clip(.05+.55*ctx,0,.9)),"amplitude":float(np.clip(.3+.65*ctx,.05,1.0)),"duration":float(np.clip(.15+.8*(1-ctx),.03,1.0))}
+            self.instrument_param_generated[name]=gen
+            for k,v in gen.items(): user.setdefault(k,v)
+            marker=f"# --- GENERATED {source.upper()} CONTEXT: {name} ---"
+            old=str(self.instrument_scripts.get(name,"") or "")
+            if marker not in old:
+                self.instrument_scripts[name]=old.rstrip()+"\n\n"+marker+f"\ngenerated_ctx={ctx:.8f}\ngenerated_tuning={gen['tuning']:.8f}\ngenerated_filter={gen['filter']:.8f}\ngenerated_drive={gen['drive']:.8f}\ngenerated_amplitude={gen['amplitude']:.8f}\ngenerated_duration={gen['duration']:.8f}\n"
+        return len(getattr(self,"instrument_names_48",[]))
+
+    def _write_generated_domain_context(self, source="randomizer"):
+        engine=getattr(self,"domain_eq_engine",None)
+        if engine is None: return 0
+        seed=self.get_numeric_seed(); n=getattr(self,"_composition_generation_counter",0)
+        generated=[]
+        for i,name in enumerate(getattr(self,"instrument_names_48",[])):
+            q=(seed+n*7919+i*104729)%1000003
+            generated.append({"name":f"{source}::{name}::{n}","axis":"time","t0":0.0,"t1":1.0,"x0":-1.0,"x1":1.0,"y0":-1.0,"y1":1.0,"logic":f"sin(t*{i%11+1}+{q}e-5)>0","equation":f"sin({i%13+1}*x+{q}e-6)*cos({i%7+1}*y+t*MEUM)","limit_lo":-1.0,"limit_hi":1.0,"weight":.2+.55*((i+n)%17)/16.0,"seed_weight":((i+n)%9)/8.0,"user_defined":False,"source":source})
+        engine.domains=[d for d in engine.domains if d.get("user_defined",True)]+generated
+        self.generated_domains=generated
+        return len(generated)
+
+    def _write_generated_patch_context(self, source="randomizer"):
+        if not hasattr(self,"patch_connections") or self.patch_connections is None: self.patch_connections=[]
+        names=list(getattr(self,"instrument_names_48",[])); n=getattr(self,"_composition_generation_counter",0)
+        if not names: return 0
+        existing={(c.get("source"),c.get("target")) for c in self.patch_connections if isinstance(c,dict)}
+        added=0
+        for i,name in enumerate(names):
+            target=names[(i*7+n+1)%len(names)]
+            if target==name: target=names[(i+1)%len(names)]
+            if (name,target) in existing: continue
+            self.patch_connections.append({"source":name,"target":target,"weight":.2+.55*((i+n)%13)/12.0,"origin":f"generated_{source}","user_defined":False})
+            existing.add((name,target)); added+=1
+        return added
+
+    def _paint_operator_pattern_to_playlist(self, source="randomizer", rng=None):
+        """Fully paint the Playlist as a generated overlay while preserving user data.
+
+        Every row/column receives generated visual/data coverage. User-authored cell
+        text and row fields are never overwritten; generated content lives in a
+        parallel overlay and is shown in empty cells plus cell backgrounds/tooltips.
+        """
+        rows = max(1, min(1024, int(self.spin_playlist_length.value()) if hasattr(self, 'spin_playlist_length') else 96))
+        cols = 10
+        names = list(getattr(self, 'instrument_names_48', []))
+        if not names: return 0
+        if not hasattr(self, 'master_playlist_data') or self.master_playlist_data is None:
+            self.master_playlist_data = []
+        while len(self.master_playlist_data) < rows:
+            self.master_playlist_data.append({})
+        if not hasattr(self, 'playlist_generated_overlay'):
+            self.playlist_generated_overlay = {}
+        rng = rng or np.random.default_rng(self.get_numeric_seed())
+        colors = [QColor(20,90,100), QColor(70,30,90), QColor(20,90,40),
+                  QColor(90,50,20), QColor(90,20,30), QColor(30,40,90)]
+        table = getattr(self, 'active_paint_table', None)
+        painted = 0
+        for r in range(rows):
+            e = self.master_playlist_data[r]
+            if not isinstance(e, dict):
+                e = {}; self.master_playlist_data[r] = e
+            inst = names[r % len(names)]
+            mem = self.instrument_sequencer_memory.get(inst, {})
+            seq_len = max(1, int(self.spin_seq_length.value()) if hasattr(self, 'spin_seq_length') else 48)
+            self._ensure_seq_mem_length(mem, seq_len)
+            active = [i for i, on in enumerate(mem.get('steps', [])) if on]
+            step = (int(rng.integers(0, len(active))) if active and source == 'randomizer'
+                    else (active[(r + self.get_numeric_seed()) % len(active)] if active else r % seq_len))
+            amp = float(mem.get('amplitudes', [1.0]*seq_len)[step])
+            prob = int(mem.get('probabilities', [100]*seq_len)[step])
+            velocity = float(np.clip(amp * prob/100.0, 0.05, 1.5))
+            overlay = {
+                0: f"{source.upper()} T+{r:04d}", 1: inst,
+                2: f"{source}::STEP-{step+1}", 3: f"{velocity*100:.1f}%",
+                4: "generated_context", 5: f"{(0.25 + 0.75*self._contextual_numerology(inst, step, r))*100:.1f}%",
+                6: "phase +context" if source == "phase-lock" else "seed +context",
+                7: f"Multi-Seq {((r % 3)+1)}", 8: "generated coverage 100%",
+                9: f"{source} overlay / user-safe",
+            }
+            self.playlist_generated_overlay[r] = overlay
+            # Keep generated metadata in the row without replacing user fields.
+            e["generated_overlay"] = dict(overlay)
+            e["generated_source"] = source
+            e["generated_operator"] = inst
+            e["generated_step"] = int(step)
+            e["generated_velocity"] = velocity
+            painted += cols
+
+            if table:
+                for c in range(cols):
+                    item = table.item(r, c)
+                    if item is None:
+                        item = QTableWidgetItem(str(overlay[c]))
+                        table.setItem(r, c, item)
+                    # User text is left intact. Generated layer paints the cell.
+                    item.setBackground(colors[r % len(colors)])
+                    item.setToolTip(f"Generated {source} layer: {overlay[c]}\nUser data, if present, is preserved.")
+        if table:
+            table.viewport().update()
+        return painted
+
+    def _run_composition_context_engine(self, source="randomizer", rng=None):
+        self._mark_generated_synth_context(source=source, rng=rng)
+        self._write_generated_domain_context(source=source)
+        self._write_generated_patch_context(source=source)
+        return self._paint_operator_pattern_to_playlist(source=source, rng=rng)
 
     def init_ui_components(self):
         high_contrast_stylesheet = """
