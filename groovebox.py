@@ -37,8 +37,9 @@ from PyQt6.QtWidgets import (
     QTabWidget, QLineEdit, QListWidget, QFormLayout, QSpinBox, QDoubleSpinBox,
     QGridLayout, QFileDialog, QSplitter, QGroupBox, QTextEdit, QMenu,
     QMessageBox, QTableWidget, QTableWidgetItem, QCheckBox, QDial, QMenuBar,
-    QDialog, QInputDialog, QHeaderView, QProgressBar, QSizePolicy
-)
+    QDialog, QInputDialog, QHeaderView, QProgressBar, QSizePolicy, QToolButton
+)  # QToolButton is required by the global EXPORT menu control.
+
 
 try:
     import scipy.io.wavfile as wavfile
@@ -7794,11 +7795,25 @@ class MathematiciansGrooveboxApp(QMainWindow):
         global_fx_layout.addWidget(self.chk_pkp_automod)
         self.global_effects_group = global_fx_group
 
+        # GLOBAL_CONTEXT_CONTROLS_V2: arrangement and generative engines belong
+        # to the global composition plane. Keep them compact and clearly named.
+        global_context_group = QGroupBox("GLOBAL COMPOSITION")
+        global_context_group.setToolTip("Global playlist, randomization, and Euclidean phase-lock controls.")
+        global_context_layout = QHBoxLayout(global_context_group)
+        global_context_layout.setContentsMargins(8, 4, 8, 4)
+        global_context_layout.setSpacing(8)
+        global_context_layout.addWidget(self.btn_view_playlist)
+        global_context_layout.addWidget(self.btn_local_randomize)
+        global_context_layout.addWidget(self.btn_local_phase_lock)
+        global_context_layout.addStretch(1)
+        self.global_composition_group = global_context_group
+
         self.global_controls_side.addWidget(self.global_effects_group, 0, Qt.AlignmentFlag.AlignTop)
+        self.global_controls_side.addWidget(self.global_composition_group, 0, Qt.AlignmentFlag.AlignTop)
         self.global_controls_side.addLayout(self.top_layout)
 
         # =====================================================================
-        # LOCAL_CONTEXT_UI — these controls operate on the selected instrument.
+        # LOCAL_CONTEXT_UI — only instrument-local controls remain here.
         # They are deliberately square and visually separated from GLOBAL.
         # Domain equations live here too because they are most useful as a
         # contextual modulation layer; their engine remains global-capable.
@@ -7815,9 +7830,16 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.btn_script_inst = self._make_local_context_button("📝\nSCRIPT", "Edit the script attached to the active instrument")
         self.btn_view_patchbay = self._make_local_context_button("🔌\nMODULAR", "Open modular routing for the active instrument context")
         self.btn_domain_eq = self._make_local_context_button("∫\nDOMAIN", "Edit time/space equations used as contextual modulation")
-        self.btn_view_playlist = self._make_local_context_button("📜\nPLAYLIST", "Open the arrangement/velocity context")
-        self.btn_local_randomize = self._make_local_context_button("🎲\nRANDOM", "Generate context-aware steps, velocity, and automation from scripts, synth state, patch bay, domain equations, and playlist state; protected user material is preserved")
-        self.btn_local_phase_lock = self._make_local_context_button("🔒\nPHASE", "Euclidean phase-lock using scripts, patch topology, domain equations, and playlist feedback; user-painted material remains protected")
+
+        # GLOBAL_CONTEXT_CONTROLS_V2: Playlist, Randomizer, and Phase-Lock are
+        # global composition engines. They intentionally live beside the other
+        # global controls rather than in the selected-instrument context panel.
+        self.btn_view_playlist = QPushButton("📜 PLAYLIST")
+        self.btn_view_playlist.setToolTip("Open the global arrangement, velocity, and paint context")
+        self.btn_local_randomize = QPushButton("🎲 RANDOMIZE")
+        self.btn_local_randomize.setToolTip("Generate context-aware steps, velocity, and automation from the global script/synth/patch/domain/playlist field")
+        self.btn_local_phase_lock = QPushButton("🔒 PHASE-LOCK")
+        self.btn_local_phase_lock.setToolTip("Global Euclidean phase-lock using scripts, patch topology, domain equations, and playlist feedback")
 
         self.btn_edit_synth.clicked.connect(lambda: self.spawn_floating_window('synth_editor_window', "Synth Settings & Wavetable Interface"))
         self.btn_script_inst.clicked.connect(lambda: self.spawn_floating_window('script_editor_window', "Instrument Script Editor"))
@@ -7828,7 +7850,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.btn_local_phase_lock.clicked.connect(self._phase_lock_local_context)
         self.btn_help.clicked.connect(self.open_help_readme)
 
-        for b in (self.btn_edit_synth, self.btn_script_inst, self.btn_view_patchbay, self.btn_domain_eq, self.btn_view_playlist, self.btn_local_randomize, self.btn_local_phase_lock):
+        for b in (self.btn_edit_synth, self.btn_script_inst, self.btn_view_patchbay, self.btn_domain_eq):
             local_context_layout.addWidget(b)
         local_context_layout.addStretch(1)
         master_container.addWidget(local_context_group)
@@ -8347,8 +8369,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
         vw = viewport.width()
         vh = viewport.height()
         x = max(4, min(pos.x() + (btn.width() - pw) // 2, max(4, vw - pw - 4)))
-        above_y = pos.y() - ph - 6
-        below_y = pos.y() + btn.height() + 6
+        # STEP_EDITOR_VERTICAL_OFFSET_V2: move the floating step inspector
+        # downward by ~42% of the selected step button height so it clears the
+        # step-row hit area more reliably while remaining visually attached.
+        vertical_offset = max(1, int(round(btn.height() * 0.42)))
+        above_y = pos.y() - ph - 6 + vertical_offset
+        below_y = pos.y() + btn.height() + 6 + vertical_offset
         y = above_y if above_y >= 4 else below_y
         y = max(4, min(y, max(4, vh - ph - 4)))
         self.step_editor_popup.move(x, y)
