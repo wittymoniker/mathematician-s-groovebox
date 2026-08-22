@@ -1656,12 +1656,37 @@ class UIComponentManager(QWidget):
         )
         return btn
 
+    def _contextual_numerology(self, instrument_name="", step=0, row=0):
+        """Deterministic context score derived from scripts, patch graph, domain equations, and playlist state.
+        This is a planning signal only: it never invents musical content at boot.
+        """
+        import hashlib
+        script = str(getattr(self, 'instrument_scripts', {}).get(instrument_name, ''))
+        cables = getattr(self, 'patch_connections', []) or []
+        global_cables = getattr(globals().get('GLOBAL_BUS', None), 'global_cables', []) or []
+        try:
+            domain = self.domain_eq_engine.to_json() if getattr(self, 'domain_eq_engine', None) else {}
+        except Exception:
+            domain = {}
+        playlist = getattr(self, 'master_playlist_data', []) or []
+        active_rows = [r for r in playlist if isinstance(r, dict) and any(v not in (None, '', [], {}) for v in r.values())]
+        payload = repr((script, cables, global_cables, domain, len(active_rows), row, step, instrument_name, self._seed_text() if hasattr(self, '_seed_text') else '0'))
+        digest = hashlib.sha256(payload.encode('utf-8', 'replace')).digest()
+        return int.from_bytes(digest[:8], 'big') / float(2**64)
+
+    def _contextual_playlist_velocity(self, rng, row, base=0.65):
+        score = self._contextual_numerology(step=row, row=row)
+        field = 0.25 + 0.75 * score
+        return float(np.clip(base * 0.45 + field * 0.85 + rng.uniform(-0.08, 0.08), 0.05, 1.5))
+
     def _randomize_local_context(self):
         """Safe local randomization: preserve explicit user gates, vary free material and playlist velocity."""
         try:
             # Existing seeded engine already respects the protected/user-mask policy.
             self.apply_seeded_harmonic_randomization()
-            self._phase_lock_playlist_velocity(np.random.default_rng(self.get_numeric_seed()), strength=0.35, randomize=True)
+            rng = np.random.default_rng(self.get_numeric_seed())
+            self._phase_lock_playlist_velocity(rng, strength=0.35, randomize=True)
+            self._paint_generated_parameters(rng, source='local-random')
             self.reload_active_instrument_sequencer_ui()
         except Exception as e:
             print(f"[Local Randomize] skipped: {e}")
@@ -1670,7 +1695,9 @@ class UIComponentManager(QWidget):
         """Phase-lock local instrument context + playlist velocity without rewriting user gates."""
         try:
             self.wavefield_engine.apply_phase_locked_randomization()
-            self._phase_lock_playlist_velocity(np.random.default_rng(self.get_numeric_seed()), strength=0.70, randomize=False)
+            rng = np.random.default_rng(self.get_numeric_seed())
+            self._phase_lock_playlist_velocity(rng, strength=0.70, randomize=False)
+            self._paint_generated_parameters(rng, source='local-phase')
             self.reload_active_instrument_sequencer_ui()
         except Exception as e:
             print(f"[Local Phase Lock] skipped: {e}")
@@ -1845,8 +1872,10 @@ class PhaseLockedWavefieldEngine:
                 on = bool(steps[s]) if s < len(steps) else False
                 amp = float(amps[s]) if s < len(amps) else 0.0
                 # Reward: ON on Euclidean slots with amp near envelope; OFF on non-Euclidean
+                context = app._contextual_numerology(name, s, s) if hasattr(app, "_contextual_numerology") else 0.5
                 target_on = bool(euc[s])
                 target_amp = float(env[s]) if s < len(env) else 0.5
+                target_amp = float(np.clip(target_amp * (0.75 + 0.5 * context), 0.05, 1.0))
                 if target_on:
                     scores.append(1.0 if on and abs(amp - target_amp) < 0.35 else (0.4 if on else 0.0))
                 else:
@@ -7291,7 +7320,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.ui_manager.btn_seeded_randomizer.clicked.connect(self.apply_seeded_harmonic_randomization)
         self.instrument_names_48 = [f"Operator_{i+1}" for i in range(48)]
         self.instrument_sequencer_memory = {}
-        default_seq_len = 16
+        default_seq_len = 48
 
         for name in self.instrument_names_48:
             self.instrument_sequencer_memory[name] = {
@@ -7318,11 +7347,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         self.instrument_sequencer_memory = {
             name: {
-                "steps": [False] * 16,
-                "gates": [True] * 16,
-                "amplitudes": [1.0] * 16,
-                "pitches": [1.0] * 16,
-                "probabilities": [100] * 16
+                "steps": [False] * 48,
+                "gates": [True] * 48,
+                "amplitudes": [1.0] * 48,
+                "pitches": [1.0] * 48,
+                "probabilities": [100] * 48
             }
             for name in self.instrument_names_48
         }
@@ -7332,10 +7361,10 @@ class MathematiciansGrooveboxApp(QMainWindow):
             for i, name in enumerate(self.instrument_names_48)
         }
 
-        self.hardcoded_compositions = {
-            "Z-Pinch Resonator": [True, False, True, True, False, True, False, False, True, False, True, True, False, False, True, False],
-            "Topological Fold": [False, True, False, False, True, False, True, True, False, True, False, False, True, True, False, True]
-        }
+        # No musical programs are injected at boot.
+        # Harmonic/script/patch/domain defaults remain available as neutral context.
+        # RECOMMENDED_POWER_LAYER: compatibility hook only; no musical presets.
+        self.hardcoded_compositions = {}
 
         # Master storage mirroring the unquantized playlist rows for audio rendering
         self.master_playlist_data = []
@@ -7359,30 +7388,23 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.instrument_param_state = {}
         # Build the initial program state before rendering the sequencer.
         # This prevents the first selection click from revealing hidden gates.
-        self.apply_hardcoded_compositions()
+        # RECOMMENDED_POWER_LAYER: neutral mathematical boot. Engines create
+        # musical material only when explicitly invoked.
         self.init_ui_components()
         self.initialize_default_playlist_memory()
 
     def apply_hardcoded_compositions(self):
         for inst_name, pattern in self.hardcoded_compositions.items():
             if inst_name in self.instrument_sequencer_memory:
-                padded_pattern = (pattern + [False] * 16)[:16]
+                padded_pattern = (pattern + [False] * 48)[:48]
                 self.instrument_sequencer_memory[inst_name]["steps"] = padded_pattern
         print("[System] Hardcoded compositions injected into sequencer memory bays.")
 
     def initialize_default_playlist_memory(self):
-        rows = 32
-        self.master_playlist_data = []
-        for row_idx in range(rows):
-            op_name = self.instrument_names_48[row_idx % len(self.instrument_names_48)]
-            self.master_playlist_data.append({
-                "time_marker": f"T + {row_idx * 3.5:.1f}s",
-                "operator": op_name,
-                "script_tag": f"Script::{op_name[:4].upper()}-X{row_idx}",
-                "velocity": 1.0,
-                "modulation": "Geometric Nullifier Lock",
-                "multi_seq": f"Multi-Load Active [{row_idx % 3 + 1}]"
-            })
+        # Playlist capacity is present, but the musical program is empty on boot.
+        rows = 96
+        self.master_playlist_data = [{} for _ in range(rows)]
+        self.playlist_automation = [{} for _ in range(rows)]
 
     def sync_playlist_grid_to_memory(self):
         """Reads back current table items from the playlist window into master memory backend."""
@@ -7426,6 +7448,107 @@ class MathematiciansGrooveboxApp(QMainWindow):
             "QPushButton:pressed { background-color:#ff6b00; color:white; }"
         )
         return btn
+
+    # =====================================================================
+    # RECOMMENDED_POWER_LAYER_V1 — CONTEXT FIELD + PARAMETER PAINT
+    # Revert: delete this entire block. The rest of the groovebox remains usable.
+    # Purpose: make Randomizer / Euclidean Phase-Lock reason over the current
+    # mathematical instrument state instead of treating every step as isolated.
+    # =====================================================================
+    def _contextual_feature_vector(self, instrument_name="", step=0, row=0):
+        """Return a deterministic structural field from live software state.
+
+        This is intentionally a *planning signal*, not a hidden preset. It is
+        evaluated only when an engine is invoked, so boot remains musically empty.
+        """
+        import hashlib
+        scripts = getattr(self, 'instrument_scripts', {}) or {}
+        script = str(scripts.get(instrument_name, ''))
+        cables = getattr(self, 'patch_connections', []) or []
+        gb = getattr(globals().get('GLOBAL_BUS', None), 'global_cables', []) or []
+        playlist = getattr(self, 'master_playlist_data', []) or []
+        active = [r for r in playlist if isinstance(r, dict) and any(v not in (None, '', [], {}) for v in r.values())]
+
+        # Script complexity: length + mathematical/operator density.
+        digits = sum(ch.isdigit() for ch in script)
+        ops = sum(script.count(op) for op in ('sin','cos','tan','exp','log','sqrt','evaluate','return'))
+        script_score = float(np.clip(len(script)/1400.0 + digits/180.0 + ops/40.0, 0.0, 1.0))
+
+        # Patch topology: fan-in/fan-out and gain density become structural bias.
+        patch_count = len(cables)
+        global_count = len(gb)
+        gains = [abs(float(c.get('gain', 1.0))) for c in cables if isinstance(c, dict)]
+        gain_score = min(float(np.mean(gains)) if gains else 0.5, 2.0) / 2.0
+        topology_score = float(np.clip(0.55*patch_count/24.0 + 0.25*global_count/24.0 + 0.20*gain_score, 0.0, 1.0))
+
+        # Domain state is represented by a stable signature; arbitrary scripts are
+        # not executed here, which keeps the generator deterministic and safe.
+        try:
+            domain = self.domain_eq_engine.to_json() if getattr(self, 'domain_eq_engine', None) else {}
+        except Exception:
+            domain = {}
+        domain_blob = repr(domain)
+        domain_score = (int(hashlib.sha256(domain_blob.encode('utf-8','replace')).hexdigest()[:12], 16) % 10000) / 10000.0
+
+        # Playlist feedback: density and the current row's velocity influence the
+        # field. Empty boot therefore stays empty, but an invoked engine can grow
+        # an arrangement in response to what has already been painted.
+        density = float(np.clip(len(active) / max(len(playlist), 1), 0.0, 1.0))
+        row_velocity = 0.5
+        if 0 <= row < len(playlist) and isinstance(playlist[row], dict):
+            try:
+                row_velocity = float(np.clip(float(playlist[row].get('velocity', 0.5) or 0.5) / 1.5, 0.0, 1.0))
+            except Exception:
+                pass
+
+        seed = self.get_numeric_seed() if hasattr(self, 'get_numeric_seed') else 42
+        phase = ((step+1)*0.61803398875 + (row+1)*0.41421356237 + (seed % 997)*0.001) % 1.0
+        score = float(np.clip(0.30*script_score + 0.30*topology_score + 0.20*domain_score + 0.10*phase + 0.07*density + 0.03*row_velocity, 0.0, 1.0))
+        return {
+            'score': score, 'script': script_score, 'topology': topology_score,
+            'domain': float(domain_score), 'playlist_density': density,
+            'row_velocity': row_velocity, 'phase': float(phase)
+        }
+
+    def _contextual_numerology(self, instrument_name="", step=0, row=0):
+        """Shared score used by Randomizer, Euclidean lock, and velocity painting."""
+        import hashlib
+        f = self._contextual_feature_vector(instrument_name, step, row)
+        payload = repr((instrument_name, step, row, self._seed_text() if hasattr(self, '_seed_text') else '0', f))
+        digest = hashlib.sha256(payload.encode('utf-8','replace')).digest()
+        tie_break = int.from_bytes(digest[:8], 'big') / float(2**64)
+        return float(np.clip(0.78*f['score'] + 0.22*tie_break, 0.0, 1.0))
+
+    def _paint_generated_parameters(self, rng=None, rows=None, source='context'):
+        """Paint calculated/random playlist parameters, including velocity.
+
+        RECOMMENDED_POWER_LAYER: called only by explicit generation actions.
+        User-locked velocity and existing automation remain authoritative.
+        """
+        capacity = int(self.spin_playlist_length.value()) if hasattr(self, 'spin_playlist_length') else 96
+        rows = capacity if rows is None else max(0, min(int(rows), capacity))
+        if not hasattr(self, 'master_playlist_data'):
+            self.master_playlist_data = []
+        while len(self.master_playlist_data) < rows:
+            self.master_playlist_data.append({})
+        rng = rng or np.random.default_rng(self.get_numeric_seed())
+        painted = 0
+        for r in range(rows):
+            entry = self.master_playlist_data[r]
+            if not isinstance(entry, dict):
+                entry = {}; self.master_playlist_data[r] = entry
+            if entry.get('velocity_user_locked'):
+                continue
+            inst = entry.get('operator', self.instrument_names_48[r % len(self.instrument_names_48)] if self.instrument_names_48 else '')
+            f = self._contextual_feature_vector(inst, r, r)
+            # Velocity is a true paintable field. The engine can generate it, but
+            # once the user locks/paints it, later passes must leave it alone.
+            jitter = float(rng.uniform(-0.06, 0.06))
+            entry['velocity'] = float(np.clip(0.20 + 1.15*f['score'] + jitter, 0.05, 1.5))
+            entry['velocity_source'] = source
+            entry['calculated_context'] = {k: round(v, 6) for k, v in f.items()}
+            painted += 1
+        return painted
 
     def _randomize_local_context(self):
         """Safe local randomization: preserve explicit user gates, vary free material and playlist velocity."""
@@ -7693,8 +7816,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.btn_view_patchbay = self._make_local_context_button("🔌\nMODULAR", "Open modular routing for the active instrument context")
         self.btn_domain_eq = self._make_local_context_button("∫\nDOMAIN", "Edit time/space equations used as contextual modulation")
         self.btn_view_playlist = self._make_local_context_button("📜\nPLAYLIST", "Open the arrangement/velocity context")
-        self.btn_local_randomize = self._make_local_context_button("🎲\nRANDOM", "Randomize available local-context material without touching protected user steps")
-        self.btn_local_phase_lock = self._make_local_context_button("🔒\nPHASE", "Phase-lock local context and playlist velocity to the shared wavefield")
+        self.btn_local_randomize = self._make_local_context_button("🎲\nRANDOM", "Generate context-aware steps, velocity, and automation from scripts, synth state, patch bay, domain equations, and playlist state; protected user material is preserved")
+        self.btn_local_phase_lock = self._make_local_context_button("🔒\nPHASE", "Euclidean phase-lock using scripts, patch topology, domain equations, and playlist feedback; user-painted material remains protected")
 
         self.btn_edit_synth.clicked.connect(lambda: self.spawn_floating_window('synth_editor_window', "Synth Settings & Wavetable Interface"))
         self.btn_script_inst.clicked.connect(lambda: self.spawn_floating_window('script_editor_window', "Instrument Script Editor"))
@@ -7713,18 +7836,19 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # Global playlist capacity belongs with global variables, not the pattern editor.
         self.spin_playlist_length = QSpinBox()
         self.spin_playlist_length.setRange(1, 1024)
-        self.spin_playlist_length.setValue(32)
+        self.spin_playlist_length.setValue(96)
         self.top_layout.addWidget(QLabel("Playlist Rows:"))
         self.top_layout.addWidget(self.spin_playlist_length)
         self.top_layout.addWidget(QLabel("Global Convolve:"))
-        self.slider_global_convolve = QSlider(Qt.Orientation.Horizontal)
-        self.slider_global_convolve.setRange(0, 100)
-        self.slider_global_convolve.setValue(0)
-        self.slider_global_convolve.setToolTip("Cross-convolve preset geometry while preserving user-edited synth parameters.")
-        self.top_layout.addWidget(self.slider_global_convolve)
-        self.lbl_global_convolve = QLabel("0.00%")
-        self.top_layout.addWidget(self.lbl_global_convolve)
-        self.slider_global_convolve.valueChanged.connect(lambda v: self.lbl_global_convolve.setText(f"{v:.2f}%"))
+        self.spin_global_convolve = QDoubleSpinBox()
+        self.spin_global_convolve.setRange(0.0, 100.0)
+        self.spin_global_convolve.setDecimals(2)
+        self.spin_global_convolve.setSuffix("%")
+        self.spin_global_convolve.setValue(0.0)
+        self.spin_global_convolve.setFixedWidth(82)
+        self.spin_global_convolve.setToolTip("Cross-convolve the structural wave result; user-edited material remains protected.")
+        self.top_layout.addWidget(self.spin_global_convolve)
+        self.slider_global_convolve = self.spin_global_convolve  # compatibility alias
 
         # =====================================================================
         # CONVOLVE_FIT_FEATURE — global WAV carrier + adaptive spectral fitting
@@ -7759,7 +7883,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         sizing_layout.addWidget(QLabel("Pattern / STEP Length:"))
         self.spin_seq_length = QSpinBox()
         self.spin_seq_length.setRange(1, 1024)
-        self.spin_seq_length.setValue(16)
+        self.spin_seq_length.setValue(48)
         sizing_layout.addWidget(self.spin_seq_length)
 
         self.chk_multi_seq_load = QCheckBox("Allow Multiple Sequence Load Engage & Paint")
@@ -7782,14 +7906,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         seq_header_layout.addWidget(QLabel("Selected Instrument:"))
         seq_header_layout.addWidget(self.instrument_selector_dropdown, stretch=1)
 
-        self.btn_pkp_null_lock_play = QPushButton("▶ PKP NullLock — BOOST")
-        self.btn_pkp_null_lock_play.setToolTip(
-            "Boost the PKP NullLock layer for the currently selected instrument. "
-            "This does not change the selected instrument, its steps, the seed, or the playlist."
-        )
-        self.btn_pkp_null_lock_play.setCheckable(False)
-        self.btn_pkp_null_lock_play.clicked.connect(self._play_selected_instrument_pkp)
-        seq_header_layout.addWidget(self.btn_pkp_null_lock_play)
+        # PKP NullLock BOOST is intentionally not exposed as a top-level control.
 
         seq_inner.addLayout(seq_header_layout)
 
@@ -7896,10 +8013,17 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.lbl_master_vol.setStyleSheet("color: #f5d97d;")
         scope_bar.addWidget(self.lbl_master_vol)
 
-        self.btn_export_video = QPushButton("🎬 Export Video")
-        self.btn_export_video.setToolTip("Render the 2.5D audiovisual geometry as video only; audio remains a separate WAV export.")
-        self.btn_export_video.clicked.connect(self.export_video_dialog)
-        scope_bar.addWidget(self.btn_export_video)
+        self.btn_export = QToolButton()
+        self.btn_export.setText("⬇ EXPORT")
+        self.btn_export.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        export_menu = QMenu(self.btn_export)
+        export_wav_action = export_menu.addAction("Export WAV")
+        export_video_action = export_menu.addAction("Export Video")
+        export_wav_action.triggered.connect(self.export_mixdown_dialog)
+        export_video_action.triggered.connect(self.export_video_dialog)
+        self.btn_export.setMenu(export_menu)
+        self.btn_export_video = self.btn_export  # compatibility alias
+        scope_bar.addWidget(self.btn_export)
 
         master_container.addLayout(scope_bar)
         visual_pair = QHBoxLayout()
@@ -8280,6 +8404,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             # Seed/phase field: smooth, deterministic, with optional random perturbation.
             phase = (i / max(rows, 1)) * 2.0 * np.pi + (numeric_seed % 100000) * 0.000013
             field = 0.5 + 0.5 * np.sin(phase * MEUM_CONSTANT + numeric_seed * 0.0000017)
+            field = 0.5 * field + 0.5 * self._contextual_numerology(step=i, row=i) if hasattr(self, "_contextual_numerology") else field
             target = 0.25 + 0.75 * field
             if randomize:
                 target = 0.75 * target + 0.25 * float(rng.uniform(0.25, 1.0))
@@ -8424,7 +8549,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             "seq_length": int(self.spin_seq_length.value()) if hasattr(self, 'spin_seq_length') else 16,
             "playlist_rows": int(self.spin_playlist_length.value()) if hasattr(self, 'spin_playlist_length') else 32,
             "base_frequency": float(self.spin_base_frequency.value()) if hasattr(self, 'spin_base_frequency') else 432.0,
-            "global_convolve": float(self.slider_global_convolve.value()) if hasattr(self, 'slider_global_convolve') else 0.0,
+            "global_convolve": float(self.spin_global_convolve.value()) if hasattr(self, 'spin_global_convolve') else 0.0,
             "instrument_sequencer_memory": self.instrument_sequencer_memory,
             "master_playlist_data": getattr(self, 'master_playlist_data', []),
             "playlist_automation": getattr(self, 'playlist_automation', []),
@@ -9010,7 +9135,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         """
         if not hasattr(self, 'playlist_automation') or self.playlist_automation is None:
             self.playlist_automation = []
-        rows = min(1024, max(1, int(self.spin_playlist_length.value()) if hasattr(self, 'spin_playlist_length') else 48))
+        rows = min(1024, max(1, int(self.spin_playlist_length.value()) if hasattr(self, 'spin_playlist_length') else 96))
         while len(self.playlist_automation) < rows:
             self.playlist_automation.append({})
         names = list(getattr(self, 'instrument_names_48', []))
@@ -9038,9 +9163,15 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 "write_steps": False,
             }
             written += 1
+        # RECOMMENDED_POWER_LAYER: couple automation generation to calculated
+        # velocity painting. This remains opt-in because this method is called by
+        # explicit Randomizer / Euclidean actions, never during boot.
+        painted_velocity = self._paint_generated_parameters(rng, rows=rows, source=source)
         if written:
             self.apply_playlist_automation_to_ui()
-            print(f"[Automation] {source} wrote {written} empty playlist automation lane(s)")
+            print(f"[Automation] {source} wrote {written} empty playlist automation lane(s); velocity paint={painted_velocity}")
+        elif painted_velocity:
+            print(f"[Automation] {source} velocity paint={painted_velocity}")
 
     def apply_seeded_harmonic_randomization(self):
         """
@@ -9108,6 +9239,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
                         if wf_engine is not None:
                             hints = wf_engine.get_hints(name, s)
                             if hints:
+                                context = self._contextual_numerology(name, s, s) if hasattr(self, "_contextual_numerology") else 0.5
+                                gate_p *= (0.75 + 0.5 * context)
                                 if hints["euclidean"]:
                                     gate_p = min(0.85, gate_p + 0.2 * hints["seed_harmonic"])
                                 else:
@@ -9124,6 +9257,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 else:
                     # No user carrier — light seed texture, prefer wavefield Euclidean slots
                     base_p = 0.12
+                    context = self._contextual_numerology(name, s, s) if hasattr(self, "_contextual_numerology") else 0.5
+                    base_p *= (0.65 + 0.7 * context)
                     if wf_engine is not None:
                         hints = wf_engine.get_hints(name, s)
                         if hints and hints["euclidean"]:
@@ -9140,6 +9275,9 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     mem["steps"][s] = True
                     mem["amplitudes"][s] = float(np.clip(echo_amp, 0.12, 1.0))
                     mem["probabilities"][s] = int(rng.integers(70, 100))
+                    if s < len(mem.get("pitches", [])):
+                        ctx = self._contextual_numerology(name, s, s) if hasattr(self, "_contextual_numerology") else 0.5
+                        mem["pitches"][s] = float(np.clip(0.85 + 0.35 * ctx + rng.uniform(-0.06, 0.06), 0.5, 1.5))
                     filled_steps += 1
 
             # Scripts: only write if missing or still the stock auto-template
@@ -9622,7 +9760,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             for op_idx in active_cluster:
                 op_name = self.instrument_names_48[op_idx]
                 mem = self.instrument_sequencer_memory.get(
-                    op_name, {"steps": [False] * 16, "amplitudes": [1.0] * 16, "pitches": [1.0] * 16}
+                    op_name, {"steps": [False] * 48, "amplitudes": [1.0] * 48, "pitches": [1.0] * 48}
                 )
                 base_freq = float(self.spin_base_frequency.value()) if hasattr(self, "spin_base_frequency") else 432.0
                 base_freq *= (MEUM_CONSTANT ** (op_idx % 36))
@@ -9700,7 +9838,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # Global Convolve: deterministic geometric cross-convolution of the rendered carrier.
         # User-edited controls remain upstream; this stage only mixes the structural wave result.
         try:
-            conv_amt = (float(self.slider_global_convolve.value()) / 100.0) if hasattr(self, "slider_global_convolve") else 0.0
+            conv_amt = (float(self.spin_global_convolve.value()) / 100.0) if hasattr(self, "spin_global_convolve") else 0.0
             if conv_amt > 0.0 and len(master) > 8:
                 klen = min(2048, max(32, len(master) // 200))
                 kt = np.linspace(0.0, 1.0, klen, endpoint=False)
@@ -10083,7 +10221,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
             if attr_name == 'playlist_window':
                 main_layout.addWidget(QLabel(
-                    "📜 Unquantized Global Playlist — 48 free rows · paint identity / steps / automation · "
+                    "📜 Unquantized Global Playlist — 96 blank rows · paint identity / steps / automation · "
                     "overlap blends synth params · snap-to-grid optional"
                 ))
 
@@ -10097,7 +10235,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 main_layout.addLayout(time_scale_layout)
 
                 # 48 rows unbound to a fixed instrument — activity painted freely
-                rows = min(1024, max(1, int(self.spin_playlist_length.value()) if hasattr(self, 'spin_playlist_length') else 48))
+                rows = min(1024, max(1, int(self.spin_playlist_length.value()) if hasattr(self, 'spin_playlist_length') else 96))
                 if hasattr(self, 'spin_playlist_length'):
                     self.spin_playlist_length.setValue(rows)
                 track_table = PaintbrushTable(self, rows, 10)
@@ -10148,24 +10286,18 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 time_scale_combo.currentIndexChanged.connect(update_time_markers)
 
                 for row_idx in range(rows):
-                    data_entry = self.master_playlist_data[row_idx] if row_idx < len(self.master_playlist_data) else {
-                        "time_marker": f"T + {row_idx * 3.5:.1f}s",
-                        "operator": self.instrument_names_48[row_idx % len(self.instrument_names_48)],
-                        "script_tag": f"Script::OP-X{row_idx}",
-                        "velocity": "100%",
-                        "modulation": "Geometric Nullifier Lock",
-                        "multi_seq": "Multi-Load Active"
-                    }
+                    data_entry = self.master_playlist_data[row_idx] if row_idx < len(self.master_playlist_data) else {}
 
-                    item_inst = QTableWidgetItem(str(data_entry["operator"]))
-                    item_inst.setBackground(palette_colors[row_idx % len(palette_colors)])
-
-                    track_table.set_cell_item(row_idx, 0, QTableWidgetItem(str(data_entry["time_marker"])))
+                    empty = not any(v not in (None, "", [], {}) for v in data_entry.values())
+                    item_inst = QTableWidgetItem("" if empty else str(data_entry.get("operator", "")))
+                    if not empty:
+                        item_inst.setBackground(palette_colors[row_idx % len(palette_colors)])
+                    track_table.set_cell_item(row_idx, 0, QTableWidgetItem("" if empty else str(data_entry.get("time_marker", ""))))
                     track_table.set_cell_item(row_idx, 1, item_inst)
-                    track_table.set_cell_item(row_idx, 2, QTableWidgetItem(str(data_entry["script_tag"])))
-                    track_table.set_cell_item(row_idx, 3, QTableWidgetItem("100%"))
-                    track_table.set_cell_item(row_idx, 4, QTableWidgetItem(str(data_entry["modulation"])))
-                    track_table.set_cell_item(row_idx, 5, QTableWidgetItem(str(data_entry["multi_seq"])))
+                    track_table.set_cell_item(row_idx, 2, QTableWidgetItem("" if empty else str(data_entry.get("script_tag", ""))))
+                    track_table.set_cell_item(row_idx, 3, QTableWidgetItem("" if empty else f"{float(data_entry.get('velocity', 1.0))*100:.1f}%"))
+                    track_table.set_cell_item(row_idx, 4, QTableWidgetItem("" if empty else str(data_entry.get("modulation", ""))))
+                    track_table.set_cell_item(row_idx, 5, QTableWidgetItem("" if empty else str(data_entry.get("multi_seq", ""))))
 
                 update_time_markers()
                 main_layout.addWidget(track_table)
