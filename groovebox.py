@@ -7,7 +7,7 @@
 #   - Core architecture & original EQR design: project author
 #   - Implementation assistance (realtime audio, additive engines, domain
 #     partitions, bootstrap/simplify, Help system): Grok (xAI), Gemini (Google),
-#     and ChatGPT (OpenAI)
+#     and ChatGPT (OpenAI).
 #
 # Notable systems in this build:
 #   sounddevice realtime I/O, PKP pad bank, additive Euclidean/seeded engines,
@@ -1984,7 +1984,7 @@ class SequencerGridManager:
             amp_val = mem["amplitudes"][s] if s < len(mem["amplitudes"]) else 0.5
             is_active = mem["steps"][s] if s < len(mem["steps"]) else False
 
-            step_btn = QPushButton(f"STEP {s+1}\nAmp:{amp_val:.2f}")
+            step_btn = QPushButton(f"Pad {s+1}\nAmp:{amp_val:.2f}")
             step_btn.setCheckable(True)
             step_btn.setChecked(is_active)
 
@@ -2008,7 +2008,7 @@ class SequencerGridManager:
                 amp_val = mem["amplitudes"][s_idx]
 
                 btn.setChecked(is_active)
-                btn.setText(f"STEP {s_idx+1}\nAmp:{amp_val:.2f}")
+                btn.setText(f"Pad {s_idx+1}\nAmp:{amp_val:.2f}")
 
                 if is_active:
                     btn.setStyleSheet("background-color: #00ffff; color: #060606; border: 2px solid #ffffff; font-weight: bold;")
@@ -2765,7 +2765,7 @@ Each has sequencer memory (steps, amplitudes, gates, probabilities) and optional
   Global Cross-Loaded mode is default.
 
   End of Help — EQR Groovebox
-  Assisted by Grok (xAI) and Gemini (Google) and ChatGPT (OpenAI)
+  Assisted by Grok (xAI), Gemini (Google), and ChatGPT (OpenAI)
 ================================================================================
 """
 
@@ -5677,7 +5677,7 @@ class MasterControlPatchbayPage(QWidget):
         self.inc_spin.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
 
         self.steps_spin = QSpinBox()
-        self.steps_spin.setRange(1, 1024)
+        self.steps_spin.setRange(4, 64)
         self.steps_spin.setValue(self.engine.divergence_steps_count)
         self.steps_spin.setStyleSheet("background-color: #161b22; color: #00ffcc; border: 1px solid #30363d;")
 
@@ -6340,6 +6340,7 @@ class PaintbrushTable(QWidget):
                     "operator": target_operator_name,
                     "param": param,
                     "amount": coverage,          # 0..1
+                    "blend_percent": float(rng.uniform(0.0,100.0)),
                     "direction": 1.0 if direction == "+" else -1.0,
                     "overlap": overlap,
                     "partner": existing_op if overlap > 0 else "",
@@ -6963,7 +6964,7 @@ class PermanentPatchBayPanel(QWidget):
         self.preset_combo.currentIndexChanged.connect(self.on_preset_changed)
 
     def on_preset_changed(self, index):
-        curr_idx = self.top_sequencer.instance_combo.currentIndex()
+        curr_idx = self.instrument_selector_dropdown.currentIndex()
         if 0 <= curr_idx < len(self.channel_states):
             self.channel_states[curr_idx]["preset_idx"] = index
         connect_btn = QPushButton("Patch Global Bus")
@@ -7224,7 +7225,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.ui_manager.resize(850, 120)
 
         # Force UI manager to render
-        self.ui_manager.show()
+        self.ui_manager.hide()
 
         # Instantiate and add the UIComponentManager
         if not self.centralWidget():
@@ -7403,329 +7404,76 @@ class MathematiciansGrooveboxApp(QMainWindow):
         master_container.setSpacing(6)
         master_container.setContentsMargins(8, 8, 8, 8)
 
-        # ------------------------------------------------------------------
-        # THE GROOVEBOX — workflow-oriented global controls
-        # ------------------------------------------------------------------
-        self.transport_layout = QHBoxLayout()
-        self.transport_layout.setSpacing(6)
+        # Workflow UI: GLOBAL → TRANSPORT → SEQUENCER → VISUAL → TOOLS
+        self._engine_apply_guard = False
+        self._engine_user_revision = 0
+        self._engine_last_applied_revision = {"euclidean": -1, "seeded": -1}
+        self.global_base_frequency = 432.0
+        self.global_convolve = 0.0
 
-        self.btn_play = QPushButton("▶ PLAY Audiovisual Track")
-        self.btn_stop = QPushButton("⏹ STOP")
-        self.lbl_bpm = QLabel("Tempo:")
-        self.spin_bpm = QDoubleSpinBox()
-        self.spin_bpm.setRange(0.0, 512.0)
-        self.spin_bpm.setDecimals(3)
-        self.spin_bpm.setSingleStep(0.25)
-        self.spin_bpm.setValue(120.0)
-        self.spin_bpm.setToolTip("Global tempo in BPM. 0.0 is allowed as a stopped/free-time value.")
-
-        self.instrument_selector_dropdown = QComboBox()
-        self.instrument_selector_dropdown.addItems(self.instrument_names_48)
-        self.instrument_selector_dropdown.currentIndexChanged.connect(self.on_instrument_switched)
-
-        self.btn_keyboard = QPushButton("🎹 Keyboard / Test")
-        self.btn_trigger_all = QPushButton("⚡ Trigger All")
-        self.btn_save_project = QPushButton("💾 Save Project")
-        self.btn_load_project = QPushButton("📂 Load Project")
-        self.btn_export = QPushButton("💾 Export .wav...")
-
-        self.input_seed_val = QLineEdit()
-        self.input_seed_val.setText("")
+        global_box = QGroupBox("GLOBAL GEOMETRY")
+        global_layout = QVBoxLayout(global_box)
+        seed_row = QHBoxLayout()
+        seed_row.addWidget(QLabel("Seed / Parametric Geometry:"))
+        self.input_seed_val = QLineEdit("0.0")
         self.input_seed_val.setMinimumWidth(420)
         self.input_seed_val.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.input_seed_val.setPlaceholderText(
-            "Parametric seed — e.g. π, e, 1.1975807343385265, or a numeric expression"
-        )
-        self.input_seed_val.setToolTip(
-            "Global geometric seed. Non-zero values anchor geometry; empty or 0 means no explicit seed."
-        )
-
-        self.btn_idealize_rhythm = QPushButton("✨ Euclidean Live Lock")
-        self.btn_idealize_rhythm.setCheckable(True)
-        self.btn_seeded_randomize = QPushButton("🎲 Seeded Live Randomizer")
-        self.btn_seeded_randomize.setCheckable(True)
-        self.chk_user_program_only = QCheckBox("User program only")
-        self.chk_user_program_only.setToolTip(
-            "When ON, live randomizer/phase-lock engines are suspended — hear only what you wrote."
-        )
-
-        self.btn_play.clicked.connect(self.toggle_playback)
-        self.btn_stop.clicked.connect(self.stop_playback)
-        self.btn_idealize_rhythm.toggled.connect(self._on_euclidean_live_toggled)
-        self.btn_seeded_randomize.toggled.connect(self._on_seeded_live_toggled)
-        self.chk_user_program_only.toggled.connect(self._on_user_program_only_toggled)
-        self.btn_export.clicked.connect(self.export_mixdown_dialog)
-        self.btn_save_project.clicked.connect(self.save_project_dialog)
-        self.btn_load_project.clicked.connect(self.load_project_dialog)
-        self.btn_keyboard.clicked.connect(self.open_keyboard_test_window)
-        self.btn_trigger_all.clicked.connect(self.trigger_all_instruments_hit)
-
-        self.transport_layout.addWidget(self.btn_play)
-        self.transport_layout.addWidget(self.btn_stop)
-        self.transport_layout.addWidget(self.lbl_bpm)
-        self.transport_layout.addWidget(self.spin_bpm)
-        self.transport_layout.addWidget(QLabel("Active Instrument:"))
-        self.transport_layout.addWidget(self.instrument_selector_dropdown, 1)
-        self.transport_layout.addWidget(self.btn_keyboard)
-        self.transport_layout.addWidget(self.btn_trigger_all)
-        master_container.addLayout(self.transport_layout)
-
-        # Global geometry: the seed is deliberately the largest text control.
-        seed_row = QHBoxLayout()
-        seed_row.setSpacing(6)
-        seed_label = QLabel("GLOBAL SEED / PARAMETRIC GEOMETRY:")
-        seed_label.setStyleSheet("font-weight: bold; color: #f5d97d;")
-        seed_row.addWidget(seed_label)
+        self.input_seed_val.setPlaceholderText("0.0  |  π  |  e  |  parametric seed expression")
         seed_row.addWidget(self.input_seed_val, 1)
-        self.btn_help = QPushButton("📖 README / Help")
-        self.btn_help.setStyleSheet(
-            "background-color: #1f242c; color: #f5d97d; font-weight: bold; "
-            "border: 1px solid #f5d97d; padding: 6px 12px;"
-        )
+        self.btn_help = QPushButton("❓ README / Help")
         self.btn_help.clicked.connect(self.open_help_readme)
         seed_row.addWidget(self.btn_help)
-        master_container.addLayout(seed_row)
+        global_layout.addLayout(seed_row)
+        globals_row = QHBoxLayout()
+        self.spin_base_frequency = QDoubleSpinBox(); self.spin_base_frequency.setRange(0.0,50000.0); self.spin_base_frequency.setDecimals(4); self.spin_base_frequency.setSingleStep(0.1); self.spin_base_frequency.setValue(432.0); self.spin_base_frequency.setSuffix(" Hz")
+        self.spin_bpm = QDoubleSpinBox(); self.spin_bpm.setRange(0.0,512.0); self.spin_bpm.setDecimals(3); self.spin_bpm.setSingleStep(0.25); self.spin_bpm.setValue(120.0); self.spin_bpm.setSuffix(" BPM")
+        self.spin_playlist_length = QSpinBox(); self.spin_playlist_length.setRange(1,1024); self.spin_playlist_length.setValue(32)
+        for label,w in (("Base Global Frequency",self.spin_base_frequency),("Tempo",self.spin_bpm),("Playlist Rows",self.spin_playlist_length)):
+            globals_row.addWidget(QLabel(label+":")); globals_row.addWidget(w)
+        globals_row.addStretch(1); global_layout.addLayout(globals_row)
+        conv_row=QHBoxLayout(); conv_row.addWidget(QLabel("Global Convolve:")); self.slider_global_convolve=QSlider(Qt.Orientation.Horizontal); self.slider_global_convolve.setRange(0,1000); self.slider_global_convolve.setValue(0); self.lbl_global_convolve=QLabel("0.000"); conv_row.addWidget(self.slider_global_convolve,1); conv_row.addWidget(self.lbl_global_convolve); global_layout.addLayout(conv_row)
+        master_container.addWidget(global_box)
 
-        # Global variables shared across instrument instances.
-        global_row = QHBoxLayout()
-        global_row.setSpacing(6)
+        transport_box=QGroupBox("TRANSPORT / GENERATION"); self.transport_layout=QHBoxLayout(transport_box)
+        self.btn_play=QPushButton("▶ PLAY Audiovisual Track"); self.btn_stop=QPushButton("⏹ STOP")
+        self.instrument_selector_dropdown=QComboBox(); self.instrument_selector_dropdown.addItems(self.instrument_names_48); self.instrument_selector_dropdown.currentIndexChanged.connect(self.on_instrument_switched); self.top_sequencer_instance_combo_alias_pending=True
+        self.btn_idealize_rhythm=QPushButton("✨ Euclidean Phase-Lock"); self.btn_idealize_rhythm.setCheckable(True)
+        self.btn_seeded_randomize=QPushButton("🎲 Seeded Randomizer"); self.btn_seeded_randomize.setCheckable(True)
+        self.chk_user_program_only=QCheckBox("User program only"); self.btn_save_project=QPushButton("💾 Save"); self.btn_load_project=QPushButton("📂 Load"); self.btn_keyboard=QPushButton("🎹 Keyboard / Test"); self.btn_trigger_all=QPushButton("⚡ Trigger All"); self.btn_export=QPushButton("💾 Export WAV")
+        for w in (self.btn_play,self.btn_stop,self.instrument_selector_dropdown,self.btn_idealize_rhythm,self.btn_seeded_randomize,self.chk_user_program_only,self.btn_save_project,self.btn_load_project,self.btn_keyboard,self.btn_trigger_all,self.btn_export): self.transport_layout.addWidget(w)
+        self.transport_layout.addStretch(1)
+        self.btn_play.clicked.connect(self.toggle_playback); self.btn_stop.clicked.connect(self.stop_playback); self.btn_idealize_rhythm.toggled.connect(self._on_euclidean_live_toggled); self.btn_seeded_randomize.toggled.connect(self._on_seeded_live_toggled); self.chk_user_program_only.toggled.connect(self._on_user_program_only_toggled); self.btn_export.clicked.connect(self.export_mixdown_dialog); self.btn_save_project.clicked.connect(self.save_project_dialog); self.btn_load_project.clicked.connect(self.load_project_dialog); self.btn_keyboard.clicked.connect(self.open_keyboard_test_window); self.btn_trigger_all.clicked.connect(self.trigger_all_instruments_hit)
+        master_container.addWidget(transport_box)
 
-        global_row.addWidget(QLabel("Base Global Frequency:"))
-        self.spin_base_frequency = QDoubleSpinBox()
-        self.spin_base_frequency.setRange(0.0, 50000.0)
-        self.spin_base_frequency.setDecimals(4)
-        self.spin_base_frequency.setSingleStep(0.1)
-        self.spin_base_frequency.setValue(440.0)
-        self.spin_base_frequency.setToolTip("Global carrier/base frequency, 0.0–50,000.0 Hz.")
-        global_row.addWidget(self.spin_base_frequency)
+        macro_box=QGroupBox("GLOBAL SYNTHESIS"); macro_layout=QHBoxLayout(macro_box)
+        self.mode_combo=QComboBox(); self.mode_combo.addItems(["Mode: Cross-Loaded Ecosystem (Global)","Mode: Single Instrument"]); self.mode_combo.setCurrentIndex(0); self.chk_global_playlist=QCheckBox("🌐 Global Playlist"); self.chk_global_playlist.setChecked(True); self.spin_tuning=QSpinBox(); self.spin_tuning.setRange(100,1200); self.spin_tuning.setValue(440)
+        self.slider_eqr=QSlider(Qt.Orientation.Horizontal); self.slider_eqr.setRange(0,100); self.slider_eqr.setValue(50); self.slider_fractalizer=QSlider(Qt.Orientation.Horizontal); self.slider_fractalizer.setRange(0,100); self.slider_fractalizer.setValue(85); self.slider_pkp_decay=QSlider(Qt.Orientation.Horizontal); self.slider_pkp_decay.setRange(1,1000); self.slider_pkp_decay.setValue(250); self.chk_pkp_automod=QCheckBox("PKP Envelope Follower"); self.chk_pkp_automod.setChecked(True)
+        macro_layout.addWidget(self.mode_combo); macro_layout.addWidget(self.chk_global_playlist); macro_layout.addWidget(QLabel("Tuning:")); macro_layout.addWidget(self.spin_tuning)
+        for label,sl in (("EQR",self.slider_eqr),("Fractalizer",self.slider_fractalizer),("PKP Decay",self.slider_pkp_decay)): macro_layout.addWidget(QLabel(label+":")); macro_layout.addWidget(sl)
+        macro_layout.addWidget(self.chk_pkp_automod); master_container.addWidget(macro_box)
 
-        # Compatibility alias: existing synthesis code referring to tuning continues to work.
-        self.spin_tuning = self.spin_base_frequency
+        workflow_box=QGroupBox("WORKFLOW TOOLS"); self.workflow_toolbar=QHBoxLayout(workflow_box)
+        self.btn_edit_synth=QPushButton("🛠 Synth / Wavetable"); self.btn_view_playlist=QPushButton("📜 Playlist / Paint"); self.btn_view_patchbay=QPushButton("🔌 Patch Bay"); self.btn_script_inst=QPushButton("📝 Scripts"); self.btn_domain_eq=QPushButton("∫ Domain Equations")
+        self.btn_edit_synth.clicked.connect(lambda:self.spawn_floating_window('synth_editor_window',"Synth Settings & Wavetable Interface")); self.btn_view_playlist.clicked.connect(lambda:self.spawn_floating_window('playlist_window',"Unquantized Global Playlist Timeline")); self.btn_view_patchbay.clicked.connect(lambda:self.spawn_floating_window('patch_bay_dialog',"Advanced Modular Patch Bay & Visualizer")); self.btn_script_inst.clicked.connect(lambda:self.spawn_floating_window('script_editor_window',"Instrument Script Editor")); self.btn_domain_eq.clicked.connect(self.open_domain_equation_editor)
+        for w in (self.btn_edit_synth,self.btn_view_playlist,self.btn_view_patchbay,self.btn_script_inst,self.btn_domain_eq): self.workflow_toolbar.addWidget(w)
+        self.workflow_toolbar.addStretch(1); master_container.addWidget(workflow_box)
 
-        global_row.addWidget(QLabel("Pattern / STEP Length:"))
-        self.spin_seq_length = QSpinBox()
-        self.spin_seq_length.setRange(1, 1024)
-        self.spin_seq_length.setValue(16)
-        global_row.addWidget(self.spin_seq_length)
+        seq_box=QGroupBox("STEP SEQUENCER"); seq_inner=QVBoxLayout(seq_box); seq_header=QHBoxLayout(); seq_header.addWidget(QLabel("Active Instrument is selected in TRANSPORT above:")); seq_header.addWidget(QLabel("Pattern / STEP Length:")); self.spin_seq_length=QSpinBox(); self.spin_seq_length.setRange(1,1024); self.spin_seq_length.setValue(16); seq_header.addWidget(self.spin_seq_length); self.chk_multi_seq_load=QCheckBox("Multi-Sequence Load / Paint"); self.chk_multi_seq_load.setChecked(True); seq_header.addWidget(self.chk_multi_seq_load); seq_header.addStretch(1); seq_inner.addLayout(seq_header)
+        self.top_sequencer=seq_box; self.top_sequencer.instance_combo=self.instrument_selector_dropdown; self.steps_layout_widget=QWidget(); self.steps_inner_layout=QHBoxLayout(self.steps_layout_widget); self.steps_inner_layout.setContentsMargins(6,6,6,6); self.steps_inner_layout.setSpacing(6); self.seq_step_buttons=[]; self.sequence_scroll=QScrollArea(); self.sequence_scroll.setWidgetResizable(False); self.sequence_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded); self.sequence_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff); self.sequence_scroll.setWidget(self.steps_layout_widget); self.sequence_scroll.setMinimumHeight(150); seq_inner.addWidget(self.sequence_scroll,1); self.rebuild_sequencer_steps(self.spin_seq_length.value()); self.spin_seq_length.valueChanged.connect(lambda val:self.rebuild_sequencer_steps(val))
+        step_edit=QHBoxLayout(); self.lbl_selected_step=QLabel("STEP: —"); self.slider_step_amp=QSlider(Qt.Orientation.Horizontal); self.slider_step_amp.setRange(0,100); self.slider_step_amp.setValue(100); self.slider_step_amp.setFixedWidth(150); self.lbl_step_amp=QLabel("100%"); self.slider_step_amp.valueChanged.connect(self._on_step_amp_slider); self.slider_step_pitch=QSlider(Qt.Orientation.Horizontal); self.slider_step_pitch.setRange(25,400); self.slider_step_pitch.setValue(100); self.slider_step_pitch.setFixedWidth(150); self.lbl_step_pitch=QLabel("1.00×"); self.slider_step_pitch.valueChanged.connect(self._on_step_pitch_slider)
+        for w in (self.lbl_selected_step,QLabel("Velocity:"),self.slider_step_amp,self.lbl_step_amp,QLabel("Pitch:"),self.slider_step_pitch,self.lbl_step_pitch): step_edit.addWidget(w)
+        step_edit.addStretch(1); seq_inner.addLayout(step_edit); self.selected_step_idx=None; master_container.addWidget(seq_box,2)
 
-        global_row.addWidget(QLabel("Playlist Rows:"))
-        self.spin_playlist_length = QSpinBox()
-        self.spin_playlist_length.setRange(1, 1024)
-        self.spin_playlist_length.setValue(32)
-        global_row.addWidget(self.spin_playlist_length)
+        visual_box=QGroupBox("LIVE AUDIOVISUAL WORKSPACE"); visual_layout=QHBoxLayout(visual_box); visual_layout.setSpacing(8); left_box=QGroupBox("WAVEFORM VISUALIZER"); left_layout=QVBoxLayout(left_box); self.visual_oscilloscope=VisualOscilloscope(self); self.visual_oscilloscope.setMinimumSize(300,260); self.visual_oscilloscope.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding); left_layout.addWidget(self.visual_oscilloscope,1); right_box=QGroupBox("2.5D VIDEO / GEOMETRY"); right_layout=QVBoxLayout(right_box); self.video_synth_engine=VideoSynthEngine(n_instruments=48); self.video_synth_viewer=VideoSynthViewer(self,engine=self.video_synth_engine); self.video_synth_viewer.setMinimumSize(300,260); self.video_synth_viewer.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding); right_layout.addWidget(self.video_synth_viewer,1); visual_layout.addWidget(left_box,1); visual_layout.addWidget(right_box,1); master_container.addWidget(visual_box,2)
+        visual_controls=QHBoxLayout(); self.scope_status_label=QLabel("AUDIOVISUAL STATUS: Idle"); visual_controls.addWidget(self.scope_status_label,1); visual_controls.addWidget(QLabel("Master Vol:")); self.slider_master_vol=QSlider(Qt.Orientation.Horizontal); self.slider_master_vol.setRange(0,100); self.slider_master_vol.setValue(80); self.slider_master_vol.setFixedWidth(140); self.slider_master_vol.valueChanged.connect(self._on_master_vol_changed); self.lbl_master_vol=QLabel("80%"); visual_controls.addWidget(self.slider_master_vol); visual_controls.addWidget(self.lbl_master_vol); self.btn_export_video=QPushButton("🎬 Export Video"); self.btn_export_video.clicked.connect(self.export_video_audio_dialog); visual_controls.addWidget(self.btn_export_video); master_container.addLayout(visual_controls)
 
-        self.chk_global_playlist = QCheckBox("🌐 Global Playlist")
-        self.chk_global_playlist.setChecked(True)
-        self.chk_global_playlist.setStyleSheet("color: #00ffff; font-weight: bold;")
-        global_row.addWidget(self.chk_global_playlist)
-
-        global_row.addWidget(QLabel("Global Convolve:"))
-        self.slider_global_convolve = QSlider(Qt.Orientation.Horizontal)
-        self.slider_global_convolve.setRange(0, 100)
-        self.slider_global_convolve.setValue(0)
-        self.slider_global_convolve.setFixedWidth(150)
-        self.slider_global_convolve.setToolTip(
-            "0% preserves the source wave; higher values blend toward normalized spectral/geometric convolution."
-        )
-        self.lbl_global_convolve = QLabel("0%")
-        self.slider_global_convolve.valueChanged.connect(
-            lambda v: self.lbl_global_convolve.setText(f"{v}%")
-        )
-        global_row.addWidget(self.slider_global_convolve)
-        global_row.addWidget(self.lbl_global_convolve)
-        global_row.addStretch(1)
-        master_container.addLayout(global_row)
-
-        generation_row = QHBoxLayout()
-        generation_row.addWidget(self.btn_seeded_randomize)
-        generation_row.addWidget(self.btn_idealize_rhythm)
-        generation_row.addWidget(self.chk_user_program_only)
-        generation_row.addWidget(self.btn_save_project)
-        generation_row.addWidget(self.btn_load_project)
-        generation_row.addWidget(self.btn_export)
-        generation_row.addStretch(1)
-        master_container.addLayout(generation_row)
-
-        # Workflow tools: secondary editing surfaces live here, not in transport.
-        self.workflow_toolbar = QHBoxLayout()
-        self.btn_edit_synth = QPushButton("🛠 Synth / Wavetable")
-        self.btn_view_playlist = QPushButton("📜 Playlist / Paint")
-        self.btn_view_patchbay = QPushButton("🔌 Patch Bay")
-        self.btn_script_inst = QPushButton("📝 Instrument Scripts")
-        self.btn_domain_eq = QPushButton("∫ Domain Equations")
-        self.btn_edit_synth.clicked.connect(lambda: self.spawn_floating_window('synth_editor_window', "Synth Settings & Wavetable Interface"))
-        self.btn_view_playlist.clicked.connect(lambda: self.spawn_floating_window('playlist_window', "Unquantized Global Playlist Timeline"))
-        self.btn_view_patchbay.clicked.connect(lambda: self.spawn_floating_window('patch_bay_dialog', "Advanced Modular Patch Bay & Visualizer"))
-        self.btn_script_inst.clicked.connect(lambda: self.spawn_floating_window('script_editor_window', "Instrument Script Editor"))
-        self.btn_domain_eq.clicked.connect(self.open_domain_equation_editor)
-        for _btn in (self.btn_edit_synth, self.btn_view_playlist, self.btn_view_patchbay, self.btn_script_inst, self.btn_domain_eq):
-            self.workflow_toolbar.addWidget(_btn)
-        self.workflow_toolbar.addStretch(1)
-        master_container.addLayout(self.workflow_toolbar)
-
-        # Live engine timers
-        self._live_euclid_timer = QTimer(self)
-        self._live_euclid_timer.setInterval(2000)
-        self._live_euclid_timer.timeout.connect(lambda: self._live_engine_tick("euclidean"))
-        self._live_seeded_timer = QTimer(self)
-        self._live_seeded_timer.setInterval(2500)
-        self._live_seeded_timer.timeout.connect(lambda: self._live_engine_tick("seeded"))
-
-        # Global synthesis modifiers live below the transport/global controls.
-        self.top_layout = QHBoxLayout()
-        self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["Mode: Cross-Loaded Ecosystem (Global)", "Mode: Single Instrument"])
-        self.mode_combo.setCurrentIndex(0)
-        self.slider_eqr = QSlider(Qt.Orientation.Horizontal)
-        self.slider_eqr.setRange(0, 100)
-        self.slider_eqr.setValue(50)
-        self.slider_fractalizer = QSlider(Qt.Orientation.Horizontal)
-        self.slider_fractalizer.setRange(0, 100)
-        self.slider_fractalizer.setValue(85)
-        self.slider_pkp_decay = QSlider(Qt.Orientation.Horizontal)
-        self.slider_pkp_decay.setRange(1, 1000)
-        self.slider_pkp_decay.setValue(250)
-        self.chk_pkp_automod = QCheckBox("PKP Envelope Follower")
-        self.chk_pkp_automod.setChecked(True)
-
-        self.top_layout.addWidget(self.mode_combo)
-        self.top_layout.addWidget(QLabel("EQR:"))
-        self.top_layout.addWidget(self.slider_eqr)
-        self.top_layout.addWidget(QLabel("Fractalizer:"))
-        self.top_layout.addWidget(self.slider_fractalizer)
-        self.top_layout.addWidget(QLabel("PKP Decay:"))
-        self.top_layout.addWidget(self.slider_pkp_decay)
-        self.top_layout.addWidget(self.chk_pkp_automod)
-        self.top_layout.addStretch(1)
-        master_container.addLayout(self.top_layout)
-
-        self.top_sequencer = QWidget()
-        seq_inner = QVBoxLayout(self.top_sequencer)
-        seq_inner.setContentsMargins(0, 0, 0, 0)
-
-        seq_header_layout = QHBoxLayout()
-        seq_header_layout.addWidget(QLabel("⚡ PKP STEP SEQUENCER — Global Geometric Phase-Lock & Nullifier Routing"))
-
-        self.top_sequencer.instance_combo = QComboBox()
-        self.top_sequencer.instance_combo.addItems(self.instrument_names_48)
-        self.top_sequencer.instance_combo.currentIndexChanged.connect(self.reload_active_instrument_sequencer_ui)
-        seq_header_layout.addWidget(QLabel("Bound Memory Instrument:"))
-        seq_header_layout.addWidget(self.top_sequencer.instance_combo)
-
-        self.btn_pkp_pad_bank = QPushButton("▶ PKP Pad Bank: OFF")
-        self.btn_pkp_pad_bank.setCheckable(True)
-        self.btn_pkp_pad_bank.setChecked(False)
-        self.btn_pkp_pad_bank.setStyleSheet(
-            "background-color: #121212; color: #ff5555; border: 2px solid #444; font-weight: bold; padding: 4px 10px;"
-        )
-        self.btn_pkp_pad_bank.toggled.connect(self.toggle_pkp_pad_bank)
-        seq_header_layout.addWidget(self.btn_pkp_pad_bank)
-        seq_inner.addLayout(seq_header_layout)
-
-        # PKP pad-bank step clock (independent of main transport)
-        self.pkp_pad_bank_active = False
-        self.pkp_current_step = 0
-        self.pkp_step_timer = QTimer(self)
-        self.pkp_step_timer.timeout.connect(self._pkp_step_tick)
-
-        self.steps_layout_widget = QWidget()
-        self.steps_inner_layout = QHBoxLayout(self.steps_layout_widget)
-        self.steps_inner_layout.setContentsMargins(4, 4, 4, 4)
-        self.steps_inner_layout.setSpacing(5)
-        self.seq_step_buttons = []
-
-        self.rebuild_sequencer_steps(self.spin_seq_length.value())
-        self.spin_seq_length.valueChanged.connect(lambda val: self.rebuild_sequencer_steps(val))
-
-        # The sequence content scrolls; the main window does not resize to fit 1–1024 steps.
-        self.seq_scroll_area = QScrollArea()
-        self.seq_scroll_area.setWidgetResizable(True)
-        self.seq_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.seq_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.seq_scroll_area.setMinimumHeight(120)
-        self.seq_scroll_area.setWidget(self.steps_layout_widget)
-        seq_inner.addWidget(self.seq_scroll_area, 1)
-
-        # Step select → Amp (velocity) + Pitch (Hz ratio) sliders
-        step_edit = QHBoxLayout()
-        self.lbl_selected_step = QLabel("Step: —")
-        self.lbl_selected_step.setStyleSheet("color: #f5d97d; font-weight: bold;")
-        step_edit.addWidget(self.lbl_selected_step)
-        step_edit.addWidget(QLabel("Amp/Vel:"))
-        self.slider_step_amp = QSlider(Qt.Orientation.Horizontal)
-        self.slider_step_amp.setRange(0, 100)
-        self.slider_step_amp.setValue(100)
-        self.slider_step_amp.setFixedWidth(120)
-        self.slider_step_amp.valueChanged.connect(self._on_step_amp_slider)
-        step_edit.addWidget(self.slider_step_amp)
-        self.lbl_step_amp = QLabel("100%")
-        step_edit.addWidget(self.lbl_step_amp)
-        step_edit.addWidget(QLabel("Pitch:"))
-        self.slider_step_pitch = QSlider(Qt.Orientation.Horizontal)
-        self.slider_step_pitch.setRange(25, 400)  # 0.25x .. 4.0x frequency ratio * 100
-        self.slider_step_pitch.setValue(100)
-        self.slider_step_pitch.setFixedWidth(120)
-        self.slider_step_pitch.valueChanged.connect(self._on_step_pitch_slider)
-        step_edit.addWidget(self.slider_step_pitch)
-        self.lbl_step_pitch = QLabel("1.00×")
-        step_edit.addWidget(self.lbl_step_pitch)
-        step_edit.addStretch(1)
-        seq_inner.addLayout(step_edit)
-        self.selected_step_idx = None
-
-        # Visualizer focus dropdown
-        vis_row = QHBoxLayout()
-        vis_row.addWidget(QLabel("Visualizer:"))
-        self.viz_mode_combo = QComboBox()
-        self.viz_mode_combo.addItems([
-            "Master Oscilloscope",
-            "Current Effected Waveform",
-            "Overall Wave Pattern",
-            "Per-Instrument Activity",
-        ])
-        self.viz_mode_combo.currentIndexChanged.connect(self._on_viz_mode_changed)
-        vis_row.addWidget(self.viz_mode_combo)
-        vis_row.addStretch(1)
-        seq_inner.addLayout(vis_row)
-
-        master_container.addWidget(self.top_sequencer)
-
-        # Merged visualizer + 2.5D video synth viewer
-        self.video_synth_engine = VideoSynthEngine(n_instruments=48)
-        self.video_synth_viewer = VideoSynthViewer(self, engine=self.video_synth_engine)
-        self.video_synth_viewer.setMinimumHeight(220)
-        if not isinstance(getattr(self, 'visual_oscilloscope', None), VisualOscilloscope):
-            self.visual_oscilloscope = VisualOscilloscope(self)
-            self.visual_oscilloscope.setMinimumHeight(100)
-            self.visual_oscilloscope.setMaximumHeight(120)
-
-        scope_bar = QHBoxLayout()
-        self.scope_status_label = QLabel("📊 2.5D Video Synth + Oscilloscope  |  Status: Idle")
-        self.scope_status_label.setStyleSheet("color: #00ffff; font-weight: bold;")
-        scope_bar.addWidget(self.scope_status_label, stretch=3)
-
-        scope_bar.addWidget(QLabel("Master Vol:"))
-        self.slider_master_vol = QSlider(Qt.Orientation.Horizontal)
-        self.slider_master_vol.setRange(0, 100)
-        self.slider_master_vol.setValue(80)
-        self.slider_master_vol.setFixedWidth(140)
-        self.slider_master_vol.valueChanged.connect(self._on_master_vol_changed)
-        scope_bar.addWidget(self.slider_master_vol)
-        self.lbl_master_vol = QLabel("80%")
-        self.lbl_master_vol.setStyleSheet("color: #f5d97d;")
-        scope_bar.addWidget(self.lbl_master_vol)
-
-        self.btn_export_video = QPushButton("🎬 Export Video")
-        self.btn_export_video.setToolTip("Render the audiovisual geometry as a video-only export.")
-        self.btn_export_video.clicked.connect(self.export_video_dialog)
-        scope_bar.addWidget(self.btn_export_video)
-
-        master_container.addLayout(scope_bar)
-        master_container.addWidget(self.video_synth_viewer)
-        master_container.addWidget(self.visual_oscilloscope)
+        self.input_seed_val.editingFinished.connect(self._mark_generation_user_change)
+        for ctrl in (self.spin_base_frequency,self.spin_bpm,self.spin_playlist_length,self.spin_seq_length,self.slider_global_convolve,self.slider_eqr,self.slider_fractalizer,self.slider_pkp_decay): ctrl.valueChanged.connect(self._mark_generation_user_change)
+        self.instrument_selector_dropdown.currentIndexChanged.connect(self._mark_generation_user_change); self.slider_global_convolve.valueChanged.connect(lambda v:self.lbl_global_convolve.setText(f"{v/1000.0:.3f}")); self.slider_global_convolve.valueChanged.connect(lambda v:setattr(self,"global_convolve",v/1000.0))
 
         # Realtime audio engine state (sounddevice stream)
         self.is_playing = False
+        self.is_paused = False
         self.play_buffer = None
         self.play_sample_rate = 44100
         self.play_cursor = 0
@@ -7739,41 +7487,14 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
     def on_instrument_switched(self, idx):
         inst_name = self.instrument_names_48[idx]
-        combo = getattr(getattr(self, 'top_sequencer', None), 'instance_combo', None)
-        if combo is not None and combo.currentIndex() != idx:
-            combo.setCurrentIndex(idx)
+        if hasattr(self, 'top_sequencer') and self.instrument_selector_dropdown.currentIndex() != idx:
+            self.instrument_selector_dropdown.setCurrentIndex(idx)
         self.reload_active_instrument_sequencer_ui()
 
-    def _current_sequencer_instrument(self):
-        """Return the authoritative active instrument without assuming a UI widget type."""
-        combo = getattr(getattr(self, "top_sequencer", None), "instance_combo", None)
-        if combo is not None and hasattr(combo, "currentText"):
-            try:
-                name = combo.currentText().strip()
-                if name in getattr(self, "instrument_names_48", []):
-                    return name
-            except Exception:
-                pass
-        selector = getattr(self, "instrument_selector_dropdown", None)
-        if selector is not None and hasattr(selector, "currentText"):
-            try:
-                name = selector.currentText().strip()
-                if name in getattr(self, "instrument_names_48", []):
-                    return name
-            except Exception:
-                pass
-        active = getattr(self, "active_instrument_name", None)
-        if active in getattr(self, "instrument_names_48", []):
-            return active
-        names = getattr(self, "instrument_names_48", [])
-        return names[0] if names else None
-
     def reload_active_instrument_sequencer_ui(self):
-        if not hasattr(self, 'top_sequencer') or not hasattr(self, 'seq_step_buttons'):
+        if not hasattr(self, 'top_sequencer'):
             return
-        curr_inst = self._current_sequencer_instrument()
-        if not curr_inst or curr_inst not in self.instrument_sequencer_memory:
-            return
+        curr_inst = self.instrument_selector_dropdown.currentText()
         mem = self.instrument_sequencer_memory[curr_inst]
         self._ensure_seq_mem_length(mem, len(self.seq_step_buttons) or 16)
         for s_idx, btn in enumerate(self.seq_step_buttons):
@@ -7805,59 +7526,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
             )
 
     def toggle_pkp_pad_bank(self, checked):
-        """Arm / disarm the PKP pad bank and run its step clock."""
-        self.pkp_pad_bank_active = bool(checked)
-        if checked:
-            self.btn_pkp_pad_bank.setText("⏸ PKP Pad Bank: ON")
-            self.btn_pkp_pad_bank.setStyleSheet(
-                "background-color: #00aa55; color: #ffffff; border: 2px solid #00ff88; font-weight: bold; padding: 4px 10px;"
-            )
-            self.pkp_current_step = 0
-            # 16th-note interval from global BPM
-            bpm = self.spin_bpm.value() if hasattr(self, 'spin_bpm') else 120
-            interval_ms = max(20, int(60000.0 / max(bpm, 1) / 4.0))
-            self.pkp_step_timer.setInterval(interval_ms)
-            self.pkp_step_timer.start()
-            self._refresh_pad_playhead()
-            inst = self._current_sequencer_instrument() if hasattr(self, 'top_sequencer') else "?"
-            print(f"[PKP Pad Bank] ARMED — step clock @ {bpm} BPM (16th) for '{inst}'")
-        else:
-            self.btn_pkp_pad_bank.setText("▶ PKP Pad Bank: OFF")
-            self.btn_pkp_pad_bank.setStyleSheet(
-                "background-color: #121212; color: #ff5555; border: 2px solid #444; font-weight: bold; padding: 4px 10px;"
-            )
-            self.pkp_step_timer.stop()
-            self.pkp_current_step = 0
-            self.reload_active_instrument_sequencer_ui()
-            print("[PKP Pad Bank] DISARMED")
+        self.pkp_pad_bank_active=False
+        if hasattr(self,"pkp_step_timer"): self.pkp_step_timer.stop()
 
     def _pkp_step_tick(self):
-        """Advance the pad-bank playhead one 16th-note step and fire audio on programmed hits."""
-        if not self.pkp_pad_bank_active:
-            return
-        # Keep interval in sync if user changes BPM while running
-        bpm = self.spin_bpm.value() if hasattr(self, 'spin_bpm') else 120
-        interval_ms = max(20, int(60000.0 / max(bpm, 1) / 4.0))
-        if self.pkp_step_timer.interval() != interval_ms:
-            self.pkp_step_timer.setInterval(interval_ms)
-
-        count = len(self.seq_step_buttons) if self.seq_step_buttons else (
-            self.spin_seq_length.value() if hasattr(self, 'spin_seq_length') else 16
-        )
-        if count <= 0:
-            return
-        self.pkp_current_step = (self.pkp_current_step + 1) % count
-        self._refresh_pad_playhead()
-
-        # Fire a short hit when this step is programmed ON
-        curr_inst = self._current_sequencer_instrument() if hasattr(self, 'top_sequencer') else None
-        if curr_inst and curr_inst in self.instrument_sequencer_memory:
-            mem = self.instrument_sequencer_memory[curr_inst]
-            s = self.pkp_current_step
-            if s < len(mem.get("steps", [])) and mem["steps"][s]:
-                amp = mem.get("amplitudes", [1.0] * 16)
-                amp = amp[s] if s < len(amp) else 1.0
-                self._pkp_fire_step_hit(curr_inst, s, amp)
+        return
 
     def _pkp_fire_step_hit(self, inst_name, step_idx, amp=1.0):
         """Generate a short percussive hit for the active pad and push it to scope (+ optional audio)."""
@@ -7874,9 +7547,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 op_idx = self.instrument_names_48.index(inst_name)
             except ValueError:
                 op_idx = step_idx
-            base_freq = 44.0 * (MEUM_CONSTANT ** (op_idx % 36))
-            # Slight pitch offset per step so the sequence is musical
-            freq = base_freq * (1.0 + (step_idx % 12) * 0.03)
+            base_freq = float(self.spin_base_frequency.value()) if hasattr(self,"spin_base_frequency") else 432.0
+            freq = base_freq  # PKP Null-Lock is global: selected instrument, triggered at Base Global Frequency
 
             # PKP-style: fast decay sine + soft click transient
             env = np.exp(-t / max(hit_dur * 0.35, 0.01))
@@ -7897,7 +7569,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 self.visual_oscilloscope.update_waveform(hit[idx])
                 if hasattr(self, 'scope_status_label'):
                     self.scope_status_label.setText(
-                        f"📊 PKP Hit  ·  {inst_name[:18]}  Pad {step_idx+1}  ·  {freq:.1f} Hz"
+                        f"📊 PKP Hit  ·  {inst_name[:18]}  STEP {step_idx+1}  ·  {freq:.1f} Hz"
                     )
 
             # Non-blocking one-shot audio (does not interfere with main stream)
@@ -7913,7 +7585,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         """Re-style all pads so only the current playhead step is highlighted orange."""
         if not hasattr(self, 'seq_step_buttons') or not self.seq_step_buttons:
             return
-        curr_inst = self._current_sequencer_instrument() if hasattr(self, 'top_sequencer') else None
+        curr_inst = self.instrument_selector_dropdown.currentText() if hasattr(self, 'top_sequencer') else None
         mem = self.instrument_sequencer_memory.get(curr_inst, {"steps": []}) if curr_inst else {"steps": []}
         for s_idx, btn in enumerate(self.seq_step_buttons):
             is_on = mem["steps"][s_idx] if s_idx < len(mem.get("steps", [])) else False
@@ -7927,7 +7599,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.seq_step_buttons.clear()
         self.selected_step_idx = None
 
-        curr_inst = self._current_sequencer_instrument() if hasattr(self, 'top_sequencer') else self.instrument_names_48[0]
+        curr_inst = self.instrument_selector_dropdown.currentText() if hasattr(self, 'top_sequencer') else self.instrument_names_48[0]
         mem = self.instrument_sequencer_memory[curr_inst]
         self._ensure_seq_mem_length(mem, count)
         if "pitches" not in mem:
@@ -7939,9 +7611,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
             amp = mem["amplitudes"][s]
             pitch = mem["pitches"][s] if s < len(mem["pitches"]) else 1.0
             step_btn = QPushButton(f"STEP {s+1}\nA:{amp:.2f} P:{pitch:.2f}×")
-            step_btn.setMinimumWidth(88)
-            step_btn.setMinimumHeight(58)
-            step_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
             step_btn.setCheckable(False)  # select vs toggle handled in click
             self._style_pad_button(step_btn, s, mem["steps"][s])
 
@@ -7953,48 +7622,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
             step_btn.clicked.connect(make_handler(s))
             self.steps_inner_layout.addWidget(step_btn)
             self.seq_step_buttons.append(step_btn)
-
-    def apply_global_convolve_waveforms(self, waveforms):
-        """
-        Apply the Global Convolve control to a collection of normalized waveform
-        representations. User-facing synth parameters are intentionally not read here:
-        callers provide only the structural waveforms eligible for convolution.
-
-        Returns a normalized waveform. At 0%, the mean structural carrier is returned;
-        higher values blend it toward a normalized frequency-domain convolution.
-        """
-        if not waveforms:
-            return None
-        try:
-            arrays = [np.asarray(w, dtype=float).reshape(-1) for w in waveforms if len(w)]
-            if not arrays:
-                return None
-            n = min(len(a) for a in arrays)
-            arrays = [a[:n] for a in arrays]
-            base = np.mean(np.stack(arrays, axis=0), axis=0)
-            peak = float(np.max(np.abs(base))) or 1.0
-            base = base / peak
-
-            strength = float(getattr(self, "slider_global_convolve", None).value()) / 100.0                 if hasattr(self, "slider_global_convolve") else 0.0
-            if strength <= 0.0:
-                return base
-
-            # Stable circular spectral convolution of the supplied structural waves.
-            spectrum = np.fft.rfft(arrays[0])
-            for arr in arrays[1:]:
-                spectrum *= np.fft.rfft(arr)
-                scale = max(float(np.max(np.abs(spectrum))), 1e-12)
-                spectrum /= scale
-            convolved = np.fft.irfft(spectrum, n=n)
-            cpeak = float(np.max(np.abs(convolved))) or 1.0
-            convolved /= cpeak
-
-            out = (1.0 - strength) * base + strength * convolved
-            opeak = float(np.max(np.abs(out))) or 1.0
-            return out / opeak
-        except Exception as exc:
-            print(f"[Global Convolve] non-fatal fallback: {exc}")
-            return np.asarray(waveforms[0], dtype=float).reshape(-1)
 
     def get_numeric_seed(self):
         """Converts irrational string seeds into a stable integer hash for NumPy."""
@@ -8098,7 +7725,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         Click once → select step (amp/pitch sliders).
         Click again while selected → toggle on/off (off = amp 0 path; on = at Amp/Pitch values).
         """
-        curr_i = self._current_sequencer_instrument()
+        curr_i = self.instrument_selector_dropdown.currentText()
         mem = self.instrument_sequencer_memory[curr_i]
         self._ensure_seq_mem_length(mem, max(s_idx + 1, len(mem.get("steps", []))))
 
@@ -8147,7 +7774,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             self.lbl_step_amp.setText(f"{val}%")
         if self.selected_step_idx is None:
             return
-        curr_i = self._current_sequencer_instrument()
+        curr_i = self.instrument_selector_dropdown.currentText()
         mem = self.instrument_sequencer_memory[curr_i]
         s = self.selected_step_idx
         self._ensure_seq_mem_length(mem, s + 1)
@@ -8163,7 +7790,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             self.lbl_step_pitch.setText(f"{ratio:.2f}×")
         if self.selected_step_idx is None:
             return
-        curr_i = self._current_sequencer_instrument()
+        curr_i = self.instrument_selector_dropdown.currentText()
         mem = self.instrument_sequencer_memory[curr_i]
         s = self.selected_step_idx
         self._ensure_seq_mem_length(mem, s + 1)
@@ -8172,33 +7799,33 @@ class MathematiciansGrooveboxApp(QMainWindow):
             amp = mem["amplitudes"][s] if s < len(mem["amplitudes"]) else 1.0
             self.seq_step_buttons[s].setText(f"STEP {s+1}\nA:{amp:.2f} P:{ratio:.2f}×")
 
+    def _mark_generation_user_change(self, *args):
+        if getattr(self,'_engine_apply_guard',False): return
+        self._engine_user_revision += 1
+        if hasattr(self,'btn_idealize_rhythm') and self.btn_idealize_rhythm.isChecked(): self._apply_live_engine_once("euclidean")
+        if hasattr(self,'btn_seeded_randomize') and self.btn_seeded_randomize.isChecked(): self._apply_live_engine_once("seeded")
+
+    def _apply_live_engine_once(self, which):
+        if getattr(self,'_engine_apply_guard',False): return
+        rev=self._engine_user_revision
+        if self._engine_last_applied_revision.get(which,-1)==rev: return
+        self._engine_apply_guard=True
+        try:
+            (self.apply_euclidean_and_idealized_rhythms if which=="euclidean" else self.apply_seeded_harmonic_randomization)()
+            self._engine_last_applied_revision[which]=rev
+        finally: self._engine_apply_guard=False
+
     def _on_euclidean_live_toggled(self, checked):
-        if getattr(self, 'chk_user_program_only', None) and self.chk_user_program_only.isChecked():
-            self.btn_idealize_rhythm.blockSignals(True)
-            self.btn_idealize_rhythm.setChecked(False)
-            self.btn_idealize_rhythm.blockSignals(False)
-            return
+        if getattr(self,'chk_user_program_only',None) and self.chk_user_program_only.isChecked(): self.btn_idealize_rhythm.setChecked(False); return
         if checked:
-            self.apply_euclidean_and_idealized_rhythms()
-            self._live_euclid_timer.start()
-            self.btn_idealize_rhythm.setStyleSheet("background-color: #00aa55; color: white; font-weight: bold;")
-        else:
-            self._live_euclid_timer.stop()
-            self.btn_idealize_rhythm.setStyleSheet("")
+            self._apply_live_engine_once("euclidean"); self.btn_idealize_rhythm.setStyleSheet("background-color:#00aa55;color:white;font-weight:bold;")
+        else: self.btn_idealize_rhythm.setStyleSheet("")
 
     def _on_seeded_live_toggled(self, checked):
-        if getattr(self, 'chk_user_program_only', None) and self.chk_user_program_only.isChecked():
-            self.btn_seeded_randomize.blockSignals(True)
-            self.btn_seeded_randomize.setChecked(False)
-            self.btn_seeded_randomize.blockSignals(False)
-            return
+        if getattr(self,'chk_user_program_only',None) and self.chk_user_program_only.isChecked(): self.btn_seeded_randomize.setChecked(False); return
         if checked:
-            self.apply_seeded_harmonic_randomization()
-            self._live_seeded_timer.start()
-            self.btn_seeded_randomize.setStyleSheet("background-color: #00aa55; color: white; font-weight: bold;")
-        else:
-            self._live_seeded_timer.stop()
-            self.btn_seeded_randomize.setStyleSheet("")
+            self._apply_live_engine_once("seeded"); self.btn_seeded_randomize.setStyleSheet("background-color:#00aa55;color:white;font-weight:bold;")
+        else: self.btn_seeded_randomize.setStyleSheet("")
 
     def _on_user_program_only_toggled(self, checked):
         if checked:
@@ -8217,12 +7844,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             print("[User program only] OFF — live engines may be re-armed")
 
     def _live_engine_tick(self, which):
-        if getattr(self, 'chk_user_program_only', None) and self.chk_user_program_only.isChecked():
-            return
-        if which == "euclidean" and self.btn_idealize_rhythm.isChecked():
-            self.apply_euclidean_and_idealized_rhythms()
-        elif which == "seeded" and self.btn_seeded_randomize.isChecked():
-            self.apply_seeded_harmonic_randomization()
+        return
 
     def save_project_dialog(self):
         path, _ = QFileDialog.getSaveFileName(self, "Save EQR Project", "", "EQR Project (*.json)")
@@ -8292,7 +7914,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         row.addWidget(btn_all)
         lay.addLayout(row)
         grid = QGridLayout()
-        notes = ["C", "D", "E", "F", "G", "A", "B"]
+        notes = ["FREQUENCY", "FREQUENCY / 1.5", "FREQUENCY * 2.5", "FREQUENCY * 3.5", "FREQUENCY * 4.5", "FREQUENCY * 5.5", "FREQUENCY * 6.5"]
         for i, n in enumerate(notes):
             b = QPushButton(n)
             b.clicked.connect(lambda checked=False, idx=i: self._keyboard_note_hit(idx, global_mode=False))
@@ -8772,6 +8394,32 @@ class MathematiciansGrooveboxApp(QMainWindow):
             self.reload_active_instrument_sequencer_ui()
         return stats
 
+    def _randomize_engine_playlist_blends(self, rng, source="seeded"):
+        """Seed-stable blend variation for engine-owned playlist lanes only.
+        User-painted lanes remain authoritative; empty/engine lanes receive decimal blend values.
+        """
+        lanes = getattr(self, "playlist_automation", None)
+        if lanes is None:
+            self.playlist_automation = lanes = []
+        rows = int(self.spin_playlist_length.value()) if hasattr(self, "spin_playlist_length") else 32
+        while len(lanes) < rows:
+            lanes.append({})
+        changed = 0
+        for r in range(rows):
+            lane = lanes[r]
+            if lane and not str(lane.get("mode", "")).startswith("engine:"):
+                continue
+            if not lane:
+                lane = {"mode": f"engine:{source}"}
+                lanes[r] = lane
+            lane["blend_percent"] = float(rng.uniform(0.0, 100.0))
+            lane["overlap"] = float(rng.uniform(0.0, 1.0))
+            lane["amount"] = float(np.clip(rng.uniform(0.15, 1.0), 0.0, 1.0))
+            lane["direction"] = 1.0 if rng.random() >= 0.5 else -1.0
+            lane["mode"] = f"engine:{source}"
+            changed += 1
+        return changed
+
     def apply_euclidean_and_idealized_rhythms(self):
         """
         Additive Euclidean Phase-Lock (non-destructive where possible).
@@ -8790,6 +8438,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         count = int(self.spin_seq_length.value()) if hasattr(self, 'spin_seq_length') else 16
         seed = self.get_numeric_seed()
         rng = np.random.default_rng(seed)
+        blend_updates = self._randomize_engine_playlist_blends(rng, source="euclidean")
 
         filled = 0
         preserved = 0
@@ -8824,7 +8473,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
                 if is_eucl or complement:
                     mem["steps"][s] = True
-                    base_amp = 0.55 + 0.35 * abs(np.sin(s * np.pi / count + i * 0.1))
+                    conv = float(getattr(self, "global_convolve", 0.0))
+                    base_amp = (0.55 + 0.35 * abs(np.sin(s * np.pi / count + i * 0.1))) * (0.9 + 0.2 * conv)
                     if complement:
                         base_amp *= 0.45  # softer opposite
                     mem["amplitudes"][s] = float(np.clip(base_amp, 0.15, 1.0))
@@ -8838,7 +8488,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         print(
             f"[Euclidean Phase-Lock] Additive fill complete. "
             f"Preserved user steps≈{preserved}, filled empty slots={filled}. "
-            f"Seed={self.input_seed_val.text() if hasattr(self, 'input_seed_val') else seed}"
+            f"Seed={self.input_seed_val.text() if hasattr(self, 'input_seed_val') else seed}, blend_updates={blend_updates}"
         )
 
     def _engines_write_automation_lanes(self, source="seeded"):
@@ -8895,6 +8545,10 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         numeric_seed = self.get_numeric_seed()
         rng = np.random.default_rng(numeric_seed)
+        blend_updates = self._randomize_engine_playlist_blends(rng, source="seeded")
+        if hasattr(self,"slider_global_convolve"): 
+            self.slider_global_convolve.blockSignals(True); self.slider_global_convolve.setValue(int(rng.integers(0,1001))); self.slider_global_convolve.blockSignals(False)
+            self.lbl_global_convolve.setText(f"{self.slider_global_convolve.value()/1000.0:.3f}")
         count = int(self.spin_seq_length.value()) if hasattr(self, 'spin_seq_length') else 16
 
         # Do NOT forcibly change the user's selected instrument.
@@ -9007,7 +8661,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         print(
             f"[Seeded Harmonic Randomizer] Additive fractal fill. "
             f"Preserved≈{preserved_steps}, filled={filled_steps}, scripts_updated={scripts_written}. "
-            f"Seed='{self.input_seed_val.text()}'"
+            f"Seed='{self.input_seed_val.text()}', blend_updates={blend_updates}"
         )
     def generate_ideal_patch_bay_routing(self):
         """
@@ -9165,6 +8819,14 @@ class MathematiciansGrooveboxApp(QMainWindow):
         if hasattr(self, 'lbl_master_vol'):
             self.lbl_master_vol.setText(f"{val}%")
 
+    def _apply_global_convolution(self, signal, strength):
+        strength=float(np.clip(strength,0.0,1.0))
+        if strength<=1e-6 or len(signal)<16:return signal
+        spec=np.fft.rfft(signal); freqs=np.linspace(0.0,1.0,len(spec)); seed=self.get_numeric_seed() if hasattr(self,"get_numeric_seed") else 0
+        kernel=np.maximum(0.05,0.5+0.5*np.cos(2*np.pi*(freqs*MEUM_CONSTANT+(seed%997)/997.0)))
+        conv=np.fft.irfft(spec*kernel,n=len(signal)).astype(np.float32); a=float(np.sqrt(np.mean(signal*signal))+1e-9); b=float(np.sqrt(np.mean(conv*conv))+1e-9); conv*=a/b
+        return ((1.0-strength)*signal+strength*conv).astype(np.float32)
+
     def _render_mixdown_buffer(self, max_rows=None):
         """Shared float32 mono render used by both realtime Play and WAV Export."""
         sample_rate = 44100
@@ -9224,7 +8886,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 mem = self.instrument_sequencer_memory.get(
                     op_name, {"steps": [False] * 16, "amplitudes": [1.0] * 16, "pitches": [1.0] * 16}
                 )
-                base_freq = 44.0 * (MEUM_CONSTANT ** (op_idx % 36))
+                base_freq = float(self.spin_base_frequency.value()) if hasattr(self,"spin_base_frequency") else 432.0
+                base_freq = max(0.0, base_freq * (MEUM_CONSTANT ** (op_idx % 12)))
                 dynamic_eqr = base_eqr * (1.0 + 0.3 * np.sin(2.0 * np.pi * 0.2 * local_t + op_idx))
 
                 step_env = np.zeros_like(local_t)
@@ -9251,7 +8914,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 env_f = np.exp(-local_t / max(pkp_decay * (MEUM_CONSTANT if pkp_auto else 1.0), 0.015))
                 pkp = env_f * np.sin(2 * np.pi * (base_freq * 2.0) * pitch_track * local_t)
                 gate = np.maximum(step_env, 0.1)
-                row_mix += (osc * 0.5 + pkp * 0.5) * gate * velocity_scale
+                row_mix += osc * gate * velocity_scale
 
             master[mask] += row_mix / max(len(active_cluster), 1)
 
@@ -9266,6 +8929,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 master = master * (1.0 + 0.45 * domain_mod.astype(np.float32))
             except Exception as e:
                 print(f"[DomainEQ] render modulation skipped: {e}")
+
+        master=self._apply_global_convolution(master,self.slider_global_convolve.value()/1000.0 if hasattr(self,"slider_global_convolve") else 0.0)
 
         peak = np.max(np.abs(master))
         if peak > 0:
@@ -9317,62 +8982,33 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
     def toggle_playback(self):
         if self.is_playing:
-            self.stop_playback()
-            return
-
-        if not HAS_SOUNDDEVICE:
-            QMessageBox.warning(
-                self, "Audio Engine",
-                "sounddevice is not available.\nInstall with:  pip install sounddevice\n"
-                "Falling back to visualizer-only preview."
-            )
-
-        try:
-            if hasattr(self, 'scope_status_label'):
-                self.scope_status_label.setText("📊 Rendering mixdown for realtime play…")
-            QApplication.processEvents()
-
-            buf, sr = self._render_mixdown_buffer()
-            with self.play_lock:
-                self.play_buffer = buf
-                self.play_sample_rate = sr
-                self.play_cursor = 0
-                self.is_playing = True
-
+            self.is_playing=False; self.is_paused=True
+            if getattr(self,"audio_stream",None) is not None:
+                try:self.audio_stream.stop()
+                except Exception:pass
+            self.btn_play.setText("▶ RESUME Audiovisual Track"); self.scope_status_label.setText("AUDIOVISUAL STATUS: Paused"); return
+        if self.is_paused and self.play_buffer is not None:
+            self.is_playing=True; self.is_paused=False
             if HAS_SOUNDDEVICE:
-                # Close any previous stream
-                if self.audio_stream is not None:
-                    try:
-                        self.audio_stream.stop()
-                        self.audio_stream.close()
-                    except Exception:
-                        pass
-                self.audio_stream = sd.OutputStream(
-                    samplerate=sr,
-                    channels=1,
-                    dtype='float32',
-                    callback=self._audio_callback,
-                    blocksize=1024,
-                    latency='low'
-                )
+                if self.audio_stream is None:self.audio_stream=sd.OutputStream(samplerate=self.play_sample_rate,channels=1,dtype="float32",callback=self._audio_callback,blocksize=1024,latency="low")
                 self.audio_stream.start()
-
-            self.btn_play.setText("⏸ Stop / Playing")
-            self.btn_play.setStyleSheet("background-color: #00aa55; color: white; font-weight: bold;")
-            self._scope_update_timer.start()
-            if hasattr(self, 'scope_status_label'):
-                self.scope_status_label.setText("📊 Phase-Space Oscilloscope  |  LIVE PLAYING")
-            print(f"[Audio] Realtime stream started ({len(buf)/sr:.1f}s @ {sr} Hz, sounddevice={HAS_SOUNDDEVICE})")
+            self.btn_play.setText("⏸ PAUSE Audiovisual Track"); self._scope_update_timer.start(); self.scope_status_label.setText("AUDIOVISUAL STATUS: Playing"); return
+        try:
+            self.scope_status_label.setText("AUDIOVISUAL STATUS: Rendering…"); QApplication.processEvents(); buf,sr=self._render_mixdown_buffer()
+            with self.play_lock:self.play_buffer=buf; self.play_sample_rate=sr; self.play_cursor=0; self.is_playing=True; self.is_paused=False
+            if HAS_SOUNDDEVICE:
+                if self.audio_stream is not None:
+                    try:self.audio_stream.stop(); self.audio_stream.close()
+                    except Exception:pass
+                self.audio_stream=sd.OutputStream(samplerate=sr,channels=1,dtype="float32",callback=self._audio_callback,blocksize=1024,latency="low"); self.audio_stream.start()
+            self.btn_play.setText("⏸ PAUSE Audiovisual Track"); self._scope_update_timer.start(); self.scope_status_label.setText("AUDIOVISUAL STATUS: Playing")
         except Exception as e:
-            self.is_playing = False
-            print(f"[Audio] Playback start failed: {e}")
-            if hasattr(self, 'scope_status_label'):
-                self.scope_status_label.setText(f"📊 Playback error: {e}")
-            QMessageBox.critical(self, "Playback Error", str(e))
+            self.is_playing=False; self.is_paused=False; QMessageBox.critical(self,"Playback Error",str(e))
 
     def stop_playback(self):
         was = self.is_playing
         self.is_playing = False
+        self.is_paused = False
         if hasattr(self, '_scope_update_timer') and self._scope_update_timer.isActive():
             self._scope_update_timer.stop()
         if getattr(self, 'audio_stream', None) is not None:
@@ -9385,7 +9021,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         with getattr(self, 'play_lock', threading.Lock()):
             self.play_cursor = 0
         if hasattr(self, 'btn_play'):
-            self.btn_play.setText("▶ Live Audio Play")
+            self.btn_play.setText("▶ PLAY Audiovisual Track")
             self.btn_play.setStyleSheet("")
         if hasattr(self, 'scope_status_label'):
             self.scope_status_label.setText("📊 Phase-Space Oscilloscope  |  Status: Stopped")
@@ -9435,68 +9071,25 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 self.scope_status_label.setText(f"📊 Export error: {e}")
             QMessageBox.critical(self, "Export Error", str(e))
 
-    def export_video_dialog(self):
-        """Render waveform-driven 2.5D scenograph frames as a video-only export."""
+    def export_video_audio_dialog(self):
+        """Export video only; audio remains a separate WAV export."""
         try:
             from PIL import Image
-            import subprocess
-            import tempfile
-            import shutil
+            import tempfile,shutil,subprocess
+            out_path,_=QFileDialog.getSaveFileName(self,"Export Video",f"groovebox_video_{self.export_counter:03d}.mp4","MP4 Video (*.mp4);;All Files (*)")
+            if not out_path:return
+            master,sr=self._render_mixdown_buffer(); fps=24; frame_samples=max(1,int(sr/fps)); n_frames=max(1,min(len(master)//frame_samples,fps*60)); tmp=tempfile.mkdtemp(prefix="groovebox_vid_")
+            try:
+                eng=self.video_synth_engine
+                for fi in range(n_frames):
+                    a=fi*frame_samples; b=min(len(master),a+frame_samples); eng.set_waveform(master[a:b]); Image.fromarray(eng.render_frame(640,640),mode="RGB").save(os.path.join(tmp,f"frame_{fi:05d}.png"))
+                    if fi%12==0:self.scope_status_label.setText(f"VIDEO EXPORT: {fi}/{n_frames}"); QApplication.processEvents()
+                proc=subprocess.run(["ffmpeg","-y","-framerate",str(fps),"-i",os.path.join(tmp,"frame_%05d.png"),"-c:v","libx264","-pix_fmt","yuv420p",out_path],capture_output=True,text=True)
+                if proc.returncode!=0:raise RuntimeError(proc.stderr[-1000:] or "ffmpeg video export failed")
+            finally:shutil.rmtree(tmp,ignore_errors=True)
+            self.export_counter+=1; self.scope_status_label.setText(f"VIDEO EXPORT COMPLETE: {os.path.basename(out_path)}")
+        except Exception as e: QMessageBox.critical(self,"Video Export Error",str(e))
 
-            out_path, _ = QFileDialog.getSaveFileName(
-                self, "Export Video", f"groovebox_video_{self.export_counter:03d}.mp4",
-                "MP4 Video (*.mp4);;All Files (*)"
-            )
-            if not out_path:
-                return
-            if hasattr(self, 'scope_status_label'):
-                self.scope_status_label.setText("🎬 Rendering video frames…")
-            QApplication.processEvents()
-
-            master, sr = self._render_mixdown_buffer()
-            fps = 24
-            frame_samples = max(1, int(sr / fps))
-            n_frames = max(1, len(master) // frame_samples)
-            n_frames = min(n_frames, fps * 60)  # max 60s
-
-            tmp = tempfile.mkdtemp(prefix="eqr_vid_")
-            eng = getattr(self, 'video_synth_engine', None) or VideoSynthEngine(48)
-            w, h = 640, 360
-            for fi in range(n_frames):
-                a = fi * frame_samples
-                b = min(len(master), a + frame_samples)
-                eng.set_waveform(master[a:b])
-                frame = eng.render_frame(w, h)
-                Image.fromarray(frame, mode="RGB").save(os.path.join(tmp, f"frame_{fi:05d}.png"))
-                if fi % 12 == 0 and hasattr(self, 'scope_status_label'):
-                    self.scope_status_label.setText(f"🎬 Frames {fi}/{n_frames}…")
-                    QApplication.processEvents()
-
-            pattern = os.path.join(tmp, "frame_%05d.png")
-            cmd = [
-                "ffmpeg", "-y",
-                "-framerate", str(fps),
-                "-i", pattern,
-                "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                out_path,
-            ]
-            proc = subprocess.run(cmd, capture_output=True, text=True)
-            shutil.rmtree(tmp, ignore_errors=True)
-            if proc.returncode != 0:
-                raise RuntimeError(proc.stderr[-800:] if proc.stderr else "ffmpeg failed")
-
-            self.export_counter += 1
-            if hasattr(self, 'scope_status_label'):
-                self.scope_status_label.setText(f"🎬 Video → {os.path.basename(out_path)}")
-            QMessageBox.information(self, "Export complete", f"Saved:\n{out_path}")
-        except Exception as e:
-            print(f"[Video] export error: {e}")
-            QMessageBox.critical(self, "Video Export Error", str(e))
-
-
-    def export_video_audio_dialog(self):
-        """Compatibility alias: video export is now intentionally video-only."""
-        return self.export_video_dialog()
     def closeEvent(self, event):
         """Ensure audio stream and PKP pad clock are torn down on close."""
         try:
