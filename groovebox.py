@@ -17,18 +17,20 @@
 
 import random
 import math
+import copy
 import wave
 import time
 import json
 import os
 import threading
+import queue
 import subprocess
 import tempfile
 import shutil
 import numpy as np
 from PyQt6.QtCore import Qt, QPoint, QPointF, QRectF, QTimer
 from PyQt6.QtGui import (
-    QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont,
+    QPainter, QPen, QColor, QPainterPath, QLinearGradient, QBrush, QFont, QPolygonF,
     QAction, QPalette, QKeyEvent, QKeySequence, QImage
 )
 from PyQt6.QtWidgets import (
@@ -432,7 +434,7 @@ class PatchbayCanvas(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(300, 200)
-        self.setStyleSheet("background-color: #121418; border: 1px solid #2a2e39; border-radius: 6px;")
+        self.setStyleSheet("background-color: transparent; border: 1px solid #2a2e39; border-radius: 6px;")
 
 
 class MemoryBankSelector(QWidget):
@@ -859,7 +861,7 @@ class WaveformVisualizer(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # Background canvas
-        painter.fillRect(self.rect(), QColor(20, 20, 25))
+        painter.fillRect(self.rect(), QColor(20, 20, 25, 150))
 
         # Draw waveform trace based on coordinate evaluations
         pen = QPen(QColor(0, 220, 150))
@@ -1421,7 +1423,7 @@ class FocusZone3DWidget(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self.rect(), QColor(20, 20, 28))
+        painter.fillRect(self.rect(), QColor(20, 20, 28, 150))
 
         painter.setPen(QPen(QColor(50, 50, 70), 1, Qt.PenStyle.DashLine))
         w, h = self.width(), self.height()
@@ -1450,7 +1452,7 @@ class EQRVisualizerCanvas(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumHeight(160)
-        self.setStyleSheet("background-color: #0b0b0b; border: 1px solid #ff6b00; border-radius: 4px;")
+        self.setStyleSheet("background-color: transparent; border: 1px solid #ff6b00; border-radius: 4px;")
 
         self.phase = 0.0
         self.scale_factor = 1.0
@@ -1471,7 +1473,7 @@ class EQRVisualizerCanvas(QWidget):
         if not painter.begin(self):
             return
         try:
-            painter.fillRect(self.rect(), QColor(11, 11, 11))
+            painter.fillRect(self.rect(), QColor(11, 11, 11, 150))
             w, h = self.width(), self.height()
             cx, cy = w / 2.0, h / 2.0
 
@@ -2360,7 +2362,7 @@ class WaveformVectorCanvas(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
-        p.fillRect(0, 0, w, h, QColor("#0d1117"))
+        p.fillRect(0, 0, w, h, QColor(13, 17, 23, 150))
 
         # Grid lines
         p.setPen(QPen(QColor("#21262d"), 1))
@@ -2643,7 +2645,7 @@ class FractallizerVisualizerCanvas(QWidget):
         super().__init__(parent)
         self.app_ref = app_ref
         self.setMinimumHeight(160)
-        self.setStyleSheet("background-color: #080808; border: 1px solid #ff6b00; border-radius: 4px;")
+        self.setStyleSheet("background-color: transparent; border: 1px solid #ff6b00; border-radius: 4px;")
         self.phase = 0.0
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_fractal)
@@ -2657,7 +2659,7 @@ class FractallizerVisualizerCanvas(QWidget):
         painter = QPainter()
         if not painter.begin(self): return
         try:
-            painter.fillRect(self.rect(), QColor(8, 8, 8))
+            painter.fillRect(self.rect(), QColor(8, 8, 8, 150))
             w, h = self.width(), self.height()
             cx, cy = w / 2.0, h / 2.0
             points = []
@@ -3164,7 +3166,7 @@ class AdvancedWaveformVisualizerCanvas(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
 
-        p.fillRect(0, 0, w, h, QColor("#0a0e14"))
+        p.fillRect(0, 0, w, h, QColor(10, 14, 20, 150))
         p.setPen(QPen(QColor("#161b22"), 1))
         for x in range(0, w, 40):
             p.drawLine(x, 0, x, h)
@@ -3211,7 +3213,7 @@ class MultiLaneSequencerCanvas(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
-        p.fillRect(0, 0, w, h, QColor("#0a0e14"))
+        p.fillRect(0, 0, w, h, QColor(10, 14, 20, 150))
         step_w = w / self.step_count
         for i in range(self.step_count):
             sx = i * step_w
@@ -3235,7 +3237,7 @@ class StepPainterSequencerCanvas(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
-        p.fillRect(0, 0, w, h, QColor("#0a0e14"))
+        p.fillRect(0, 0, w, h, QColor(10, 14, 20, 150))
         p.setPen(QPen(QColor("#00ffcc"), 1))
         p.drawText(15, 25, f"Step Painter Mode: [{self.painting_mode}] — Active Step Count: {self.step_count}")
 
@@ -3369,7 +3371,7 @@ class InteractivePatchbayCanvas(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
-        p.fillRect(0, 0, w, h, QColor("#0a0e14"))
+        p.fillRect(0, 0, w, h, QColor(10, 14, 20, 150))
 
         # Grid lines
         p.setPen(QPen(QColor("#161b22"), 1))
@@ -3465,7 +3467,7 @@ class FreeformSequencerCanvas(QWidget):
                 notes = []
 
             w, h = self.width(), self.height()
-            p.fillRect(0, 0, w, h, QColor("#0a0e14"))
+            p.fillRect(0, 0, w, h, QColor(10, 14, 20, 150))
 
             p.setPen(QPen(QColor("#161b22"), 1))
             for x in range(0, w, 40):
@@ -3596,7 +3598,7 @@ class PatchbayCanvas(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # Dark studio background
-        painter.fillRect(self.rect(), QColor(15, 15, 20))
+        painter.fillRect(self.rect(), QColor(15, 15, 20, 150))
 
         # Draw Coded Patching Wires
         wire_pen = QPen(QColor(255, 140, 0))
@@ -4057,7 +4059,7 @@ class WavetableVectorVisualizerCanvas(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
 
-        p.fillRect(0, 0, w, h, QColor("#0a0e14"))
+        p.fillRect(0, 0, w, h, QColor(10, 14, 20, 150))
         p.setPen(QPen(QColor("#161b22"), 1))
         for x in range(0, w, 40):
             p.drawLine(x, 0, x, h)
@@ -4684,7 +4686,7 @@ class WavetableCanvas(QWidget):
         self.instrument_name = instrument_name
         self.engine = engine
         self.setMinimumHeight(110)
-        self.setStyleSheet("background-color: #0d1117; border: 1px solid #30363d; border-radius: 4px;")
+        self.setStyleSheet("background-color: transparent; border: 1px solid #30363d; border-radius: 4px;")
 
         existing = self.engine.get_custom_wavetable(self.instrument_name)
         if existing:
@@ -4694,7 +4696,7 @@ class WavetableCanvas(QWidget):
 
     def paintEvent(self, event):
         p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.fillRect(self.rect(), QColor("#0d1117"))
+        p.fillRect(self.rect(), QColor(13, 17, 23, 150))
 
         p.setPen(QPen(QColor("#161b22"), 1, Qt.PenStyle.DashLine))
         for x in range(0, self.width(), 50): p.drawLine(x, 0, x, self.height())
@@ -4883,7 +4885,7 @@ class FreeformSequencerCanvas(QWidget):
         super().__init__(parent)
         self.seq_data = sequence_data
         self.setMinimumHeight(130)
-        self.setStyleSheet("background-color: #0b0f15; border: 1px solid #30363d; border-radius: 4px;")
+        self.setStyleSheet("background-color: transparent; border: 1px solid #30363d; border-radius: 4px;")
 
     def paintEvent(self, event):
         # Initialize the painter once for the widget
@@ -5458,11 +5460,11 @@ class AutomationCurveCanvas(QWidget):
         super().__init__(parent)
         self.points_list = points_list
         self.setMinimumHeight(120)
-        self.setStyleSheet("background-color: #0b0f15; border: 1px solid #30363d; border-radius: 4px;")
+        self.setStyleSheet("background-color: transparent; border: 1px solid #30363d; border-radius: 4px;")
 
     def paintEvent(self, event):
         p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.fillRect(self.rect(), QColor("#0b0f15"))
+        p.fillRect(self.rect(), QColor(11, 15, 21, 150))
 
         p.setPen(QPen(QColor("#161b22"), 1, Qt.PenStyle.DashLine))
         for x in range(0, self.width(), 50): p.drawLine(x, 0, x, self.height())
@@ -5642,11 +5644,11 @@ class InfinitePlaylistInnerWidget(QWidget):
         self.engine = engine
         self.parent_page = parent_page
         self.setMinimumSize(8000, 1600)
-        self.setStyleSheet("background-color: #070b10;")
+        self.setStyleSheet("background-color: transparent;")
 
     def paintEvent(self, event):
         p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.fillRect(self.rect(), QColor("#070b10"))
+        p.fillRect(self.rect(), QColor(7, 11, 16, 150))
 
         p.setPen(QPen(QColor("#161b22"), 1, Qt.PenStyle.DashLine))
         for x in range(0, self.width(), 80):
@@ -5704,7 +5706,7 @@ class EQRVisualizerCanvas(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumHeight(160)
-        self.setStyleSheet("background-color: #0b0b0b; border: 1px solid #ff6b00; border-radius: 4px;")
+        self.setStyleSheet("background-color: transparent; border: 1px solid #ff6b00; border-radius: 4px;")
 
         self.phase = 0.0
         self.timer = QTimer(self)
@@ -5720,7 +5722,7 @@ class EQRVisualizerCanvas(QWidget):
         if not painter.begin(self):
             return
         try:
-            painter.fillRect(self.rect(), QColor(11, 11, 11))
+            painter.fillRect(self.rect(), QColor(11, 11, 11, 150))
             w, h = self.width(), self.height()
             cx, cy = w / 2.0, h / 2.0
 
@@ -5772,11 +5774,11 @@ class MasterPatchCanvas(QWidget):
         super().__init__(parent)
         self.cables = GLOBAL_BUS.global_cables
         self.setMinimumHeight(220)
-        self.setStyleSheet("background-color: #0b0f15; border: 1px solid #30363d; border-radius: 4px;")
+        self.setStyleSheet("background-color: transparent; border: 1px solid #30363d; border-radius: 4px;")
 
     def paintEvent(self, event):
         p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.fillRect(self.rect(), QColor("#0b0f15"))
+        p.fillRect(self.rect(), QColor(11, 15, 21, 150))
 
         p.setPen(QPen(QColor("#161b22"), 1, Qt.PenStyle.DashLine))
         for x in range(0, self.width(), 60): p.drawLine(x, 0, x, self.height())
@@ -5860,7 +5862,7 @@ class GeometricSymbolicCanvas(QWidget):
         if not painter.begin(self):
             return
         try:
-            painter.fillRect(self.rect(), QColor(45, 52, 54))
+            painter.fillRect(self.rect(), QColor(45, 52, 54, 150))
             pen = QPen(QColor(162, 155, 254), 2, Qt.PenStyle.DashLine)
             painter.setPen(pen)
             for i in range(len(self.nodes) - 1):
@@ -6466,8 +6468,24 @@ class PaintbrushTable(QWidget):
             if bg and bg.color().isValid():
                 item.setBackground(bg)
 
+    def setItem(self, row, col, item):
+        """Compatibility shim: PaintbrushTable wraps a QTableWidget.
+
+        Older/generated code may treat the wrapper like QTableWidget and call
+        setItem() directly. Delegate that operation to the real inner table.
+        """
+        self.table_widget.setItem(row, col, item)
+
     def setHorizontalHeaderLabels(self, labels):
         self.table_widget.setHorizontalHeaderLabels(labels)
+
+    def viewport(self):
+        """Expose the wrapped QTableWidget viewport to legacy/generated code."""
+        return self.table_widget.viewport()
+
+    def clearContents(self):
+        """Delegate QTableWidget-style clearing to the wrapped table."""
+        return self.table_widget.clearContents()
 
     def toggle_draw_random_synth_style(self):
         is_active = self.chk_draw_random_synth.isChecked()
@@ -6850,7 +6868,7 @@ class CoordinateVisualizer(QWidget):
     def __init__(self):
         super().__init__()
         self.setMinimumHeight(110)
-        self.setStyleSheet("background-color: black; border: 1px solid #00ffaa;")
+        self.setStyleSheet("background-color: transparent; border: 1px solid #00ffaa;")
         self.point_history = []
         self.max_points = 150
 
@@ -6865,7 +6883,7 @@ class CoordinateVisualizer(QWidget):
         if not painter.begin(self):
             return
         try:
-            painter.fillRect(self.rect(), QColor(10, 10, 10))
+            painter.fillRect(self.rect(), QColor(10, 10, 10, 150))
             if len(self.point_history) >= 2:
                 pen = QPen(QColor(0, 255, 150))
                 pen.setWidth(2)
@@ -7285,7 +7303,7 @@ class DenseCoordinateVisualizer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumHeight(200)
-        self.setStyleSheet("background-color: #1e272e; border: 3px solid #feca57; border-radius: 14px;")
+        self.setStyleSheet("background-color: transparent; border: 3px solid #feca57; border-radius: 14px;")
         self.point_history = []
         self.max_points = 250
 
@@ -7300,7 +7318,7 @@ class DenseCoordinateVisualizer(QWidget):
         if not painter.begin(self):
             return
         try:
-            painter.fillRect(self.rect(), QColor(30, 39, 46))
+            painter.fillRect(self.rect(), QColor(30, 39, 46, 150))
             width, height = self.width(), self.height()
 
             painter.setPen(QPen(QColor(72, 84, 96), 1, Qt.PenStyle.DashLine))
@@ -7510,6 +7528,154 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
+
+class ParametricMathBackground(QWidget):
+    """Lightweight animated mathematical decoration driven by the active synth state.
+
+    The canvas is transparent to mouse input and sits behind the main controls.
+    It deliberately uses only a small fixed workload: 24 modulated sine paths and
+    24 polygonal glyphs per frame.  Parameter values are reduced to scalar factors,
+    so the artwork follows the selected instrument without altering audio state.
+    """
+    WAVE_COUNT = 24
+    SHAPE_COUNT = 24
+
+    def __init__(self, app):
+        super().__init__(app.centralWidget())
+        self.app = app
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
+        self._cycle = 0
+        self._started = time.monotonic()
+        self._timer = QTimer(self)
+        self._timer.setInterval(45)
+        self._timer.timeout.connect(self._advance)
+        self._timer.start()
+        self._param_cache = ("", (), 0)
+        self._rng = random.Random(0)
+
+    def _advance(self):
+        elapsed = time.monotonic() - self._started
+        new_cycle = int(elapsed / 5.5)
+        if new_cycle != self._cycle:
+            self._cycle = new_cycle
+            self._reseed()
+        self.update()
+
+    def _reseed(self):
+        name = ""
+        if hasattr(self.app, "instrument_selector_dropdown"):
+            try:
+                name = self.app.instrument_selector_dropdown.currentText()
+            except Exception:
+                pass
+        params = getattr(self.app, "instrument_param_state", {}) or {}
+        state = params.get(name, {}) if isinstance(params, dict) else {}
+        numeric = []
+        if isinstance(state, dict):
+            for key, value in state.items():
+                try:
+                    numeric.append((str(key), float(value)))
+                except Exception:
+                    continue
+        # Include the actual live effect controls so the decoration follows what
+        # the user can hear, not merely a stored synth dictionary.
+        for key, attr, scale in (
+            ("EQR", "slider_eqr", 100.0),
+            ("Fractal", "slider_fractalizer", 100.0),
+            ("PKP", "slider_pkp_decay", 1000.0),
+            ("Boost", "slider_pkp_boost", 100.0),
+        ):
+            obj = getattr(self.app, attr, None)
+            if obj is not None and hasattr(obj, "value"):
+                try:
+                    numeric.append((key, float(obj.value()) / scale))
+                except Exception:
+                    pass
+        numeric.sort(key=lambda x: x[0])
+        self._param_cache = (name, tuple(numeric), self._cycle)
+        seed = hash((name, tuple((k, round(v, 6)) for k, v in numeric), self._cycle)) & 0xffffffff
+        self._rng.seed(seed)
+
+    def _scalars(self):
+        if self._param_cache[2] != self._cycle:
+            self._reseed()
+        vals = [v for _, v in self._param_cache[1]]
+        if not vals:
+            vals = [0.5]
+        return [0.5 + 0.5 * math.tanh(abs(v)) for v in vals]
+
+    def _paint_wave(self, painter, index, width, height, scalars, phase):
+        sf = scalars[index % len(scalars)]
+        sf2 = scalars[(index * 7 + 3) % len(scalars)]
+        hue = (index / self.WAVE_COUNT + 0.12 * sf + 0.08 * math.sin(phase * 0.7 + index)) % 1.0
+        color = QColor.fromHsvF(hue, 0.72, 0.95, 0.16 + 0.12 * sf)
+        painter.setPen(QPen(color, 1.0 + 1.4 * sf))
+        path = QPainterPath()
+        y0 = height * (0.08 + 0.84 * ((index * 0.6180339887) % 1.0))
+        direction = -1.0 if ((index + self._cycle) & 1) else 1.0
+        freq = 1.2 + 4.5 * sf
+        fm = 0.25 + 1.7 * sf2
+        am = 0.15 + 0.65 * scalars[(index * 11 + 5) % len(scalars)]
+        for px in range(0, max(2, width), 8):
+            x = px / max(width, 1)
+            carrier = math.sin((x * freq * math.tau) + phase * direction * (0.7 + sf))
+            mod = math.sin((x * fm * math.tau) + phase * (0.35 + sf2))
+            amp = (5.0 + 20.0 * sf) * (1.0 + am * mod)
+            y = y0 + direction * amp * carrier
+            if px == 0:
+                path.moveTo(px, y)
+            else:
+                path.lineTo(px, y)
+        painter.drawPath(path)
+
+    def _paint_shape(self, painter, index, width, height, scalars, phase):
+        sf = scalars[(index * 5 + 1) % len(scalars)]
+        sf2 = scalars[(index * 9 + 2) % len(scalars)]
+        angle = phase * (0.15 + 0.5 * sf2) + index * 0.73
+        x = width * ((0.09 + index * 0.379) % 0.82)
+        y = height * ((0.12 + index * 0.613) % 0.76)
+        radius = 8.0 + 22.0 * sf
+        sides = 3 + (index % 6)
+        points = []
+        for j in range(sides):
+            a = angle + math.tau * j / sides
+            wobble = 0.72 + 0.55 * math.sin(phase * (0.4 + sf) + j + index)
+            r = radius * wobble
+            points.append(QPointF(x + math.cos(a) * r, y + math.sin(a) * r))
+        hue = (0.56 + 0.42 * sf + 0.19 * sf2 + index * 0.027) % 1.0
+        fill = QColor.fromHsvF(hue, 0.62, 0.92, 0.045 + 0.05 * sf)
+        edge = QColor.fromHsvF((hue + 0.08 * sf2) % 1.0, 0.72, 1.0, 0.18 + 0.10 * sf)
+        painter.setBrush(QBrush(fill))
+        painter.setPen(QPen(edge, 1.0))
+        painter.drawPolygon(QPolygonF(points))
+        if self._param_cache[1]:
+            label = self._param_cache[1][index % len(self._param_cache[1])]
+            text = f"{label[0][:8]} {label[1]:+.2f}"
+            painter.setPen(QPen(QColor.fromHsvF(hue, 0.35, 1.0, 0.20), 1.0))
+            painter.setFont(QFont("Consolas", 7))
+            painter.drawText(QPointF(x - radius, y + radius + 8), text)
+
+    def paintEvent(self, event):
+        if self.width() < 10 or self.height() < 10:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        # A nearly transparent wash keeps the artwork above the black base without
+        # obscuring controls that are stacked above this widget.
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 8))
+        if not self._param_cache[1]:
+            self._reseed()
+        scalars = self._scalars()
+        phase = time.monotonic() - self._started
+        w, h = self.width(), self.height()
+        for i in range(self.WAVE_COUNT):
+            self._paint_wave(painter, i, w, h, scalars, phase)
+        for i in range(self.SHAPE_COUNT):
+            self._paint_shape(painter, i, w, h, scalars, phase)
+        painter.end()
+
 class MathematiciansGrooveboxApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -7624,6 +7790,14 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # RECOMMENDED_POWER_LAYER: neutral mathematical boot. Engines create
         # musical material only when explicitly invoked.
         self.init_ui_components()
+        # PARAMETRIC_BACKGROUND: animated mathematical decoration sits behind
+        # the control widgets and never intercepts input.
+        self.parametric_background = ParametricMathBackground(self)
+        self.parametric_background.setGeometry(self.centralWidget().rect())
+        self.parametric_background.lower()
+        self.instrument_selector_dropdown.currentIndexChanged.connect(
+            lambda _idx: self.parametric_background._reseed()
+        )
         self.initialize_default_playlist_memory()
         self._composition_generation_counter = 0
 
@@ -8222,7 +8396,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.transport_layout.addWidget(self.btn_stop)
         self.transport_layout.addWidget(self.lbl_bpm)
         self.transport_layout.addWidget(self.spin_bpm)
-        self.transport_layout.addWidget(QLabel("Active Operator:"))
+        self.transport_layout.addWidget(QLabel("Select Instrument"))
+        self.instrument_selector_dropdown.setMinimumWidth(180)
         self.transport_layout.addWidget(self.instrument_selector_dropdown)
         self.transport_layout.addWidget(self.btn_keyboard)
         self.transport_layout.addWidget(self.btn_trigger_all)
@@ -8271,9 +8446,14 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.mode_combo.setCurrentIndex(0)
 
         # Global Playlist Switch added to main layout
-        self.chk_global_playlist = QCheckBox("🌐 Global Playlist Arrangement Drive")
+        self.chk_global_playlist = QCheckBox("🌐 Limit Engines to Playlist-Connected Instruments")
         self.chk_global_playlist.setChecked(True)
         self.chk_global_playlist.setStyleSheet("color: #00ffff; font-weight: bold;")
+        self.chk_global_playlist.setToolTip(
+            "When ON: the Randomizer, Phase-Lock, and dedupe engines only touch instruments that "
+            "feed the playlist timeline (directly or via patch routing). When OFF, or if the "
+            "playlist is empty: they act on all 48 instruments."
+        )
 
 
         self.slider_eqr = QSlider(Qt.Orientation.Horizontal)
@@ -8458,9 +8638,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.spin_seq_length.setValue(48)
         sizing_layout.addWidget(self.spin_seq_length)
 
-        self.chk_multi_seq_load = QCheckBox("Allow Multiple Sequence Load Engage & Paint")
-        self.chk_multi_seq_load.setChecked(True)
-        sizing_layout.addWidget(self.chk_multi_seq_load)
         sizing_layout.addStretch(1)
 
         sizing_container = QWidget()
@@ -8472,16 +8649,17 @@ class MathematiciansGrooveboxApp(QMainWindow):
         seq_inner.setContentsMargins(0, 0, 0, 0)
 
         seq_header_layout = QHBoxLayout()
-        seq_header_layout.addWidget(QLabel("⚡ PKP STEP Sequencer — Global Geometric Phase-Lock"))
-
-        # The instrument selector chooses WHICH instrument the PKP play button auditions.
-        seq_header_layout.addWidget(QLabel("Selected Instrument:"))
-        seq_header_layout.addWidget(self.instrument_selector_dropdown, stretch=1)
+        seq_header_layout.setSpacing(6)
+        # Compact live-jam controls: the instrument selector lives in the global transport above.
+        # Keep the PKP NullLock Boost button and its live-jam amount control here.
+        # Centered in the lower part of the sequencer panel (below the step pads),
+        # with the Boost slider placed right next to the NullLock Boost button.
 
         # PKP BOOST — arm global note-triggered NullLock layer + one-shot audition.
         # Boost amount scales the global PKP layer in the mixdown (0.5× … 2.0×).
         self.pkp_boost_amount = 1.0
-        self.btn_pkp_nullock_boost = QPushButton("⚡ PKP BOOST")
+        self.btn_pkp_nullock_boost = QPushButton("PKP Nulllock Boost (using Current Instrument, for Live Playback Effect)")
+        self.btn_pkp_nullock_boost.setMinimumWidth(390)
         self.btn_pkp_nullock_boost.setCheckable(False)
         self.btn_pkp_nullock_boost.setToolTip("Momentary one-shot PKP remix burst; never arms a sustained layer.")
         self.btn_pkp_nullock_boost.setStyleSheet(
@@ -8499,12 +8677,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.slider_pkp_boost.setToolTip("NullLock boost amount (50%–200%) applied to the global PKP layer.")
         self.slider_pkp_boost.valueChanged.connect(self._on_pkp_boost_amount_changed)
         seq_header_layout.addWidget(QLabel("Boost:"))
-        seq_header_layout.addWidget(self.slider_pkp_boost)
+        seq_header_layout.addWidget(self.slider_pkp_boost, 0, Qt.AlignmentFlag.AlignTop)
         self.lbl_pkp_boost = QLabel("100%")
         self.lbl_pkp_boost.setStyleSheet("color: #ff66cc; font-weight: bold; min-width: 40px;")
         seq_header_layout.addWidget(self.lbl_pkp_boost)
-
-        seq_inner.addLayout(seq_header_layout)
+        seq_header_layout.insertStretch(0, 1)
+        seq_header_layout.addStretch(1)
 
         # PKP is an audition/play action, not a dropdown, timeline event, or independent clock.
         self.pkp_pad_bank_active = False
@@ -8599,6 +8777,10 @@ class MathematiciansGrooveboxApp(QMainWindow):
         vis_row.addStretch(1)
         seq_inner.addLayout(vis_row)
 
+        # BOOST_PLACEMENT: PKP NullLock Boost button + its Boost slider live together,
+        # centered, in the lower part of the sequencer panel (below the step pads).
+        seq_inner.addLayout(seq_header_layout)
+
         master_container.addWidget(self.top_sequencer)
 
         # Merged visualizer + 2.5D video synth viewer
@@ -8638,6 +8820,13 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.scope_status_label = QLabel("📊 2.5D Video Synth + Oscilloscope  |  Status: Idle")
         self.scope_status_label.setStyleSheet("color: #00ffff; font-weight: bold;")
         scope_bar.addWidget(self.scope_status_label, stretch=1)
+        self.render_progress_bar = QProgressBar()
+        self.render_progress_bar.setRange(0, 100)
+        self.render_progress_bar.setValue(0)
+        self.render_progress_bar.setFormat("%p%")
+        self.render_progress_bar.setFixedWidth(170)
+        self.render_progress_bar.setVisible(True)
+        scope_bar.addWidget(self.render_progress_bar)
         scope_bar.addStretch(1)
 
         # POWER_V3_VISUAL_LAYOUT: master volume lives above Visualizer settings.
@@ -8677,6 +8866,23 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self._scope_update_timer.setInterval(33)
         self._scope_update_timer.timeout.connect(self._update_scope_from_playhead)
         self._last_scope_chunk = np.zeros(100, dtype=np.float32)
+
+        # ASYNC_RENDER: never build the full DSP mixdown on the Qt GUI thread.
+        # The worker only produces data; all Qt widgets/audio-stream operations
+        # remain on the GUI thread via the polling timer below.
+        self._render_result_queue = queue.Queue()
+        self._render_thread = None
+        self._render_generation = 0
+        self._render_poll_timer = QTimer(self)
+        self._render_poll_timer.setInterval(40)
+        self._render_poll_timer.timeout.connect(self._poll_async_render_result)
+        self._render_progress = 0
+        self._render_stage = "Idle"
+        self._export_result_queue = queue.Queue()
+        self._export_thread = None
+        self._export_poll_timer = QTimer(self)
+        self._export_poll_timer.setInterval(50)
+        self._export_poll_timer.timeout.connect(self._poll_export_result)
 
     def on_instrument_switched(self, idx):
         inst_name = self.instrument_names_48[idx]
@@ -9759,7 +9965,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             pass
 
         # --- 5 Domain partitions: merge identical equation+logic+bounds ---
-        if hasattr(self, 'domain_eq_engine') and self.domain_eq_engine.domains:
+        if getattr(self, 'domain_eq_engine', None) is not None and getattr(self.domain_eq_engine, 'domains', None):
             seen_dom = {}
             merged = []
             for dom in self.domain_eq_engine.domains:
@@ -10441,21 +10647,28 @@ class MathematiciansGrooveboxApp(QMainWindow):
             out = voice.copy(); out[:n] = fitted; return out
         return fitted
 
-    def _render_mixdown_buffer(self, max_rows=None):
-        """Shared float32 mono render used by both realtime Play and WAV Export."""
-        sample_rate = 44100
-        bpm = self.spin_bpm.value() if hasattr(self, 'spin_bpm') else 120
-        rows = self.spin_playlist_length.value() if hasattr(self, 'spin_playlist_length') else 32
+    def _render_mixdown_buffer(self, max_rows=None, snapshot=None):
+        """Shared float32 mono render used by realtime Play and WAV Export.
+
+        When a snapshot is supplied, this method is completely detached from
+        live Qt widgets. That is important because Play/WAV/Video renderers run
+        in worker threads and must never read QSpinBox/QSlider/QComboBox state.
+        """
+        snap = snapshot or getattr(self, "_render_snapshot", None)
+        if snap is None:
+            snap = self._capture_render_snapshot()
+        sample_rate = int(snap.get("sample_rate", 44100))
+        bpm = float(snap.get("bpm", 120.0))
+        rows = int(snap.get("rows", 32))
         if max_rows is not None:
             rows = min(rows, int(max_rows))
-        seq_len = self.spin_seq_length.value() if hasattr(self, 'spin_seq_length') else 16
-        global_playlist_enabled = self.chk_global_playlist.isChecked() if hasattr(self, 'chk_global_playlist') else True
+        seq_len = int(snap.get("seq_len", 16))
+        global_playlist_enabled = bool(snap.get("global_playlist_enabled", True))
+        instrument_names = snap.get("instrument_names", list(getattr(self, "instrument_names_48", [])))
+        sequencer_memory = snap.get("instrument_sequencer_memory", getattr(self, "instrument_sequencer_memory", {}))
+        playlist_data = snap.get("master_playlist_data", getattr(self, "master_playlist_data", []))
+        selected_instrument = snap.get("selected_instrument", instrument_names[0] if instrument_names else "")
 
-        if hasattr(self, 'sync_playlist_grid_to_memory'):
-            try:
-                self.sync_playlist_grid_to_memory()
-            except Exception:
-                pass
 
         seconds_per_beat = 60.0 / max(float(bpm), 0.001)
         step_duration = seconds_per_beat / 4.0
@@ -10466,26 +10679,27 @@ class MathematiciansGrooveboxApp(QMainWindow):
         t = np.linspace(0.0, total_duration, n_samples, endpoint=False)
         master = np.zeros(n_samples, dtype=np.float32)
 
-        base_eqr = self.slider_eqr.value() / 100.0 if hasattr(self, 'slider_eqr') else 0.5
-        pkp_decay = self.slider_pkp_decay.value() / 1000.0 if hasattr(self, 'slider_pkp_decay') else 0.25
-        fractalizer_val = self.slider_fractalizer.value() / 100.0 if hasattr(self, 'slider_fractalizer') else 0.85
-        pkp_auto = self.chk_pkp_automod.isChecked() if hasattr(self, 'chk_pkp_automod') else True
-        seed_val = self.get_numeric_seed()
+        base_eqr = float(snap.get("eqr", 0.5))
+        pkp_decay = float(snap.get("pkp_decay", 0.25))
+        fractalizer_val = float(snap.get("fractalizer", 0.85))
+        pkp_auto = bool(snap.get("pkp_auto", True))
+        seed_val = float(snap.get("seed", 0.0))
         np.random.seed(seed_val)
 
         # CONVOLVE_FIT_FEATURE: carrier is loaded once per render.
-        imported_carrier = self._resample_carrier(n_samples, sample_rate)
+        imported_carrier = snap.get("imported_carrier")
         convolve_fit_enabled = bool(
-            hasattr(self, "chk_convolve_fit") and self.chk_convolve_fit.isChecked()
+            bool(snap.get("convolve_fit_enabled", False))
         )
         convolve_fit_amount = (
-            float(self.slider_global_convolve.value()) / 100.0
-            if hasattr(self, "slider_global_convolve") else 0.0
+            float(snap.get("convolve_fit_amount", 0.0))
         )
         if imported_carrier is not None:
             # Carrier is additive; it never replaces the programmed groove.
             master += imported_carrier * (0.85 if convolve_fit_enabled else 0.60)
 
+        self._render_progress = 0
+        self._render_stage = "DSP render"
         for row_idx in range(rows):
             start_time = row_idx * row_duration
             end_time = start_time + row_duration
@@ -10496,24 +10710,24 @@ class MathematiciansGrooveboxApp(QMainWindow):
             row_mix = np.zeros_like(local_t, dtype=np.float32)
             velocity_scale = 1.0
 
-            if global_playlist_enabled and row_idx < len(getattr(self, 'master_playlist_data', [])):
-                entry = self.master_playlist_data[row_idx]
-                primary_op = entry.get("operator", self.instrument_names_48[0])
+            if global_playlist_enabled and row_idx < len(playlist_data):
+                entry = playlist_data[row_idx]
+                primary_op = entry.get("operator", instrument_names[0] if instrument_names else "")
                 velocity_scale = float(entry.get("velocity", 1.0))
-                op_indices = [self.instrument_names_48.index(primary_op)] if primary_op in self.instrument_names_48 else [0]
-                remaining = [i for i in range(len(self.instrument_names_48)) if i != op_indices[0]]
+                op_indices = [instrument_names.index(primary_op)] if primary_op in instrument_names else [0]
+                remaining = [i for i in range(len(instrument_names)) if i != op_indices[0]]
                 n_comp = min(3, len(remaining))
                 companions = np.random.choice(remaining, size=n_comp, replace=False).tolist() if n_comp else []
                 active_cluster = op_indices + companions
             else:
-                active_cluster = np.random.choice(len(self.instrument_names_48), size=4, replace=False).tolist()
+                active_cluster = np.random.choice(len(instrument_names), size=min(4, len(instrument_names)), replace=False).tolist() if instrument_names else []
 
             for op_idx in active_cluster:
-                op_name = self.instrument_names_48[op_idx]
-                mem = self.instrument_sequencer_memory.get(
+                op_name = instrument_names[op_idx]
+                mem = sequencer_memory.get(
                     op_name, {"steps": [False] * 48, "amplitudes": [1.0] * 48, "pitches": [1.0] * 48}
                 )
-                base_freq = float(self.spin_base_frequency.value()) if hasattr(self, "spin_base_frequency") else 432.0
+                base_freq = float(snap.get("base_frequency", 432.0))
                 base_freq *= MEUM_POWERS_36[op_idx % 36]
                 dynamic_eqr = base_eqr * (1.0 + 0.3 * np.sin(2.0 * np.pi * 0.2 * local_t + op_idx))
 
@@ -10546,7 +10760,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 # CONVOLVE_FIT_FEATURE: reshape only non-user voices.
                 if convolve_fit_enabled:
                     try:
-                        is_user_voice = self._instrument_has_net_effect(op_name, seq_len)
+                        is_user_voice = op_name in snap.get("effective_instruments", set()) and any(
+                            bool(mem.get("steps", [])[si]) and si in mem.get("touched", set()) and
+                            abs(float(mem.get("amplitudes", [1.0] * (si + 1))[si])) > 0.02
+                            for si in range(min(seq_len, len(mem.get("steps", []))))
+                        )
                     except Exception:
                         is_user_voice = (op_name == primary_op)
                     if not is_user_voice:
@@ -10566,11 +10784,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
             # PKP is global and is never a separate timeline event.
             # It is triggered only by notes in the currently selected instrument, at the global base frequency.
             try:
-                selected = self.instrument_selector_dropdown.currentText()
-                smem = self.instrument_sequencer_memory.get(selected, {})
+                selected = selected_instrument
+                smem = sequencer_memory.get(selected, {})
                 ssteps = smem.get("steps", [])
                 global_pkp = np.zeros_like(local_t, dtype=np.float32)
-                gbase = float(self.spin_base_frequency.value()) if hasattr(self, "spin_base_frequency") else 432.0
+                gbase = float(snap.get("base_frequency", 432.0))
                 for ss in range(min(int(seq_len), len(ssteps))):
                     if ssteps[ss]:
                         ss_start = ss * step_duration
@@ -10586,22 +10804,15 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 pass
 
             master[mask] += row_mix / max(len(active_cluster), 1)
+            # Progress is read by the GUI timer; this worker-side write never touches Qt.
+            self._render_progress = min(85, int(((row_idx + 1) / max(rows, 1)) * 85))
 
-            # Keep the Qt GUI responsive during long offline renders.  Rendering remains
-            # deterministic; this only yields to pending paint/input events between rows.
-            if row_idx % 1 == 0:
-                try:
-                    if hasattr(self, "scope_status_label"):
-                        pct = int(100.0 * (row_idx + 1) / max(rows, 1))
-                        self.scope_status_label.setText(f"📊 Rendering full mixdown… {pct}%")
-                    QApplication.processEvents()
-                except Exception:
-                    pass
-
+        self._render_progress = max(self._render_progress, 86)
+        self._render_stage = "Global convolution"
         # Global Convolve: deterministic geometric cross-convolution of the rendered carrier.
         # User-edited controls remain upstream; this stage only mixes the structural wave result.
         try:
-            conv_amt = (float(self.spin_global_convolve.value()) / 100.0) if hasattr(self, "spin_global_convolve") else 0.0
+            conv_amt = float(snap.get("global_convolve", 0.0))
             if conv_amt > 0.0 and len(master) > 8:
                 klen = min(2048, max(32, len(master) // 200))
                 kt = np.linspace(0.0, 1.0, klen, endpoint=False)
@@ -10612,7 +10823,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     if kernel.size < klen:
                         kernel = np.pad(kernel, (0, klen - kernel.size), mode="wrap")
                 else:
-                    gf = float(self.spin_base_frequency.value()) if hasattr(self, "spin_base_frequency") else 432.0
+                    gf = float(snap.get("base_frequency", 432.0))
                     kernel = (np.sin(2*np.pi*(gf/ max(sample_rate,1))*np.arange(klen)) +
                               0.5*np.sin(2*np.pi*(gf*MEUM_CONSTANT/max(sample_rate,1))*np.arange(klen)))
                     kernel = kernel.astype(np.float32)
@@ -10626,37 +10837,35 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     if cn > 1e-9:
                         conv *= np.max(np.abs(master)) / cn
                     master = (1.0 - conv_amt) * master + conv_amt * conv
-                    try:
-                        if hasattr(self, "scope_status_label"):
-                            self.scope_status_label.setText("📊 Rendering full mixdown… 90% (global convolution)")
-                        QApplication.processEvents()
-                    except Exception:
-                        pass
         except Exception as e:
             print(f"[Global Convolve] skipped: {e}")
 
+        self._render_progress = max(self._render_progress, 94)
+        self._render_stage = "Domain modulation"
         # Domain partition equations: longitudinal multivariate modulation (additive blend)
-        if hasattr(self, 'domain_eq_engine') and self.domain_eq_engine.domains:
+        if snap.get("domain_engine") is not None:
             try:
-                self.domain_eq_engine.set_seed(self.get_numeric_seed())
+                domain_engine = snap.get("domain_engine")
+                if domain_engine is not None:
+                    domain_engine.set_seed(seed_val)
                 # Normalize time axis 0..1 across the full buffer for partition logic
                 t_norm = np.linspace(0.0, 1.0, len(master))
-                domain_mod = self.domain_eq_engine.evaluate_series(t_norm, x=0.0, y=0.0, z=0.0)
+                if domain_engine is not None:
+                    domain_mod = domain_engine.evaluate_series(t_norm, x=0.0, y=0.0, z=0.0)
+                else:
+                    domain_mod = np.zeros_like(t_norm, dtype=np.float32)
                 # Soft convolution: carrier * (1 + 0.45 * domain) — accentuates without erasing
                 master = master * (1.0 + 0.45 * domain_mod.astype(np.float32))
             except Exception as e:
                 print(f"[DomainEQ] render modulation skipped: {e}")
 
-        try:
-            if hasattr(self, "scope_status_label"):
-                self.scope_status_label.setText("📊 Finalizing mixdown… 98%")
-            QApplication.processEvents()
-        except Exception:
-            pass
-
+        self._render_progress = 98
+        self._render_stage = "Finalizing"
         peak = np.max(np.abs(master))
         if peak > 0:
             master = (master / peak) * 0.98
+        self._render_progress = 100
+        self._render_stage = "Complete"
         return master.astype(np.float32), sample_rate
 
     def _audio_callback(self, outdata, frames, time_info, status):
@@ -10702,6 +10911,136 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     f"📊 2.5D Video Synth  |  LIVE  {pct}%  ·  Vol {int(self.master_volume*100)}%"
                 )
 
+    def _capture_render_snapshot(self):
+        """Freeze all render inputs on the GUI thread before starting a worker."""
+        try:
+            self.sync_playlist_grid_to_memory()
+        except Exception as e:
+            print(f"[Audio] Playlist sync before snapshot skipped: {e}")
+        rows = int(self.spin_playlist_length.value()) if hasattr(self, "spin_playlist_length") else 32
+        seq_len = int(self.spin_seq_length.value()) if hasattr(self, "spin_seq_length") else 16
+        snapshot = {
+            "sample_rate": 44100,
+            "bpm": float(self.spin_bpm.value()) if hasattr(self, "spin_bpm") else 120.0,
+            "rows": rows,
+            "seq_len": seq_len,
+            "global_playlist_enabled": bool(self.chk_global_playlist.isChecked()) if hasattr(self, "chk_global_playlist") else True,
+            "eqr": float(self.slider_eqr.value()) / 100.0 if hasattr(self, "slider_eqr") else 0.5,
+            "pkp_decay": float(self.slider_pkp_decay.value()) / 1000.0 if hasattr(self, "slider_pkp_decay") else 0.25,
+            "fractalizer": float(self.slider_fractalizer.value()) / 100.0 if hasattr(self, "slider_fractalizer") else 0.85,
+            "pkp_auto": bool(self.chk_pkp_automod.isChecked()) if hasattr(self, "chk_pkp_automod") else True,
+            "seed": float(self.get_numeric_seed()),
+            "convolve_fit_enabled": bool(self.chk_convolve_fit.isChecked()) if hasattr(self, "chk_convolve_fit") else False,
+            "convolve_fit_amount": float(self.slider_global_convolve.value()) / 100.0 if hasattr(self, "slider_global_convolve") else 0.0,
+            "global_convolve": float(self.spin_global_convolve.value()) / 100.0 if hasattr(self, "spin_global_convolve") else 0.0,
+            "base_frequency": float(self.spin_base_frequency.value()) if hasattr(self, "spin_base_frequency") else 432.0,
+            "instrument_names": list(getattr(self, "instrument_names_48", [])),
+            "selected_instrument": self.instrument_selector_dropdown.currentText() if hasattr(self, "instrument_selector_dropdown") else "",
+            "instrument_sequencer_memory": copy.deepcopy(getattr(self, "instrument_sequencer_memory", {})),
+            "master_playlist_data": copy.deepcopy(getattr(self, "master_playlist_data", [])),
+            "imported_carrier": None,
+            "effective_instruments": set(),
+            "domain_engine": None,
+        }
+        if getattr(self, "imported_waveform", None) is not None:
+            snapshot["imported_carrier"] = self._resample_carrier(
+                int(44100 * max(0.25, rows * (60.0 / max(snapshot["bpm"], 0.001)) / 4.0 * seq_len)), 44100
+            )
+        try:
+            snapshot["effective_instruments"] = set(self._playlist_effective_instruments())
+        except Exception:
+            snapshot["effective_instruments"] = set(snapshot["instrument_names"])
+        try:
+            snapshot["domain_engine"] = copy.deepcopy(getattr(self, "domain_eq_engine", None))
+        except Exception:
+            snapshot["domain_engine"] = None
+        return snapshot
+
+    def _start_async_play_render(self):
+        """Start the expensive DSP mixdown off the Qt GUI thread."""
+        if self._render_thread is not None and self._render_thread.is_alive():
+            return
+
+        # Snapshot all render inputs on the GUI thread; the worker never reads
+        # live Qt widgets or mutable sequencer containers.
+        self._render_snapshot = self._capture_render_snapshot()
+        self._render_generation += 1
+        generation = self._render_generation
+        self._render_result_queue = queue.Queue()
+        self._render_thread = threading.Thread(
+            target=self._render_mixdown_worker,
+            args=(generation, self._render_snapshot),
+            name="groovebox-dsp-render",
+            daemon=True,
+        )
+        self._render_poll_timer.start()
+        self._render_thread.start()
+
+    def _render_mixdown_worker(self, generation, snapshot):
+        """Worker-side DSP render. Never touches Qt widgets directly."""
+        try:
+            buf, sr = self._render_mixdown_buffer(snapshot=snapshot)
+            self._render_result_queue.put((generation, buf, sr, None))
+        except Exception as e:
+            self._render_result_queue.put((generation, None, None, e))
+
+    def _poll_async_render_result(self):
+        """GUI-thread handoff from the DSP worker into sounddevice playback."""
+        if hasattr(self, 'render_progress_bar'):
+            self.render_progress_bar.setValue(int(getattr(self, '_render_progress', 0)))
+            if getattr(self, '_render_stage', '') and not getattr(self, 'is_playing', False):
+                self.scope_status_label.setText(f"📊 {self._render_stage}… {int(getattr(self, '_render_progress', 0))}%")
+        try:
+            generation, buf, sr, error = self._render_result_queue.get_nowait()
+        except queue.Empty:
+            return
+
+        self._render_poll_timer.stop()
+        self._render_thread = None
+
+        # A Stop pressed while rendering invalidates the completed worker.
+        if generation != self._render_generation or not self.is_paused and getattr(self, '_render_cancelled', False):
+            return
+        self._render_cancelled = False
+
+        if error is not None:
+            self.is_playing = False
+            self.is_paused = False
+            print(f"[Audio] Background render failed: {error}")
+            if hasattr(self, 'scope_status_label'):
+                self.scope_status_label.setText(f"📊 Render error: {error}")
+            QMessageBox.critical(self, "Playback Render Error", str(error))
+            return
+
+        try:
+            with self.play_lock:
+                self.play_buffer = np.asarray(buf, dtype=np.float32)
+                self.play_sample_rate = int(sr)
+                self.play_cursor = 0
+                self.is_playing = True
+                self.is_paused = False
+            if HAS_SOUNDDEVICE:
+                if self.audio_stream is not None:
+                    try:
+                        self.audio_stream.stop(); self.audio_stream.close()
+                    except Exception:
+                        pass
+                self.audio_stream = sd.OutputStream(
+                    samplerate=sr, channels=1, dtype='float32',
+                    callback=self._audio_callback, blocksize=1024, latency='low'
+                )
+                self.audio_stream.start()
+            self.btn_play.setText("⏸ PAUSE Audiovisual Track")
+            self.btn_play.setStyleSheet("background-color: #00aa55; color: white; font-weight: bold;")
+            self._scope_update_timer.start()
+            if hasattr(self, 'scope_status_label'):
+                self.scope_status_label.setText("📊 Audiovisual Track  |  LIVE")
+        except Exception as e:
+            self.is_playing = False
+            self.is_paused = False
+            print(f"[Audio] Playback start failed after render: {e}")
+            QMessageBox.critical(self, "Playback Error", str(e))
+
     def toggle_playback(self):
         """Unified PLAY/PAUSE/RESUME transport over the rendered audiovisual data stream."""
         # Playing -> pause without destroying the rendered buffer/cursor.
@@ -10745,41 +11084,26 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
         if not HAS_SOUNDDEVICE:
             QMessageBox.warning(self, "Audio Engine", "sounddevice is not available. Install with: pip install sounddevice")
-        try:
+            return
+
+        if self._render_thread is not None and self._render_thread.is_alive():
             if hasattr(self, 'scope_status_label'):
                 self.scope_status_label.setText("📊 Rendering Audiovisual Track…")
-            QApplication.processEvents()
-            buf, sr = self._render_mixdown_buffer()
-            with self.play_lock:
-                self.play_buffer = buf
-                self.play_sample_rate = sr
-                self.play_cursor = 0
-                self.is_playing = True
-                self.is_paused = False
-            if HAS_SOUNDDEVICE:
-                if self.audio_stream is not None:
-                    try:
-                        self.audio_stream.stop(); self.audio_stream.close()
-                    except Exception:
-                        pass
-                self.audio_stream = sd.OutputStream(
-                    samplerate=sr, channels=1, dtype='float32', callback=self._audio_callback,
-                    blocksize=1024, latency='low'
-                )
-                self.audio_stream.start()
-            self.btn_play.setText("⏸ PAUSE Audiovisual Track")
-            self.btn_play.setStyleSheet("background-color: #00aa55; color: white; font-weight: bold;")
-            self._scope_update_timer.start()
-            if hasattr(self, 'scope_status_label'):
-                self.scope_status_label.setText("📊 Audiovisual Track  |  LIVE")
-        except Exception as e:
-            self.is_playing = False
-            self.is_paused = False
-            print(f"[Audio] Playback start failed: {e}")
-            QMessageBox.critical(self, "Playback Error", str(e))
+            return
+
+        self._render_cancelled = False
+        if hasattr(self, 'scope_status_label'):
+            self.scope_status_label.setText("📊 Rendering Audiovisual Track in background…")
+        self.btn_play.setText("⏳ RENDERING…")
+        self.btn_play.setStyleSheet("background-color: #6b5b00; color: white; font-weight: bold;")
+        self._start_async_play_render()
 
     def stop_playback(self):
         """Hard stop: reset the audiovisual transport to the beginning."""
+        self._render_generation += 1
+        self._render_cancelled = True
+        if hasattr(self, '_render_poll_timer'):
+            self._render_poll_timer.stop()
         was_active = self.is_playing or self.is_paused
         self.is_playing = False
         self.is_paused = False
@@ -10806,70 +11130,121 @@ class MathematiciansGrooveboxApp(QMainWindow):
             print("[Audio] Audiovisual playback stopped.")
 
     def export_mixdown_dialog(self):
+        """Queue WAV rendering/writing off the Qt GUI thread."""
         try:
+            if self._export_thread is not None and self._export_thread.is_alive():
+                if hasattr(self, 'scope_status_label'):
+                    self.scope_status_label.setText("📊 Export already running…")
+                return
             default_filename = f"groovebox_mixdown_{self.export_counter:03d}.wav"
             file_path, _ = QFileDialog.getSaveFileName(
                 self, "Save Mixdown Audio", default_filename, "WAV Audio Files (*.wav)"
             )
             if not file_path:
                 return
+            self._render_snapshot = self._capture_render_snapshot()
+            self._render_progress = 0
+            self._render_stage = "Rendering WAV"
+            self.render_progress_bar.setValue(0)
+            self.scope_status_label.setText("📊 Rendering WAV in background… 0%")
+            self._export_result_queue = queue.Queue()
+            self._export_thread = threading.Thread(
+                target=self._export_wav_worker, args=(file_path, self._render_snapshot),
+                name="groovebox-wav-export", daemon=True
+            )
+            self._export_poll_timer.start()
+            self._export_thread.start()
+        except Exception as e:
+            print(f"[System] Export setup error: {e}")
+            QMessageBox.critical(self, "Export Error", str(e))
 
-            if hasattr(self, 'scope_status_label'):
-                self.scope_status_label.setText("📊 Rendering full mixdown for export…")
-            QApplication.processEvents()
-
-            master, sample_rate = self._render_mixdown_buffer()
-            pcm = (master * 32767.0).astype(np.int16)
-
+    def _export_wav_worker(self, file_path, snapshot):
+        try:
+            master, sample_rate = self._render_mixdown_buffer(snapshot=snapshot)
+            self._render_progress = 98
+            self._render_stage = "Writing WAV"
+            pcm = (np.clip(master, -1.0, 1.0) * 32767.0).astype(np.int16)
             if wavfile is not None:
                 wavfile.write(file_path, sample_rate, pcm)
             else:
-                with wave.open(file_path, 'w') as wf:
-                    wf.setnchannels(1)
-                    wf.setsampwidth(2)
-                    wf.setframerate(sample_rate)
+                with wave.open(file_path, 'wb') as wf:
+                    wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(sample_rate)
                     wf.writeframes(pcm.tobytes())
-
-            # Preview into scope
-            if isinstance(getattr(self, 'visual_oscilloscope', None), VisualOscilloscope):
-                prev = master[: min(len(master), sample_rate // 2)]
-                idx = np.linspace(0, len(prev) - 1, 100).astype(int)
-                self.visual_oscilloscope.update_waveform(prev[idx])
-
-            print(f"[System] Success: exported → {file_path}")
-            self.export_counter += 1
-            if hasattr(self, 'scope_status_label'):
-                self.scope_status_label.setText(f"📊 Export complete → {os.path.basename(file_path)}")
+            self._export_result_queue.put(("wav", file_path, None, master, sample_rate))
         except Exception as e:
-            print(f"[System] Export error: {e}")
-            if hasattr(self, 'scope_status_label'):
-                self.scope_status_label.setText(f"📊 Export error: {e}")
-            QMessageBox.critical(self, "Export Error", str(e))
+            self._export_result_queue.put(("wav", file_path, e, None, None))
+
+    def _poll_export_result(self):
+        if hasattr(self, 'render_progress_bar'):
+            self.render_progress_bar.setValue(int(getattr(self, '_render_progress', 0)))
+        stage = getattr(self, '_render_stage', 'Export')
+        if hasattr(self, 'scope_status_label') and self._export_thread is not None and self._export_thread.is_alive():
+            self.scope_status_label.setText(f"📊 {stage}… {int(getattr(self, '_render_progress', 0))}%")
+        try:
+            kind, path, error, master, sr = self._export_result_queue.get_nowait()
+        except queue.Empty:
+            return
+        self._export_poll_timer.stop()
+        self._export_thread = None
+        if error is not None:
+            self.scope_status_label.setText(f"📊 Export error: {error}")
+            QMessageBox.critical(self, "Export Error", str(error))
+            return
+        if kind == "wav":
+            self.render_progress_bar.setValue(100)
+            if isinstance(getattr(self, 'visual_oscilloscope', None), VisualOscilloscope) and master is not None:
+                prev = master[: min(len(master), int(sr) // 2)]
+                if len(prev):
+                    idx = np.linspace(0, len(prev) - 1, min(100, len(prev))).astype(int)
+                    self.visual_oscilloscope.update_waveform(prev[idx])
+            self.export_counter += 1
+            self.scope_status_label.setText(f"📊 Export complete → {os.path.basename(path)}")
+            print(f"[System] Success: exported → {path}")
 
     # =====================================================================
     # VIDEO_EXPORT_FEATURE — 2.5D render + audio mux + optional source-video blend
     # Revert: restore the prior export_video_dialog implementation.
     # =====================================================================
     def export_video_dialog(self, include_audio=True):
-        """Render the 2.5D geometry, optionally mux rendered audio, and optionally blend source video."""
-        tmp = None
+        """Start 2.5D video export off the Qt GUI thread."""
         try:
-            from PIL import Image
-            ffmpeg = shutil.which("ffmpeg")
-            if not ffmpeg:
-                raise RuntimeError("ffmpeg is required for video export. Install ffmpeg and try again.")
-
+            if self._export_thread is not None and self._export_thread.is_alive():
+                self.scope_status_label.setText("🎬 Export already running…")
+                return
             out_path, _ = QFileDialog.getSaveFileName(
                 self, "Export Video", f"groovebox_video_{self.export_counter:03d}.mp4",
                 "MP4 Video (*.mp4);;All Files (*)"
             )
             if not out_path:
                 return
-            if hasattr(self, 'scope_status_label'):
-                self.scope_status_label.setText("🎬 Rendering 2.5D video + audio…")
-            QApplication.processEvents()
+            self._render_snapshot = self._capture_render_snapshot()
+            self._render_progress = 0
+            self._render_stage = "Rendering video audio"
+            self.render_progress_bar.setValue(0)
+            self.scope_status_label.setText("🎬 Rendering video + audio in background… 0%")
+            self._export_result_queue = queue.Queue()
+            self._export_thread = threading.Thread(
+                target=self._export_video_worker, args=(out_path, bool(include_audio), self._render_snapshot),
+                name="groovebox-video-export", daemon=True
+            )
+            self._export_poll_timer.start()
+            self._export_thread.start()
+        except Exception as e:
+            print(f"[Video] export setup error: {e}")
+            QMessageBox.critical(self, "Video Export Error", str(e))
 
-            master, sr = self._render_mixdown_buffer()
+    def _export_video_worker(self, out_path, include_audio, snapshot):
+        tmp = None
+        try:
+            from PIL import Image
+            ffmpeg = shutil.which("ffmpeg")
+            if not ffmpeg:
+                raise RuntimeError("ffmpeg is required for video export. Install ffmpeg and try again.")
+            self._render_progress = 0
+            self._render_stage = "Rendering video audio"
+            master, sr = self._render_mixdown_buffer(snapshot=snapshot)
+            self._render_progress = 50
+            self._render_stage = "Rendering video frames"
             fps = 24
             frame_samples = max(1, int(sr / fps))
             n_frames = max(1, int(np.ceil(len(master) / frame_samples)))
@@ -10885,29 +11260,23 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     with wave.open(audio_path, 'wb') as wf:
                         wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(sr)
                         wf.writeframes((np.clip(master, -1, 1) * 32767).astype(np.int16).tobytes())
-
+            self._render_stage = "Rendering video frames"
             eng = getattr(self, 'video_synth_engine', None) or VideoSynthEngine(48)
             w, h = 640, 360
             for fi in range(n_frames):
-                a = fi * frame_samples
-                b = min(len(master), a + frame_samples)
-                chunk = master[a:b]
-                eng.set_waveform(chunk)
+                a = fi * frame_samples; b = min(len(master), a + frame_samples)
+                eng.set_waveform(master[a:b])
                 frame = eng.render_frame(w, h)
                 Image.fromarray(frame, mode="RGB").save(os.path.join(frames_dir, f"frame_{fi:05d}.png"))
-                if fi % 12 == 0 and hasattr(self, 'scope_status_label'):
-                    self.scope_status_label.setText(f"🎬 Frames {fi}/{n_frames}…")
-                    QApplication.processEvents()
-
+                self._render_progress = 60 + int(((fi + 1) / max(n_frames, 1)) * 30)
+            self._render_progress = 92
+            self._render_stage = "Encoding MP4"
             pattern = os.path.join(frames_dir, "frame_%05d.png")
             source_video = self.imported_video_path if getattr(self, 'imported_video_path', '') else ''
+            source_has_audio = bool(getattr(self, 'imported_video_meta', {}).get('has_audio', False))
+            duration = f"{n_frames / fps:.6f}"
             if source_video and os.path.abspath(source_video) != os.path.abspath(out_path):
-                # VIDEO_REEMULATION_PIPELINE: source video is the visual reference. Its
-                # decoded audio has already become the imported carrier; if it has an
-                # audio stream, a quiet direct source channel is also mixed into the final
-                # rendered audio. The 2.5D frame sequence is the visual re-emulation.
-                source_has_audio = bool(getattr(self, 'imported_video_meta', {}).get('has_audio', False))
-                if source_has_audio:
+                if include_audio and source_has_audio:
                     filter_complex = (
                         "[1:v]scale=640:360:force_original_aspect_ratio=increase,"
                         "crop=640:360,setsar=1,format=yuv420p[iv];"
@@ -10919,12 +11288,22 @@ class MathematiciansGrooveboxApp(QMainWindow):
                         ffmpeg, "-y", "-framerate", str(fps), "-i", pattern,
                         "-stream_loop", "-1", "-i", source_video,
                         "-i", audio_path, "-i", source_video,
-                        "-filter_complex", filter_complex,
-                        "-map", "[v]", "-map", "[a]",
-                        "-t", f"{n_frames / fps:.6f}",
-                        "-c:v", "libx264", "-preset", "medium", "-crf", "18",
-                        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
-                        "-shortest", out_path,
+                        "-filter_complex", filter_complex, "-map", "[v]", "-map", "[a]",
+                        "-t", duration, "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+                        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-shortest", out_path
+                    ]
+                elif include_audio:
+                    filter_complex = (
+                        "[1:v]scale=640:360:force_original_aspect_ratio=increase,"
+                        "crop=640:360,setsar=1,format=yuv420p[iv];"
+                        "[0:v][iv]blend=all_mode=screen:all_opacity=0.35[v]"
+                    )
+                    cmd = [
+                        ffmpeg, "-y", "-framerate", str(fps), "-i", pattern,
+                        "-stream_loop", "-1", "-i", source_video, "-i", audio_path,
+                        "-filter_complex", filter_complex, "-map", "[v]", "-map", "2:a:0",
+                        "-t", duration, "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+                        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-shortest", out_path
                     ]
                 else:
                     filter_complex = (
@@ -10935,36 +11314,41 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     cmd = [
                         ffmpeg, "-y", "-framerate", str(fps), "-i", pattern,
                         "-stream_loop", "-1", "-i", source_video,
-                        "-i", audio_path,
-                        "-filter_complex", filter_complex,
-                        "-map", "[v]", "-map", "2:a:0",
-                        "-t", f"{n_frames / fps:.6f}",
-                        "-c:v", "libx264", "-preset", "medium", "-crf", "18",
-                        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
-                        "-shortest", out_path,
+                        "-filter_complex", filter_complex, "-map", "[v]",
+                        "-t", duration, "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+                        "-pix_fmt", "yuv420p", out_path
                     ]
+            elif include_audio:
+                cmd = [
+                    ffmpeg, "-y", "-framerate", str(fps), "-i", pattern, "-i", audio_path,
+                    "-map", "0:v:0", "-map", "1:a:0", "-shortest", "-c:v", "libx264",
+                    "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-b:a", "192k", out_path
+                ]
             else:
                 cmd = [
                     ffmpeg, "-y", "-framerate", str(fps), "-i", pattern,
-                    "-i", audio_path, "-map", "0:v:0", "-map", "1:a:0",
-                    "-shortest", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
-                    "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", out_path,
+                    "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+                    "-pix_fmt", "yuv420p", out_path
                 ]
             proc = subprocess.run(cmd, capture_output=True, text=True)
             if proc.returncode != 0:
                 raise RuntimeError(proc.stderr[-1600:] if proc.stderr else "ffmpeg failed")
-
-            self.export_counter += 1
-            if hasattr(self, 'scope_status_label'):
-                suffix = " + source video blend" if source_video else ""
-                self.scope_status_label.setText(f"🎬 Video + rendered audio exported{suffix} → {os.path.basename(out_path)}")
-            QMessageBox.information(self, "Export complete", f"Saved:\n{out_path}")
+            self._render_progress = 100
+            self._render_stage = "Complete"
+            self._export_result_queue.put(("video", out_path, None, None, None))
         except Exception as e:
-            print(f"[Video] export error: {e}")
-            QMessageBox.critical(self, "Video Export Error", str(e))
+            self._export_result_queue.put(("video", out_path, e, None, None))
         finally:
             if tmp:
                 shutil.rmtree(tmp, ignore_errors=True)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        canvas = getattr(self, "parametric_background", None)
+        if canvas is not None and self.centralWidget() is not None:
+            canvas.setGeometry(self.centralWidget().rect())
+            canvas.lower()
 
     def closeEvent(self, event):
         """Ensure audio stream and PKP pad clock are torn down on close."""
