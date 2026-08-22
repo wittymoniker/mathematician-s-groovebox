@@ -7407,6 +7407,50 @@ class MathematiciansGrooveboxApp(QMainWindow):
                         row_dict["velocity"] = 1.0
                 self.master_playlist_data.append(row_dict)
 
+
+    # =====================================================================
+    # LOCAL_CONTEXT_UI helpers — must live on MathematiciansGrooveboxApp
+    # (they were previously only defined on UIComponentManager, which caused
+    # AttributeError at startup when building the LOCAL CONTEXT panel).
+    # =====================================================================
+    def _make_local_context_button(self, text, tooltip):
+        """Square local-context action button (synth / script / modular / etc.)."""
+        btn = QPushButton(text)
+        btn.setToolTip(tooltip)
+        btn.setFixedSize(92, 92)
+        btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        btn.setStyleSheet(
+            "QPushButton { background-color:#121212; color:#00ffff; "
+            "border:2px solid #00ffff; border-radius:8px; padding:6px; "
+            "font-weight:bold; } QPushButton:hover { background-color:#202830; } "
+            "QPushButton:pressed { background-color:#ff6b00; color:white; }"
+        )
+        return btn
+
+    def _randomize_local_context(self):
+        """Safe local randomization: preserve explicit user gates, vary free material and playlist velocity."""
+        try:
+            # Existing seeded engine already respects the protected/user-mask policy.
+            self.apply_seeded_harmonic_randomization()
+            self._phase_lock_playlist_velocity(
+                np.random.default_rng(self.get_numeric_seed()), strength=0.35, randomize=True
+            )
+            self.reload_active_instrument_sequencer_ui()
+        except Exception as e:
+            print(f"[Local Randomize] skipped: {e}")
+
+    def _phase_lock_local_context(self):
+        """Phase-lock local instrument context + playlist velocity without rewriting user gates."""
+        try:
+            if hasattr(self, "wavefield_engine") and self.wavefield_engine is not None:
+                self.wavefield_engine.apply_phase_locked_randomization()
+            self._phase_lock_playlist_velocity(
+                np.random.default_rng(self.get_numeric_seed()), strength=0.70, randomize=False
+            )
+            self.reload_active_instrument_sequencer_ui()
+        except Exception as e:
+            print(f"[Local Phase Lock] skipped: {e}")
+
     def init_ui_components(self):
         high_contrast_stylesheet = """
             QMainWindow, QWidget, QDialog {
