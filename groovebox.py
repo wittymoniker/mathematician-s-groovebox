@@ -7817,11 +7817,39 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # "ded Live Rando"). Capping its width lets siblings keep their labels.
         self.instrument_selector_dropdown.setMaximumWidth(220)
 
-        # Live regenerating toggles (not one-shot masks)
+        # Live regenerating toggles (not one-shot masks).
+        # Styles use QPushButton:checked so ON/OFF color-shifts without clearing the sheet.
+        self._style_toggle_euclidean = (
+            "QPushButton { background-color: #0f1a14; color: #66ffaa; font-weight: bold; "
+            "border: 2px solid #66ffaa; border-radius: 4px; padding: 4px 10px; }"
+            "QPushButton:checked { background-color: #00aa55; color: #ffffff; border-color: #ffffff; }"
+            "QPushButton:hover { background-color: #1a2e22; }"
+        )
+        self._style_toggle_randomizer = (
+            "QPushButton { background-color: #1a1608; color: #f5d97d; font-weight: bold; "
+            "border: 2px solid #f5d97d; border-radius: 4px; padding: 4px 10px; }"
+            "QPushButton:checked { background-color: #e6a800; color: #120800; border-color: #ffffff; }"
+            "QPushButton:hover { background-color: #2a2210; }"
+        )
+        self._style_toggle_nullock = (
+            "QPushButton { background-color: #1a1020; color: #ff66cc; font-weight: bold; "
+            "border: 2px solid #ff66cc; border-radius: 4px; padding: 4px 10px; }"
+            "QPushButton:checked { background-color: #ff66cc; color: #120818; border-color: #ffffff; }"
+            "QPushButton:hover { background-color: #2a1830; }"
+        )
+
         self.btn_idealize_rhythm = QPushButton("✨ Euclidean Live Lock")
         self.btn_idealize_rhythm.setCheckable(True)
+        self.btn_idealize_rhythm.setChecked(False)
+        self.btn_idealize_rhythm.setStyleSheet(self._style_toggle_euclidean)
+        self.btn_idealize_rhythm.setToolTip("Toggle live Euclidean / phase-lock fill. Green = ON.")
+
         self.btn_seeded_randomize = QPushButton("🎲 Seeded Live Randomizer")
         self.btn_seeded_randomize.setCheckable(True)
+        self.btn_seeded_randomize.setChecked(False)
+        self.btn_seeded_randomize.setStyleSheet(self._style_toggle_randomizer)
+        self.btn_seeded_randomize.setToolTip("Toggle live seeded harmonic randomizer. Amber = ON.")
+
         self.chk_user_program_only = QCheckBox("User program only")
         self.chk_user_program_only.setToolTip(
             "When ON, live randomizer/phase-lock engines are suspended — hear only what you wrote."
@@ -8135,7 +8163,37 @@ class MathematiciansGrooveboxApp(QMainWindow):
         seq_header_layout.addWidget(QLabel("Selected Instrument:"))
         seq_header_layout.addWidget(self.instrument_selector_dropdown, stretch=1)
 
-        # PKP NullLock BOOST is intentionally not exposed as a top-level control.
+        # PKP NullLock BOOST — arm global note-triggered NullLock layer + one-shot audition.
+        # Boost amount scales the global PKP layer in the mixdown (0.5× … 2.0×).
+        self.pkp_boost_amount = 1.0
+        self.btn_pkp_nullock_boost = QPushButton("⚡ PKP NullLock BOOST")
+        self.btn_pkp_nullock_boost.setCheckable(True)
+        self.btn_pkp_nullock_boost.setChecked(False)
+        self.btn_pkp_nullock_boost.setToolTip(
+            "Arm the global PKP NullLock layer (note-triggered on the selected instrument).\n"
+            "Click also fires a one-shot audition hit. Boost amount scales mix gain."
+        )
+        self.btn_pkp_nullock_boost.setStyleSheet(
+            getattr(self, "_style_toggle_nullock",
+                    "QPushButton { background-color: #1a1020; color: #ff66cc; font-weight: bold; "
+                    "border: 2px solid #ff66cc; border-radius: 4px; padding: 4px 10px; }"
+                    "QPushButton:checked { background-color: #ff66cc; color: #120818; border-color: #ffffff; }"
+                    "QPushButton:hover { background-color: #2a1830; }")
+        )
+        self.btn_pkp_nullock_boost.clicked.connect(self._on_pkp_nullock_boost_clicked)
+        seq_header_layout.addWidget(self.btn_pkp_nullock_boost)
+
+        self.slider_pkp_boost = QSlider(Qt.Orientation.Horizontal)
+        self.slider_pkp_boost.setRange(50, 200)  # 0.5× … 2.0×
+        self.slider_pkp_boost.setValue(100)
+        self.slider_pkp_boost.setFixedWidth(100)
+        self.slider_pkp_boost.setToolTip("NullLock boost amount (50%–200%) applied to the global PKP layer.")
+        self.slider_pkp_boost.valueChanged.connect(self._on_pkp_boost_amount_changed)
+        seq_header_layout.addWidget(QLabel("Boost:"))
+        seq_header_layout.addWidget(self.slider_pkp_boost)
+        self.lbl_pkp_boost = QLabel("100%")
+        self.lbl_pkp_boost.setStyleSheet("color: #ff66cc; font-weight: bold; min-width: 40px;")
+        seq_header_layout.addWidget(self.lbl_pkp_boost)
 
         seq_inner.addLayout(seq_header_layout)
 
@@ -8339,6 +8397,26 @@ class MathematiciansGrooveboxApp(QMainWindow):
             btn.setStyleSheet(
                 "background-color: #121212; color: #00ffff; border: 2px solid #444444;"
             )
+
+    def _on_pkp_boost_amount_changed(self, val):
+        self.pkp_boost_amount = float(val) / 100.0
+        if hasattr(self, "lbl_pkp_boost"):
+            self.lbl_pkp_boost.setText(f"{val}%")
+
+    def _on_pkp_nullock_boost_clicked(self, checked):
+        """Arm/disarm global NullLock and fire a one-shot audition when turning ON."""
+        self.toggle_pkp_pad_bank(bool(checked))
+        if checked:
+            self._play_selected_instrument_pkp()
+            if hasattr(self, "btn_pkp_nullock_boost"):
+                self.btn_pkp_nullock_boost.setText("⚡ PKP NullLock BOOST · ON")
+        else:
+            if hasattr(self, "btn_pkp_nullock_boost"):
+                self.btn_pkp_nullock_boost.setText("⚡ PKP NullLock BOOST")
+        if hasattr(self, "scope_status_label"):
+            state = "ARMED" if checked else "disarmed"
+            boost = int(getattr(self, "pkp_boost_amount", 1.0) * 100)
+            self.scope_status_label.setText(f"⚡ PKP NullLock {state} · boost {boost}%")
 
     def _play_selected_instrument_pkp(self):
         """One-shot audition of a modified PKP/Null-Lock instance of the selected instrument."""
@@ -8711,6 +8789,9 @@ class MathematiciansGrooveboxApp(QMainWindow):
             self.seq_step_buttons[s].setText(f"Pad {s+1}\nA:{amp:.2f} P:{ratio:.2f}×")
 
     def _on_euclidean_live_toggled(self, checked):
+        # Keep persistent :checked stylesheet — never clear to "" (would lose OFF look).
+        if hasattr(self, "_style_toggle_euclidean"):
+            self.btn_idealize_rhythm.setStyleSheet(self._style_toggle_euclidean)
         if getattr(self, 'chk_user_program_only', None) and self.chk_user_program_only.isChecked():
             self.btn_idealize_rhythm.blockSignals(True)
             self.btn_idealize_rhythm.setChecked(False)
@@ -8718,12 +8799,14 @@ class MathematiciansGrooveboxApp(QMainWindow):
             return
         if checked:
             self._apply_live_engine_once("euclidean")
-            self.btn_idealize_rhythm.setStyleSheet("background-color: #00aa55; color: white; font-weight: bold;")
+            self.btn_idealize_rhythm.setText("✨ Euclidean Live Lock · ON")
         else:
             self._live_euclid_timer.stop()
-            self.btn_idealize_rhythm.setStyleSheet("")
+            self.btn_idealize_rhythm.setText("✨ Euclidean Live Lock")
 
     def _on_seeded_live_toggled(self, checked):
+        if hasattr(self, "_style_toggle_randomizer"):
+            self.btn_seeded_randomize.setStyleSheet(self._style_toggle_randomizer)
         if getattr(self, 'chk_user_program_only', None) and self.chk_user_program_only.isChecked():
             self.btn_seeded_randomize.blockSignals(True)
             self.btn_seeded_randomize.setChecked(False)
@@ -8731,23 +8814,25 @@ class MathematiciansGrooveboxApp(QMainWindow):
             return
         if checked:
             self._apply_live_engine_once("seeded")
-            self.btn_seeded_randomize.setStyleSheet("background-color: #00aa55; color: white; font-weight: bold;")
+            self.btn_seeded_randomize.setText("🎲 Seeded Live Randomizer · ON")
         else:
             self._live_seeded_timer.stop()
-            self.btn_seeded_randomize.setStyleSheet("")
+            self.btn_seeded_randomize.setText("🎲 Seeded Live Randomizer")
 
     def _on_user_program_only_toggled(self, checked):
         if checked:
-            # Suspend live engines — user carrier only
-            for btn, timer in (
-                (self.btn_idealize_rhythm, self._live_euclid_timer),
-                (self.btn_seeded_randomize, self._live_seeded_timer),
+            # Suspend live engines — user carrier only; restore OFF styles via :checked
+            for btn, timer, style_attr, off_label in (
+                (self.btn_idealize_rhythm, self._live_euclid_timer, "_style_toggle_euclidean", "✨ Euclidean Live Lock"),
+                (self.btn_seeded_randomize, self._live_seeded_timer, "_style_toggle_randomizer", "🎲 Seeded Live Randomizer"),
             ):
                 timer.stop()
                 btn.blockSignals(True)
                 btn.setChecked(False)
                 btn.blockSignals(False)
-                btn.setStyleSheet("")
+                if hasattr(self, style_attr):
+                    btn.setStyleSheet(getattr(self, style_attr))
+                btn.setText(off_label)
             print("[User program only] Live engines suspended — carrier only")
         else:
             print("[User program only] OFF — live engines may be re-armed")
@@ -10127,7 +10212,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
                             sl = local_t[mm] - ss_start
                             env = np.exp(-sl / max(step_duration * 0.35, 0.01))
                             global_pkp[mm] += env * np.sin(2.0 * np.pi * gbase * sl)
-                row_mix += global_pkp * 0.5
+                # Boost scales the global NullLock layer; only audible when armed (or always at base when steps fire).
+                boost = float(getattr(self, "pkp_boost_amount", 1.0))
+                armed = bool(getattr(self, "pkp_pad_bank_active", False))
+                # Base presence 0.35 when disarmed, full 0.55 * boost when BOOST is ON.
+                pkp_gain = (0.55 * boost) if armed else 0.35
+                row_mix += global_pkp * float(np.clip(pkp_gain, 0.05, 2.0))
             except Exception:
                 pass
 
