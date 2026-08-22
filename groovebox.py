@@ -53,7 +53,28 @@ except ImportError:
     sd = None
     HAS_SOUNDDEVICE = False
 
-MEUM_CONSTANT = 1.1975807343385265188
+# POWER_V3_MEUM_CORE — canonical Meum spatial-dynamic constant.
+# M = 1.19758073433... is treated as an invariant mathematical constant,
+# not as an arbitrary synth-control percentage. Derived values below are
+# reusable shortcuts so the DSP/visualizer/context engines do not repeatedly
+# re-encode the same Meum arithmetic.
+MEUM = 1.1975807343385265188
+MEUM_CONSTANT = MEUM  # backwards-compatible alias used throughout the codebase
+MEUM_MINUS_1 = MEUM - 1.0
+MEUM_INV = 1.0 / MEUM
+MEUM_SQ = MEUM * MEUM
+MEUM_CUBE = MEUM_SQ * MEUM
+MEUM_FOURTH = MEUM_SQ * MEUM_SQ
+MEUM_NORM = MEUM_MINUS_1 * MEUM_INV          # (M-1)/M
+MEUM_OVER_1_5 = MEUM / 1.5
+MEUM_TWO_POW = 2.0 ** MEUM
+MEUM_TWO_POW_OVER_SQ = MEUM_TWO_POW / MEUM_SQ
+MEUM_LOG2 = math.log2(MEUM)
+# Frequently used integer powers: M^0 ... M^35.
+MEUM_POWERS_36 = tuple(MEUM ** i for i in range(36))
+MEUM_IDENTITY_LHS = (MEUM_MINUS_1 * MEUM) + (MEUM_MINUS_1 * MEUM_INV)
+MEUM_IDENTITY_RHS = MEUM_TWO_POW_OVER_SQ - MEUM
+MEUM_IDENTITY_RESIDUAL = MEUM_IDENTITY_LHS - MEUM_IDENTITY_RHS
 DAW_STYLE = """
     QMainWindow, QWidget { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; }
     QPushButton { background-color: #2a2a2a; color: #ffffff; border: 1px solid #3a3a3a; border-radius: 3px; padding: 5px 10px; font-weight: bold; }
@@ -2990,7 +3011,7 @@ class AdvancedWaveformVisualizerCanvas(QWidget):
 
         path = QPainterPath()
         center_y = h / 2.0
-        meum_ratio = 1.618
+        meum_ratio = MEUM
 
         for px in range(w):
             t_val = (px / w) * 4.0 * math.pi + self.phase
@@ -3857,7 +3878,6 @@ class ParameterControlRow(QWidget):
         layout.addWidget(self.jack_btn, 1)
 
         self.setLayout(layout)
-MEUM=1.1975807343385265188
 class WavetableVectorVisualizerCanvas(QWidget):
     """Real-time Wavetable and Isosceles Trigonometric Polynomial Waveform Visualizer."""
     def __init__(self, parent=None):
@@ -3884,7 +3904,7 @@ class WavetableVectorVisualizerCanvas(QWidget):
 
         path = QPainterPath()
         center_y = h / 2.0
-        meum_ratio = 1.1975807343385265188
+        meum_ratio = MEUM
 
         for px in range(w):
             t_val = (px / w) * 4.0 * math.pi + self.phase
@@ -6157,6 +6177,8 @@ class PaintbrushTable(QWidget):
     MODE_STEPS_ONLY = "Selected instrument step sequence (no automation)"
     MODE_STEPS_AUTO = "Step sequence + Automation"
     MODE_AUTO_ONLY = "Automation of selected instrument"
+    MODE_RANDOM_PARAMETERS = "Random Parameters (velocity + automation)"
+    MODE_CALCULATED_PARAMETERS = "Calculated Parameters (context field)"
 
     def __init__(self, parent=None, rows=0, cols=0):
         super().__init__(parent)
@@ -6187,6 +6209,8 @@ class PaintbrushTable(QWidget):
             self.MODE_STEPS_ONLY,
             self.MODE_STEPS_AUTO,
             self.MODE_AUTO_ONLY,
+            self.MODE_RANDOM_PARAMETERS,
+            self.MODE_CALCULATED_PARAMETERS,
         ])
         self.paint_mode_combo.setMinimumWidth(280)
         toolbar.addWidget(self.paint_mode_combo)
@@ -6345,7 +6369,9 @@ class PaintbrushTable(QWidget):
         mode = self._current_paint_mode()
         write_identity = mode in (self.MODE_IDENTITY_STEPS_AUTO, self.MODE_IDENTITY_ONLY)
         write_steps = mode in (self.MODE_IDENTITY_STEPS_AUTO, self.MODE_STEPS_ONLY, self.MODE_STEPS_AUTO)
-        write_auto = mode in (self.MODE_IDENTITY_STEPS_AUTO, self.MODE_STEPS_AUTO, self.MODE_AUTO_ONLY)
+        write_auto = mode in (self.MODE_IDENTITY_STEPS_AUTO, self.MODE_STEPS_AUTO, self.MODE_AUTO_ONLY, self.MODE_RANDOM_PARAMETERS, self.MODE_CALCULATED_PARAMETERS)
+        write_calculated = mode == self.MODE_CALCULATED_PARAMETERS
+        write_random = mode == self.MODE_RANDOM_PARAMETERS
 
         # Column 0 = time — only editable when snap is off (free paint) or left to markers
         if col == 0:
@@ -6355,6 +6381,21 @@ class PaintbrushTable(QWidget):
             return
 
         target_operator_name = self._selected_operator(rng)
+
+        # POWER_V3_PARAMETER_PAINT: velocity is a first-class paintable parameter.
+        # The same contextual field drives calculated paint; random paint adds only
+        # controlled variation. No extra lock/ownership mode is required.
+        if col == 3 or write_random or write_calculated:
+            ctx = self.app._contextual_numerology(target_operator_name, row, row) if hasattr(self.app, '_contextual_numerology') else 0.5
+            velocity = (float(rng.uniform(0.10, 1.20)) if write_random
+                        else float(np.clip(0.15 + 1.15*ctx, 0.05, 1.5)))
+            self.set_cell_item(row, 3, f"{velocity*100:.1f}%")
+            self.app.master_playlist_data[row]['velocity'] = velocity
+            self.app.master_playlist_data[row]['velocity_source'] = 'random-paint' if write_random else 'calculated-paint'
+            self.app.master_playlist_data[row]['calculated_context'] = self.app._contextual_feature_vector(target_operator_name, row, row) if hasattr(self.app, '_contextual_feature_vector') else {}
+            if col == 3:
+                self.app.sync_playlist_grid_to_memory()
+                return
 
         # Existing paint on this row (for overlap)
         existing_item = self.table_widget.item(row, 1)
@@ -6394,9 +6435,17 @@ class PaintbrushTable(QWidget):
 
             # Automation columns
             if write_auto:
-                # Target param + amount scaled by coverage of this stroke
+                # POWER_V3_DEFAULTS / AUTO-AMOUNT: coverage is spatial paint coverage,
+                # not automation strength.  The old implementation therefore made the
+                # first stroke always 25%.  Use a neutral 50% base and let the shared
+                # contextual field gently move it instead.
                 coverage = cov.get(target_operator_name, 1.0)
-                auto_amt = int(round(100 * coverage))
+                try:
+                    ctx = float(self.app._contextual_numerology(target_operator_name, row, row))
+                except Exception:
+                    ctx = 0.5
+                auto_amount = float(np.clip(0.50 + 0.24 * (ctx - 0.5) * 2.0, 0.20, 0.80))
+                auto_amt = int(round(100 * auto_amount))
                 params = list(self.app.instrument_param_state.get(target_operator_name, {"eqr": 0.5}).keys())
                 param = params[(row + col) % len(params)]
                 self.set_cell_item(row, 4, param)                    # automation target
@@ -6405,23 +6454,26 @@ class PaintbrushTable(QWidget):
                 self.set_cell_item(row, 6, f"Vector {direction}{coverage:.2f}")  # directionality
                 self.set_cell_item(row, 7, f"Multi-Load [{row % 3 + 1}]")
                 self.set_cell_item(row, 8, f"Cover {coverage:.0%}")
-                if overlap > 0:
-                    self.set_cell_item(row, 9, f"Blend {existing_op[:12]}@{overlap:.2%}")
-                else:
-                    self.set_cell_item(row, 9, f"Blend {float(lane.get('blend_percent', 0.0)):.2f}%" if lane else "—")
-
-                # Write automation lane
+                # POWER_V3_PAINT_FIX: build the automation lane before rendering
+                # its summary.  The previous version referenced `lane` before it
+                # was assigned, which crashed on the very first paint stroke when
+                # the playlist had no existing automation context.
                 lane = {
                     "operator": target_operator_name,
                     "param": param,
-                    "amount": coverage,          # 0..1
+                    "amount": auto_amount,       # 0..1; independent of paint coverage
                     "direction": 1.0 if direction == "+" else -1.0,
+                    "coverage": coverage,         # spatial paint coverage remains separate
                     "overlap": overlap,
                     "blend_percent": float(rng.uniform(0.0, 100.0)),
                     "partner": existing_op if overlap > 0 else "",
                     "mode": mode,
                     "write_steps": write_steps,
                 }
+                if overlap > 0:
+                    self.set_cell_item(row, 9, f"Blend {existing_op[:12]}@{overlap:.2%}")
+                else:
+                    self.set_cell_item(row, 9, f"Blend {float(lane.get('blend_percent', 0.0)):.2f}%")
                 if row < len(self.app.playlist_automation):
                     self.app.playlist_automation[row] = lane
 
@@ -6704,9 +6756,10 @@ class PianoRollEditor(QDialog):
             c_layout = QVBoxLayout(cell_frame)
 
             seq_name = f"{instrument_name}_seq_{step+1}"
-            btn = QPushButton(f"{seq_name}\n[Gate On]")
+            # POWER_V3_EMPTY_BOOT: standalone piano-roll editors also open blank.
+            btn = QPushButton(f"{seq_name}\n[Gate Off]")
             btn.setCheckable(True)
-            btn.setChecked(True)
+            btn.setChecked(False)
 
             offset_slider = QSlider(Qt.Orientation.Horizontal)
             offset_slider.setRange(-50, 50)
@@ -6754,9 +6807,8 @@ class PlaylistArrangementWindow(QMainWindow):
         self.timeline_view = QTextEdit()
         self.timeline_view.setPlainText(
             "# Global Playlist Arrangement Channels & Paintbrush Clips\n"
-            "Track 1 [Instrument_1] |=======| [Bars 1 - 16]   (Saved Preset: Lead_Groove_A)\n"
-            "Track 2 [Instrument_2]   |===|   [Bars 8 - 20]   (Saved Preset: Bass_Stab_B)\n"
-            "Track 3 [Instrument_3] |=======| [Bars 12 - 32]  (Saved Preset: Pad_Sweep_C)"
+            "# Empty by design — paint, calculate, or randomize explicitly.\n"
+            "# Capacity and mathematical context are initialized without a musical program."
         )
         self.timeline_view.setStyleSheet("background-color: #ffffff; color: #1e272e; font-family: monospace; font-size: 13px; border-radius: 10px;")
         layout.addWidget(self.timeline_view)
@@ -6788,6 +6840,9 @@ class ModulationRoutingWindow(QMainWindow):
         mod_grid = QGridLayout()
         mod_grid.addWidget(QLabel("LFO 1 Rate (Hz):"), 0, 0)
         self.lfo1_slider = QSlider(Qt.Orientation.Horizontal)
+        self.lfo1_slider.setRange(0, 100)
+        # POWER_V3_DEFAULTS: retain the Gemini/original 45% modulation-rate starting point.
+        # Meum is applied by the contextual field; it does not replace this UI default.
         self.lfo1_slider.setValue(45)
         mod_grid.addWidget(self.lfo1_slider, 0, 1)
 
@@ -6798,6 +6853,8 @@ class ModulationRoutingWindow(QMainWindow):
 
         mod_grid.addWidget(QLabel("Envelope Decay (ms):"), 2, 0)
         self.env_slider = QSlider(Qt.Orientation.Horizontal)
+        self.env_slider.setRange(0, 100)
+        # POWER_V3_DEFAULTS: retain the Gemini/original 70% envelope starting point.
         self.env_slider.setValue(70)
         mod_grid.addWidget(self.env_slider, 2, 1)
 
@@ -6843,9 +6900,8 @@ class PlaylistWindow(QMainWindow):
 
         self.timeline_view = QTextEdit()
         self.timeline_view.setPlainText(
-            "Track 1 [Inst 1: Eskibrutus Heavy] |===| [Bars 1 - 8]   (Sticky Gate Active)\n"
-            "Track 2 [Inst 12: Additive Harmonic] |=======| [Bars 5 - 16] (Local Tempo: 0.75x)\n"
-            "Track 3 [Inst 48: Chaos Attractor]   |===| [Bars 17 - 24] (Universal Brush Mode)"
+            "# Global arrangement / painter\n"
+            "# Empty by design — no preset clips or gates are injected on boot."
         )
         self.timeline_view.setStyleSheet("background-color: #ffffff; color: #2f3640; font-family: monospace; font-size: 13px; border-radius: 15px;")
         layout.addWidget(self.timeline_view)
@@ -6872,7 +6928,15 @@ class MiniSynthNodeWidget(QFrame):
         layout.addWidget(title)
 
         self.cutoff_slider = QSlider(Qt.Orientation.Horizontal)
+        self.cutoff_slider.setRange(0, 100)
+        # POWER_V3_DEFAULTS: retain the Gemini/original 75% cutoff starting point.
+        # Meum contextual modulation operates around this baseline.
+        self.cutoff_slider.setValue(75)
         self.drive_slider = QSlider(Qt.Orientation.Horizontal)
+        self.drive_slider.setRange(0, 100)
+        # POWER_V3_DEFAULTS: retain the Gemini/original 50% wavefold starting point.
+        # Meum contextual modulation operates around this baseline rather than redefining it.
+        self.drive_slider.setValue(50)
 
         layout.addWidget(QLabel("Cutoff / Frequency Freq:"))
         layout.addWidget(self.cutoff_slider)
@@ -6923,17 +6987,23 @@ class FloatingSynthWindow(QMainWindow):
 
         controls_layout.addWidget(QLabel("Cutoff / Resonance:"), 0, 0)
         self.cutoff_slider = QSlider(Qt.Orientation.Horizontal)
+        self.cutoff_slider.setRange(0, 100)
+        # POWER_V3_DEFAULTS: retain the Gemini/original 75% cutoff starting point.
         self.cutoff_slider.setValue(75)
         controls_layout.addWidget(self.cutoff_slider, 0, 1)
 
         controls_layout.addWidget(QLabel("Wavefold Drive:"), 1, 0)
         self.drive_slider = QSlider(Qt.Orientation.Horizontal)
+        self.drive_slider.setRange(0, 100)
+        # POWER_V3_DEFAULTS: retain the Gemini/original 50% wavefold starting point.
         self.drive_slider.setValue(50)
         self.drive_slider.valueChanged.connect(self.update_drive_param)
         controls_layout.addWidget(self.drive_slider, 1, 1)
 
         controls_layout.addWidget(QLabel("Envelope Decay (s):"), 2, 0)
         self.decay_spin = QDoubleSpinBox()
+        # POWER_V3_DEFAULTS: retain the Gemini/original 0.30 s envelope decay.
+        # Meum shapes generated phase/space relationships rather than overriding the synth envelope baseline.
         self.decay_spin.setValue(0.3)
         self.decay_spin.setRange(0.01, 5.0)
         self.decay_spin.setSingleStep(0.05)
@@ -7395,15 +7465,15 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.initialize_default_playlist_memory()
 
     def apply_hardcoded_compositions(self):
-        for inst_name, pattern in self.hardcoded_compositions.items():
-            if inst_name in self.instrument_sequencer_memory:
-                padded_pattern = (pattern + [False] * 48)[:48]
-                self.instrument_sequencer_memory[inst_name]["steps"] = padded_pattern
-        print("[System] Hardcoded compositions injected into sequencer memory bays.")
+        # POWER_V3_EMPTY_BOOT: compatibility hook intentionally does nothing.
+        # The application may keep idealized harmonic/synth/domain defaults, but
+        # it never injects a musical composition into sequencer memory at boot.
+        return 0
 
     def initialize_default_playlist_memory(self):
         # Playlist capacity is present, but the musical program is empty on boot.
         rows = 96
+        # POWER_V3_EMPTY_BOOT: capacity exists, but there is no musical program.
         self.master_playlist_data = [{} for _ in range(rows)]
         self.playlist_automation = [{} for _ in range(rows)]
 
@@ -7470,6 +7540,45 @@ class MathematiciansGrooveboxApp(QMainWindow):
         playlist = getattr(self, 'master_playlist_data', []) or []
         active = [r for r in playlist if isinstance(r, dict) and any(v not in (None, '', [], {}) for v in r.values())]
 
+        # POWER_V3_CONTEXT_FIELD: synth/wavetable state participates without
+        # becoming a preset. Snapshot only scalar/numeric state for stability.
+        synth_state = getattr(self, 'instrument_param_state', {}).get(instrument_name, {}) if instrument_name else {}
+        if not isinstance(synth_state, dict):
+            synth_state = {}
+        numeric_synth = []
+        for k, v in synth_state.items():
+            try:
+                numeric_synth.append((str(k), float(v)))
+            except Exception:
+                pass
+        synth_blob = repr(sorted(numeric_synth))
+        synth_score = (int(hashlib.sha256(synth_blob.encode('utf-8','replace')).hexdigest()[:12], 16) % 10000) / 10000.0
+
+        # Imported WAV/video is a shared carrier. Its coarse energy is context,
+        # not a command to invent a musical program at boot.
+        media = getattr(self, 'media_carrier_slot', {}) or {}
+        media_wave = media.get('waveform') if isinstance(media, dict) else None
+        if media_wave is not None and np.asarray(media_wave).size:
+            arr = np.asarray(media_wave, dtype=np.float32).ravel()
+            edges = np.linspace(0, arr.size, max(2, 49)).astype(int)
+            mi = min(max(int(step), 0), len(edges)-2)
+            seg = arr[edges[mi]:max(edges[mi+1], edges[mi]+1)]
+            media_score = float(np.clip(np.sqrt(np.mean(seg*seg)) if seg.size else 0.0, 0.0, 1.0))
+        else:
+            media_score = 0.0
+
+        # Global effect state is another mathematical coordinate.
+        effect_vals = []
+        for attr in ('slider_eqr','slider_fractalizer','slider_pkp_decay','spin_base_frequency','spin_global_convolve'):
+            obj = getattr(self, attr, None)
+            try:
+                val = float(obj.value()) if obj is not None and hasattr(obj, 'value') else 0.0
+                effect_vals.append((attr, val))
+            except Exception:
+                pass
+        effect_blob = repr(effect_vals)
+        effect_score = (int(hashlib.sha256(effect_blob.encode('utf-8','replace')).hexdigest()[:12], 16) % 10000) / 10000.0
+
         # Script complexity: length + mathematical/operator density.
         digits = sum(ch.isdigit() for ch in script)
         ops = sum(script.count(op) for op in ('sin','cos','tan','exp','log','sqrt','evaluate','return'))
@@ -7503,16 +7612,28 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 pass
 
         seed = self.get_numeric_seed() if hasattr(self, 'get_numeric_seed') else 42
-        phase = ((step+1)*0.61803398875 + (row+1)*0.41421356237 + (seed % 997)*0.001) % 1.0
-        score = float(np.clip(0.30*script_score + 0.30*topology_score + 0.20*domain_score + 0.10*phase + 0.07*density + 0.03*row_velocity, 0.0, 1.0))
+        # POWER_V3_MEUM_FIELD: use the invariant M spatial ratio as a genuine
+        # contextual coordinate. The golden-ratio and sqrt(2) phase terms remain
+        # available elsewhere as their own mathematical constants; they are not Meum.
+        meum_phase = ((step + 1) * MEUM + (row + 1) * MEUM_INV + (seed % 997) * MEUM_NORM) % 1.0
+        meum_field = 0.5 + 0.5 * math.sin(2.0 * math.pi * meum_phase)
+        # POWER_V3_CONTEXT_FIELD: all subsystems contribute to one reproducible field.
+        score = float(np.clip(
+            0.22*script_score + 0.20*topology_score + 0.16*domain_score +
+            0.12*synth_score + 0.10*effect_score + 0.08*media_score +
+            0.04*meum_field + 0.03*density + 0.02*row_velocity +
+            0.03*meum_phase, 0.0, 1.0
+        ))
         return {
             'score': score, 'script': script_score, 'topology': topology_score,
-            'domain': float(domain_score), 'playlist_density': density,
-            'row_velocity': row_velocity, 'phase': float(phase)
+            'domain': float(domain_score), 'synth': float(synth_score),
+            'effects': float(effect_score), 'media': float(media_score),
+            'playlist_density': density, 'row_velocity': row_velocity,
+            'phase': float(meum_phase), 'meum_field': float(meum_field)
         }
 
     def _contextual_numerology(self, instrument_name="", step=0, row=0):
-        """Shared score used by Randomizer, Euclidean lock, and velocity painting."""
+        """Shared deterministic score; includes Meum spatial field, scripts, patch topology, domains, synth/effects, media, and playlist state."""
         import hashlib
         f = self._contextual_feature_vector(instrument_name, step, row)
         payload = repr((instrument_name, step, row, self._seed_text() if hasattr(self, '_seed_text') else '0', f))
@@ -7551,14 +7672,47 @@ class MathematiciansGrooveboxApp(QMainWindow):
             painted += 1
         return painted
 
+    # POWER_V3_PARAMETER_PAINT: one non-destructive interface for calculated or
+    # random step parameters. Velocity is represented by amplitude in the pad UI
+    # and by the explicit velocity field in the global playlist. No ownership
+    # hierarchy is imposed; explicit user edits remain the strongest local signal.
+    def _paint_step_parameters(self, rng=None, instrument_name=None, randomize=False,
+                               strength=1.0, include_velocity=True, include_pitch=True,
+                               include_probability=True):
+        name = instrument_name or (self.instrument_selector_dropdown.currentText()
+                                   if hasattr(self, 'instrument_selector_dropdown') else self.instrument_names_48[0])
+        mem = self.instrument_sequencer_memory.get(name)
+        if not isinstance(mem, dict):
+            return 0
+        count = int(self.spin_seq_length.value()) if hasattr(self, 'spin_seq_length') else 48
+        self._ensure_seq_mem_length(mem, count)
+        rng = rng or np.random.default_rng(self.get_numeric_seed())
+        changed = 0
+        for i in range(count):
+            ctx = self._contextual_numerology(name, i, i)
+            jitter = float(rng.uniform(-0.08, 0.08)) if randomize else 0.0
+            target_amp = float(np.clip(0.18 + 0.78*ctx + jitter, 0.05, 1.0))
+            target_pitch = float(np.clip(0.82 + 0.36*ctx + (rng.uniform(-0.05,0.05) if randomize else 0.0), 0.5, 1.5))
+            target_prob = int(np.clip(round(55 + 45*ctx + (rng.uniform(-8,8) if randomize else 0)), 1, 100))
+            if include_velocity:
+                mem['amplitudes'][i] = float(np.clip((1-strength)*float(mem['amplitudes'][i]) + strength*target_amp, 0.0, 1.0))
+            if include_pitch:
+                mem['pitches'][i] = float(np.clip((1-strength)*float(mem['pitches'][i]) + strength*target_pitch, 0.5, 1.5))
+            if include_probability:
+                mem['probabilities'][i] = int(round((1-strength)*float(mem['probabilities'][i]) + strength*target_prob))
+            changed += 1
+        self.reload_active_instrument_sequencer_ui()
+        return changed
+
     def _randomize_local_context(self):
         """Safe local randomization: preserve explicit user gates, vary free material and playlist velocity."""
         try:
             # Existing seeded engine already respects the protected/user-mask policy.
             self.apply_seeded_harmonic_randomization()
-            self._phase_lock_playlist_velocity(
-                np.random.default_rng(self.get_numeric_seed()), strength=0.35, randomize=True
-            )
+            rng = np.random.default_rng(self.get_numeric_seed())
+            self._paint_step_parameters(rng=rng, randomize=True, strength=0.55, include_velocity=True, include_pitch=True, include_probability=True)
+            self._paint_generated_parameters(rng=rng, source='randomizer')
+            self._phase_lock_playlist_velocity(rng, strength=0.35, randomize=True)
             self.reload_active_instrument_sequencer_ui()
         except Exception as e:
             print(f"[Local Randomize] skipped: {e}")
@@ -7568,9 +7722,10 @@ class MathematiciansGrooveboxApp(QMainWindow):
         try:
             if hasattr(self, "wavefield_engine") and self.wavefield_engine is not None:
                 self.wavefield_engine.apply_phase_locked_randomization()
-            self._phase_lock_playlist_velocity(
-                np.random.default_rng(self.get_numeric_seed()), strength=0.70, randomize=False
-            )
+            rng = np.random.default_rng(self.get_numeric_seed())
+            self._paint_step_parameters(rng=rng, randomize=False, strength=0.70, include_velocity=True, include_pitch=True, include_probability=True)
+            self._paint_generated_parameters(rng=rng, source='phase-lock')
+            self._phase_lock_playlist_velocity(rng, strength=0.70, randomize=False)
             self.reload_active_instrument_sequencer_ui()
         except Exception as e:
             print(f"[Local Phase Lock] skipped: {e}")
@@ -7795,8 +7950,35 @@ class MathematiciansGrooveboxApp(QMainWindow):
         global_fx_layout.addWidget(self.chk_pkp_automod)
         self.global_effects_group = global_fx_group
 
-        # GLOBAL_CONTEXT_CONTROLS_V2: arrangement and generative engines belong
-        # to the global composition plane. Keep them compact and clearly named.
+        # POWER_V3_GLOBAL_CONTROLS: construct global composition controls BEFORE
+        # any layout references them. Playlist, Randomizer, and Phase-Lock are
+        # global operators on the whole composition state, never local widgets.
+        def _make_global_operator_button(text, tooltip):
+            b = QPushButton(text)
+            b.setToolTip(tooltip)
+            b.setMinimumHeight(38)
+            b.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+            b.setStyleSheet(
+                "QPushButton { background-color:#121212; color:#f5d97d; "
+                "border:2px solid #f5d97d; border-radius:6px; padding:6px 10px; "
+                "font-weight:bold; } QPushButton:hover { background-color:#282018; } "
+                "QPushButton:pressed { background-color:#ff6b00; color:white; }"
+            )
+            return b
+
+        self.btn_view_playlist = _make_global_operator_button(
+            "📜 PLAYLIST",
+            "Open the global arrangement, velocity, automation, and paint context"
+        )
+        self.btn_local_randomize = _make_global_operator_button(
+            "🎲 RANDOMIZE",
+            "Context-aware global randomization using script, synth, patch bay, domain, media, and playlist state"
+        )
+        self.btn_local_phase_lock = _make_global_operator_button(
+            "🔒 PHASE-LOCK",
+            "Global Euclidean phase-lock using mathematical context, media field, and playlist feedback"
+        )
+
         global_context_group = QGroupBox("GLOBAL COMPOSITION")
         global_context_group.setToolTip("Global playlist, randomization, and Euclidean phase-lock controls.")
         global_context_layout = QHBoxLayout(global_context_group)
@@ -7831,15 +8013,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.btn_view_patchbay = self._make_local_context_button("🔌\nMODULAR", "Open modular routing for the active instrument context")
         self.btn_domain_eq = self._make_local_context_button("∫\nDOMAIN", "Edit time/space equations used as contextual modulation")
 
-        # GLOBAL_CONTEXT_CONTROLS_V2: Playlist, Randomizer, and Phase-Lock are
-        # global composition engines. They intentionally live beside the other
-        # global controls rather than in the selected-instrument context panel.
-        self.btn_view_playlist = QPushButton("📜 PLAYLIST")
-        self.btn_view_playlist.setToolTip("Open the global arrangement, velocity, and paint context")
-        self.btn_local_randomize = QPushButton("🎲 RANDOMIZE")
-        self.btn_local_randomize.setToolTip("Generate context-aware steps, velocity, and automation from the global script/synth/patch/domain/playlist field")
-        self.btn_local_phase_lock = QPushButton("🔒 PHASE-LOCK")
-        self.btn_local_phase_lock.setToolTip("Global Euclidean phase-lock using scripts, patch topology, domain equations, and playlist feedback")
+        # POWER_V3_GLOBAL_CONTROLS: buttons were constructed above so the Global
+        # panel can safely reference them before the Local panel is assembled.
 
         self.btn_edit_synth.clicked.connect(lambda: self.spawn_floating_window('synth_editor_window', "Synth Settings & Wavetable Interface"))
         self.btn_script_inst.clicked.connect(lambda: self.spawn_floating_window('script_editor_window', "Instrument Script Editor"))
@@ -7993,7 +8168,22 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.step_editor_popup.hide()
         self.selected_step_idx = None
 
-        # Visualizer focus dropdown
+        # POWER_V3_VISUAL_LAYOUT: master volume is directly above the shorter
+        # visualizer selector so the two controls read as one visual monitoring group.
+        master_vol_row = QHBoxLayout()
+        master_vol_row.addWidget(QLabel("Master Volume:"))
+        self.slider_master_vol = QSlider(Qt.Orientation.Horizontal)
+        self.slider_master_vol.setRange(0, 100)
+        self.slider_master_vol.setValue(80)
+        self.slider_master_vol.setFixedWidth(180)
+        self.slider_master_vol.valueChanged.connect(self._on_master_vol_changed)
+        master_vol_row.addWidget(self.slider_master_vol)
+        self.lbl_master_vol = QLabel("80%")
+        self.lbl_master_vol.setStyleSheet("color: #f5d97d;")
+        master_vol_row.addWidget(self.lbl_master_vol)
+        master_vol_row.addStretch(1)
+        seq_inner.addLayout(master_vol_row)
+
         vis_row = QHBoxLayout()
         vis_row.addWidget(QLabel("Visualizer:"))
         self.viz_mode_combo = QComboBox()
@@ -8003,6 +8193,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             "Overall Wave Pattern",
             "Per-Instrument Activity",
         ])
+        self.viz_mode_combo.setFixedWidth(190)
         self.viz_mode_combo.currentIndexChanged.connect(self._on_viz_mode_changed)
         vis_row.addWidget(self.viz_mode_combo)
         vis_row.addStretch(1)
@@ -8024,16 +8215,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.scope_status_label.setStyleSheet("color: #00ffff; font-weight: bold;")
         scope_bar.addWidget(self.scope_status_label, stretch=3)
 
-        scope_bar.addWidget(QLabel("Master Vol:"))
-        self.slider_master_vol = QSlider(Qt.Orientation.Horizontal)
-        self.slider_master_vol.setRange(0, 100)
-        self.slider_master_vol.setValue(80)
-        self.slider_master_vol.setFixedWidth(140)
-        self.slider_master_vol.valueChanged.connect(self._on_master_vol_changed)
-        scope_bar.addWidget(self.slider_master_vol)
-        self.lbl_master_vol = QLabel("80%")
-        self.lbl_master_vol.setStyleSheet("color: #f5d97d;")
-        scope_bar.addWidget(self.lbl_master_vol)
+        # POWER_V3_VISUAL_LAYOUT: master volume lives above Visualizer settings.
 
         self.btn_export = QToolButton()
         self.btn_export.setText("⬇ EXPORT")
@@ -8052,19 +8234,19 @@ class MathematiciansGrooveboxApp(QMainWindow):
         visual_pair.setSpacing(8)
         visual_left = QVBoxLayout()
         visual_left.addWidget(QLabel("LIVE AUDIO VISUALIZER"))
-        self.visual_oscilloscope.setMinimumSize(260, 240)
+        self.visual_oscilloscope.setMinimumSize(260, 180)
         self.visual_oscilloscope.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         visual_left.addWidget(self.visual_oscilloscope, stretch=1)
         visual_right = QVBoxLayout()
         visual_right.addWidget(QLabel("2.5D VIDEO GEOMETRY"))
-        self.video_synth_viewer.setMinimumSize(260, 240)
+        self.video_synth_viewer.setMinimumSize(320, 320)
         self.video_synth_viewer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         visual_right.addWidget(self.video_synth_viewer, stretch=1)
         visual_pair.addLayout(visual_left, stretch=1)
         visual_pair.addLayout(visual_right, stretch=1)
         visual_container = QWidget()
         visual_container.setLayout(visual_pair)
-        visual_container.setMinimumHeight(285)
+        visual_container.setMinimumHeight(330)
         master_container.addWidget(visual_container, stretch=1)
 
         # Realtime audio engine state (sounddevice stream)
@@ -8164,7 +8346,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             except ValueError:
                 op_idx = step_idx
             base_freq = float(self.spin_base_frequency.value()) if hasattr(self, "spin_base_frequency") else 432.0
-            base_freq *= (MEUM_CONSTANT ** (op_idx % 36))
+            base_freq *= MEUM_POWERS_36[op_idx % 36]
             # Slight pitch offset per step so the sequence is musical
             freq = base_freq * (1.0 + (step_idx % 12) * 0.03)
 
@@ -8672,7 +8854,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
             t = np.linspace(0, 0.08, n, endpoint=False)
             mix = np.zeros(n, dtype=np.float32)
             for i, name in enumerate(self.instrument_names_48):
-                freq = 44.0 * (MEUM_CONSTANT ** (i % 36))
+                freq = 44.0 * MEUM_POWERS_36[i % 36]
                 env = np.exp(-t / 0.03)
                 mix += (0.15 * env * np.sin(2 * np.pi * freq * t)).astype(np.float32)
             peak = np.max(np.abs(mix))
@@ -9315,7 +9497,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     or "Seeded Geometric Resonance Script" in existing
                 )
                 if is_stock:
-                    harmonic_multiplier = float((i % 7) + 1) * (MEUM_CONSTANT / 1.5)
+                    harmonic_multiplier = float((i % 7) + 1) * MEUM_OVER_1_5
                     self.instrument_scripts[name] = (
                         f"# Seeded Geometric Resonance Script [{self._seed_text()}] for {name}\n"
                         f"# (additive — user carrier preserved; fractal fill only)\n"
@@ -9789,7 +9971,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     op_name, {"steps": [False] * 48, "amplitudes": [1.0] * 48, "pitches": [1.0] * 48}
                 )
                 base_freq = float(self.spin_base_frequency.value()) if hasattr(self, "spin_base_frequency") else 432.0
-                base_freq *= (MEUM_CONSTANT ** (op_idx % 36))
+                base_freq *= MEUM_POWERS_36[op_idx % 36]
                 dynamic_eqr = base_eqr * (1.0 + 0.3 * np.sin(2.0 * np.pi * 0.2 * local_t + op_idx))
 
                 step_env = np.zeros_like(local_t)
@@ -10297,16 +10479,24 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
                 def update_time_markers():
                     selection_text = time_scale_combo.currentText()
-                    if "Unquantized" in selection_text:
-                        for row_idx in range(rows):
-                            time_str = f"Free-Time [{row_idx * (MEUM_CONSTANT / 1.0):.2f}s]"
-                            track_table.set_cell_item(row_idx, 0, QTableWidgetItem(time_str))
-                    else:
-                        step_seconds = 60.0 if "60.0s" in selection_text else (30.0 if "30.0s" in selection_text else (15.0 if "15.0s" in selection_text else (3.5 if "3.5s" in selection_text else 1.0)))
-                        for row_idx in range(rows):
+                    # POWER_V3_EMPTY_PLAYLIST: timing is generated only for rows that
+                    # actually contain a painted/programmed event. Opening the editor
+                    # therefore does not silently turn 96 blank rows into playlist data.
+                    for row_idx in range(rows):
+                        data_entry = self.master_playlist_data[row_idx] if row_idx < len(self.master_playlist_data) else {}
+                        has_content = isinstance(data_entry, dict) and any(
+                            v not in (None, "", [], {}) for k, v in data_entry.items()
+                            if k not in ("time_marker",)
+                        )
+                        if not has_content:
+                            continue
+                        if "Unquantized" in selection_text:
+                            time_str = f"Free-Time [{row_idx * MEUM_CONSTANT:.2f}s]"
+                        else:
+                            step_seconds = 60.0 if "60.0s" in selection_text else (30.0 if "30.0s" in selection_text else (15.0 if "15.0s" in selection_text else (3.5 if "3.5s" in selection_text else 1.0)))
                             total_seconds = row_idx * step_seconds
-                            time_label = f"T + {int(total_seconds // 60)}m {int(total_seconds % 60)}s" if total_seconds >= 60 else f"T + {total_seconds:.1f}s"
-                            track_table.set_cell_item(row_idx, 0, QTableWidgetItem(time_label))
+                            time_str = f"T + {int(total_seconds // 60)}m {int(total_seconds % 60)}s" if total_seconds >= 60 else f"T + {total_seconds:.1f}s"
+                        track_table.set_cell_item(row_idx, 0, QTableWidgetItem(time_str))
                     self.sync_playlist_grid_to_memory()
 
                 time_scale_combo.currentIndexChanged.connect(update_time_markers)
