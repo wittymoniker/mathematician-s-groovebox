@@ -7,7 +7,9 @@
 #   - Core architecture & original EQR design: project author
 #   - Implementation assistance (realtime audio, additive engines, domain
 #     partitions, bootstrap/simplify, Help system): Grok (xAI), Gemini (Google),
-#     and ChatGPT (OpenAI)
+#     Claude (Anthropic) and ChatGPT (OpenAI)
+#   - UI layout fix (export button placement) and user-touched-step tracking
+#     bug fix (see USER_TOUCHED_TRACKING below):
 #
 # Notable systems in this build:
 #   sounddevice realtime I/O, PKP pad bank, additive Euclidean/seeded engines,
@@ -75,14 +77,22 @@ MEUM_POWERS_36 = tuple(MEUM ** i for i in range(36))
 MEUM_IDENTITY_LHS = (MEUM_MINUS_1 * MEUM) + (MEUM_MINUS_1 * MEUM_INV)
 MEUM_IDENTITY_RHS = MEUM_TWO_POW_OVER_SQ - MEUM
 MEUM_IDENTITY_RESIDUAL = MEUM_IDENTITY_LHS - MEUM_IDENTITY_RHS
+# FONT_READABILITY_FIX: buttons/labels were clipping their own text at 11pt
+# because fixed/min widths elsewhere in the UI were sized for a smaller font
+# (see screenshot: "AY Audiovisual", "ded Live Rando", "uclidean Live L",
+# "Load WAV Carr" were all truncated). Dropped back to 9pt, which fits inside
+# the existing button widths, and let QPushButton auto-size to its label so
+# it clips less easily even if a translation/rename makes text longer later.
 DAW_STYLE = """
-    QMainWindow, QWidget { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; }
-    QPushButton { background-color: #2a2a2a; color: #ffffff; border: 1px solid #3a3a3a; border-radius: 3px; padding: 5px 10px; font-weight: bold; }
+    QMainWindow, QWidget { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 9pt; }
+    QPushButton { background-color: #2a2a2a; color: #ffffff; border: 1px solid #3a3a3a; border-radius: 3px; padding: 5px 8px; font-weight: bold; font-size: 9pt; min-height: 20px; }
+    QLabel { font-size: 9pt; }
+    QCheckBox { font-size: 9pt; }
     QPushButton:hover { background-color: #383838; border: 1px solid #555555; }
     QPushButton:pressed { background-color: #ff6b00; }
-    QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { background-color: #1a1a1a; color: #00ffcc; border: 1px solid #333333; border-radius: 3px; padding: 3px; }
+    QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { background-color: #1a1a1a; color: #00ffcc; border: 1px solid #333333; border-radius: 3px; padding: 3px; font-size: 9pt; }
     QTableWidget { background-color: #161616; gridline-color: #282828; color: #ffffff; }
-    QHeaderView::section { background-color: #1f1f1f; color: #aaaaaa; border: 1px solid #333333; font-size: 9px; }
+    QHeaderView::section { background-color: #1f1f1f; color: #aaaaaa; border: 1px solid #333333; font-size: 8pt; }
     QLabel { color: #cccccc; }
     QSlider::groove:horizontal { height: 4px; background: #333333; border-radius: 2px; }
     QSlider::handle:horizontal { background: #ff6b00; width: 12px; margin: -4px 0; border-radius: 6px; }
@@ -2859,7 +2869,7 @@ Each has sequencer memory (steps, amplitudes, gates, probabilities) and optional
   Global Cross-Loaded mode is default.
 
   End of Help — EQR Groovebox
-  Assisted by Grok (xAI), Gemini (Google), and ChatGPT (OpenAI)
+  Assisted by Grok (xAI), Gemini (Google), Claude (Anthropic) and ChatGPT (OpenAI)
 ================================================================================
 """
 
@@ -7801,6 +7811,11 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.instrument_selector_dropdown = QComboBox()
         self.instrument_selector_dropdown.addItems(self.instrument_names_48)
         self.instrument_selector_dropdown.currentIndexChanged.connect(self.on_instrument_switched)
+        # READABILITY_FIX: an uncapped QComboBox in this QHBoxLayout was
+        # expanding to fill available space and squeezing the neighboring
+        # buttons' text (e.g. "Seeded Live Randomizer" clipping to
+        # "ded Live Rando"). Capping its width lets siblings keep their labels.
+        self.instrument_selector_dropdown.setMaximumWidth(220)
 
         # Live regenerating toggles (not one-shot masks)
         self.btn_idealize_rhythm = QPushButton("✨ Euclidean Live Lock")
@@ -7836,8 +7851,9 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.input_seed_val.setMaximumHeight(150)
         self.input_seed_val.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        self.btn_export = QPushButton("💾 Export .wav...")
-
+        # NOTE: transport-bar WAV-only export button removed — the single
+        # EXPORT control lives next to the 2.5D video panel (self.btn_export,
+        # built later as a QToolButton with an Export Video action).
         self.btn_help = QPushButton("❓ README / Help")
         self.btn_help.setStyleSheet("background-color: #1f242c; color: #f5d97d; font-weight: bold; border: 1px solid #f5d97d; padding: 4px 10px;")
 
@@ -7862,7 +7878,6 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.btn_idealize_rhythm.toggled.connect(self._on_euclidean_live_toggled)
         self.btn_seeded_randomize.toggled.connect(self._on_seeded_live_toggled)
         self.chk_user_program_only.toggled.connect(self._on_user_program_only_toggled)
-        self.btn_export.clicked.connect(self.export_mixdown_dialog)
         self.btn_save_project.clicked.connect(self.save_project_dialog)
         self.btn_load_project.clicked.connect(self.load_project_dialog)
         self.btn_keyboard.clicked.connect(self.open_keyboard_test_window)
@@ -7877,12 +7892,20 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.transport_layout.addWidget(self.btn_keyboard)
         self.transport_layout.addWidget(self.btn_trigger_all)
         self.transport_layout.addStretch(1)
-        self.transport_layout.addWidget(self.btn_seeded_randomize)
-        self.transport_layout.addWidget(self.btn_idealize_rhythm)
-        self.transport_layout.addWidget(self.chk_user_program_only)
-        self.transport_layout.addWidget(self.btn_save_project)
-        self.transport_layout.addWidget(self.btn_load_project)
-        self.transport_layout.addWidget(self.btn_export)
+
+        # LAYOUT_WRAP_FIX: this row used to hold every remaining transport
+        # control (randomizer/lock toggles, checkbox, save/load) on one single
+        # QHBoxLayout, which forced Qt to clip button/label text once the
+        # window was narrower than the sum of everything's natural width
+        # (visible as "ded Live Rando", "uclidean Live L", etc). Splitting the
+        # tail onto its own row fixes that regardless of font size.
+        self.transport_layout_row2 = QHBoxLayout()
+        self.transport_layout_row2.addWidget(self.btn_seeded_randomize)
+        self.transport_layout_row2.addWidget(self.btn_idealize_rhythm)
+        self.transport_layout_row2.addWidget(self.chk_user_program_only)
+        self.transport_layout_row2.addStretch(1)
+        self.transport_layout_row2.addWidget(self.btn_save_project)
+        self.transport_layout_row2.addWidget(self.btn_load_project)
 
         # Live engine timers
         self._live_euclid_timer = QTimer(self)
@@ -7897,9 +7920,16 @@ class MathematiciansGrooveboxApp(QMainWindow):
         # Keep transport/global controls beside the script field rather than
         # consuming the width needed by the large script editor.
         self.global_controls_side.addLayout(self.transport_layout)
+        self.global_controls_side.addLayout(self.transport_layout_row2)
         master_container.addLayout(self.global_geometry_layout)
 
         self.top_layout = QHBoxLayout()
+        # LAYOUT_WRAP_FIX: this used to be one QHBoxLayout holding every
+        # global-media/arrangement control, which clipped text such as
+        # "Global Playli", "Base Global Frequ", "Load WAV Carr" once the
+        # window got narrower than the sum of all widget widths. Split into
+        # two stacked rows instead.
+        self.top_layout_row2 = QHBoxLayout()
         self.mode_combo = QComboBox()
         # Global / all instruments active is the default
         self.mode_combo.addItems(["Mode: Cross-Loaded Ecosystem (Global)", "Mode: Single Instrument"])
@@ -7993,6 +8023,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.global_controls_side.addWidget(self.global_effects_group, 0, Qt.AlignmentFlag.AlignTop)
         self.global_controls_side.addWidget(self.global_composition_group, 0, Qt.AlignmentFlag.AlignTop)
         self.global_controls_side.addLayout(self.top_layout)
+        self.global_controls_side.addLayout(self.top_layout_row2)
 
         # =====================================================================
         # LOCAL_CONTEXT_UI — only instrument-local controls remain here.
@@ -8034,9 +8065,9 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.spin_playlist_length = QSpinBox()
         self.spin_playlist_length.setRange(1, 1024)
         self.spin_playlist_length.setValue(96)
-        self.top_layout.addWidget(QLabel("Playlist Rows:"))
-        self.top_layout.addWidget(self.spin_playlist_length)
-        self.top_layout.addWidget(QLabel("Global Convolve:"))
+        self.top_layout_row2.addWidget(QLabel("Playlist Rows:"))
+        self.top_layout_row2.addWidget(self.spin_playlist_length)
+        self.top_layout_row2.addWidget(QLabel("Global Convolve:"))
         self.spin_global_convolve = QDoubleSpinBox()
         self.spin_global_convolve.setRange(0.0, 100.0)
         self.spin_global_convolve.setDecimals(2)
@@ -8044,7 +8075,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.spin_global_convolve.setValue(0.0)
         self.spin_global_convolve.setFixedWidth(82)
         self.spin_global_convolve.setToolTip("Cross-convolve the structural wave result; user-edited material remains protected.")
-        self.top_layout.addWidget(self.spin_global_convolve)
+        self.top_layout_row2.addWidget(self.spin_global_convolve)
         self.slider_global_convolve = self.spin_global_convolve  # compatibility alias
 
         # =====================================================================
@@ -8056,16 +8087,16 @@ class MathematiciansGrooveboxApp(QMainWindow):
             "Fit voices without net-effect user activity toward the loaded WAV "
             "carrier/reference. User-defined voices remain protected."
         )
-        self.top_layout.addWidget(self.chk_convolve_fit)
+        self.top_layout_row2.addWidget(self.chk_convolve_fit)
 
         self.btn_load_wav = QPushButton("📂 Load WAV Carrier")
         self.btn_load_wav.setToolTip("Load a WAV file as the global carrier/reference waveform.")
         self.btn_load_wav.clicked.connect(self.load_wav_carrier_dialog)
-        self.top_layout.addWidget(self.btn_load_wav)
+        self.top_layout_row2.addWidget(self.btn_load_wav)
 
         self.lbl_wav_carrier = QLabel("WAV: none")
         self.lbl_wav_carrier.setMinimumWidth(130)
-        self.top_layout.addWidget(self.lbl_wav_carrier)
+        self.top_layout_row2.addWidget(self.lbl_wav_carrier)
 
         # MEDIA_IMPORT_FEATURE — one global entry point for WAV or video carriers.
         self.btn_load_media = QPushButton("🎞 Load WAV / Video")
@@ -8074,7 +8105,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
             "the video stream can be blended back into the final MP4 export."
         )
         self.btn_load_media.clicked.connect(self.load_media_dialog)
-        self.top_layout.addWidget(self.btn_load_media)
+        self.top_layout_row2.addWidget(self.btn_load_media)
+        self.top_layout_row2.addStretch(1)
 
         sizing_layout = QHBoxLayout()
         sizing_layout.addWidget(QLabel("Pattern / STEP Length:"))
@@ -8210,24 +8242,32 @@ class MathematiciansGrooveboxApp(QMainWindow):
             self.visual_oscilloscope.setMinimumHeight(100)
             self.visual_oscilloscope.setMaximumHeight(120)
 
+        # EXPORT control is placed at the top of the 2D/2.5D video panel row.
+        # Offers three export modes via a dropdown menu on one button:
+        #   - Video only (no audio track muxed in)
+        #   - Audio only (.wav mixdown, reuses export_mixdown_dialog)
+        #   - Video + Audio (video with the rendered mixdown muxed in)
         scope_bar = QHBoxLayout()
-        self.scope_status_label = QLabel("📊 2.5D Video Synth + Oscilloscope  |  Status: Idle")
-        self.scope_status_label.setStyleSheet("color: #00ffff; font-weight: bold;")
-        scope_bar.addWidget(self.scope_status_label, stretch=3)
-
-        # POWER_V3_VISUAL_LAYOUT: master volume lives above Visualizer settings.
 
         self.btn_export = QToolButton()
         self.btn_export.setText("⬇ EXPORT")
         self.btn_export.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         export_menu = QMenu(self.btn_export)
-        export_wav_action = export_menu.addAction("Export WAV")
-        export_video_action = export_menu.addAction("Export Video")
-        export_wav_action.triggered.connect(self.export_mixdown_dialog)
-        export_video_action.triggered.connect(self.export_video_dialog)
+        export_video_only_action = export_menu.addAction("Video only")
+        export_audio_only_action = export_menu.addAction("Audio only (.wav)")
+        export_video_audio_action = export_menu.addAction("Video + Audio")
+        export_video_only_action.triggered.connect(lambda: self.export_video_dialog(include_audio=False))
+        export_audio_only_action.triggered.connect(self.export_mixdown_dialog)
+        export_video_audio_action.triggered.connect(lambda: self.export_video_dialog(include_audio=True))
         self.btn_export.setMenu(export_menu)
         self.btn_export_video = self.btn_export  # compatibility alias
-        scope_bar.addWidget(self.btn_export)
+        scope_bar.addWidget(self.btn_export, stretch=0)
+
+        self.scope_status_label = QLabel("📊 2.5D Video Synth + Oscilloscope  |  Status: Idle")
+        self.scope_status_label.setStyleSheet("color: #00ffff; font-weight: bold;")
+        scope_bar.addWidget(self.scope_status_label, stretch=3)
+
+        # POWER_V3_VISUAL_LAYOUT: master volume lives above Visualizer settings.
 
         master_container.addLayout(scope_bar)
         visual_pair = QHBoxLayout()
@@ -8576,6 +8616,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
         self.selected_step_idx = s_idx
         if same_step:
             mem["steps"][s_idx] = not bool(mem["steps"][s_idx])
+            # USER_TOUCHED_TRACKING: this is an actual manual click — the only
+            # place besides the amp/pitch sliders where a human is editing the
+            # grid — so mark the step touched. Presets/patches/randomizer output
+            # loaded straight into memory never pass through here, so they are
+            # correctly left untouched until a person edits them by hand.
+            self._mark_step_touched(mem, s_idx)
 
         if hasattr(self, 'lbl_selected_step'):
             self.lbl_selected_step.setText(f"Step: {s_idx + 1}")
@@ -8643,6 +8689,7 @@ class MathematiciansGrooveboxApp(QMainWindow):
         s = self.selected_step_idx
         self._ensure_seq_mem_length(mem, s + 1)
         mem["amplitudes"][s] = val / 100.0
+        self._mark_step_touched(mem, s)  # USER_TOUCHED_TRACKING: manual slider edit
         # Amp is velocity / step-trigger blend amount into painted together steps
         if mem["steps"][s] and s < len(self.seq_step_buttons):
             pitch = mem["pitches"][s] if s < len(mem.get("pitches", [])) else 1.0
@@ -8758,7 +8805,13 @@ class MathematiciansGrooveboxApp(QMainWindow):
             "playlist_rows": int(self.spin_playlist_length.value()) if hasattr(self, 'spin_playlist_length') else 32,
             "base_frequency": float(self.spin_base_frequency.value()) if hasattr(self, 'spin_base_frequency') else 432.0,
             "global_convolve": float(self.spin_global_convolve.value()) if hasattr(self, 'spin_global_convolve') else 0.0,
-            "instrument_sequencer_memory": self.instrument_sequencer_memory,
+            # USER_TOUCHED_TRACKING: 'touched' is stored as a set() in memory
+            # (for fast membership checks) but JSON has no set type, so it is
+            # serialized as a sorted list here and restored as a set on load.
+            "instrument_sequencer_memory": {
+                name: {**m, "touched": sorted(m.get("touched", set()))}
+                for name, m in self.instrument_sequencer_memory.items()
+            },
             "master_playlist_data": getattr(self, 'master_playlist_data', []),
             "playlist_automation": getattr(self, 'playlist_automation', []),
             "instrument_scripts": getattr(self, 'instrument_scripts', {}),
@@ -8794,6 +8847,14 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 self.slider_global_convolve.setValue(int(round(float(data.get("global_convolve", 0.0)) * 100.0)))
             mem = data.get("instrument_sequencer_memory", {})
             if mem:
+                # USER_TOUCHED_TRACKING: convert the saved 'touched' list back
+                # into a set. Older project files won't have this key at all —
+                # treat those as untouched (nothing loses net-effect status
+                # that a step's own ON/amplitude already implies elsewhere;
+                # this only restores which steps were user-programmed).
+                for m in mem.values():
+                    if "touched" in m:
+                        m["touched"] = set(m["touched"])
                 self.instrument_sequencer_memory.update(mem)
             self.master_playlist_data = data.get("master_playlist_data", [])
             self.playlist_automation = data.get("playlist_automation", [])
@@ -8946,11 +9007,40 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     stack.append(src)
         return effective
 
+    def _mark_step_touched(self, mem, s):
+        """
+        USER_TOUCHED_TRACKING: record that a human actually edited this step
+        (via pad click or the amp/pitch slider), as opposed to it merely being
+        ON because a default instrument, saved project, or additive engine
+        (Randomizer/PLL/Patch-Bay Optimizer) set it that way.
+
+        Without this, `_step_has_net_effect` had no way to distinguish "user
+        programmed this" from "this shipped/loaded already on at amplitude
+        1.0" — which is why default/preset content was being reported as
+        user-defined (amps_quantized counting preset steps) even when nothing
+        had been edited. Only _on_step_pad_clicked and _on_step_amp_slider
+        (the real manual-edit entry points) call this.
+        """
+        touched = mem.setdefault("touched", set())
+        touched.add(s)
+
     def _step_has_net_effect(self, mem, s):
-        """Step counts as effective user input only if ON with non-negligible amplitude."""
+        """
+        Step counts as effective *user* input only if:
+          - it was actually touched by the user (pad click / amp slider), AND
+          - it is ON with non-negligible amplitude.
+
+        Steps that are ON purely because a default preset, saved project, or
+        an additive engine (Randomizer/PLL/Optimizer) set them are NOT user
+        net-effect — they remain free for those engines to reshape until a
+        person actually edits them.
+        """
         steps = mem.get("steps", [])
         amps = mem.get("amplitudes", [])
+        touched = mem.get("touched", ())
         if s >= len(steps) or not steps[s]:
+            return False
+        if s not in touched:
             return False
         amp = float(amps[s]) if s < len(amps) else 1.0
         return abs(amp) > 0.02  # near-zero amp → no audible net effect
@@ -10282,8 +10372,8 @@ class MathematiciansGrooveboxApp(QMainWindow):
     # VIDEO_EXPORT_FEATURE — 2.5D render + audio mux + optional source-video blend
     # Revert: restore the prior export_video_dialog implementation.
     # =====================================================================
-    def export_video_dialog(self):
-        """Render the 2.5D geometry, mux rendered audio, and optionally blend source video."""
+    def export_video_dialog(self, include_audio=True):
+        """Render the 2.5D geometry, optionally mux rendered audio, and optionally blend source video."""
         tmp = None
         try:
             from PIL import Image
@@ -10310,11 +10400,13 @@ class MathematiciansGrooveboxApp(QMainWindow):
             frames_dir = os.path.join(tmp, "frames")
             os.makedirs(frames_dir, exist_ok=True)
             audio_path = os.path.join(tmp, "groovebox_audio.wav")
-            wavfile.write(audio_path, sr, (np.clip(master, -1, 1) * 32767).astype(np.int16)) if wavfile is not None else None
-            if wavfile is None:
-                with wave.open(audio_path, 'wb') as wf:
-                    wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(sr)
-                    wf.writeframes((np.clip(master, -1, 1) * 32767).astype(np.int16).tobytes())
+            if include_audio:
+                if wavfile is not None:
+                    wavfile.write(audio_path, sr, (np.clip(master, -1, 1) * 32767).astype(np.int16))
+                else:
+                    with wave.open(audio_path, 'wb') as wf:
+                        wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(sr)
+                        wf.writeframes((np.clip(master, -1, 1) * 32767).astype(np.int16).tobytes())
 
             eng = getattr(self, 'video_synth_engine', None) or VideoSynthEngine(48)
             w, h = 640, 360
