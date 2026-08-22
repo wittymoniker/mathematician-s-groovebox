@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Filename: launch_ultimate_groovebox.sh
-# Description: Ultimate shell launcher script for the Equation of Reality (EQR)
-#              Ultimate Groovebox, Modular Patch Bay, and 432Hz Audio Engine.
+# Filename: groovebox.sh
+# Description: Primary shell launcher for the Equation of Reality (EQR) Ultimate Groovebox.
 # ==============================================================================
 
 set -euo pipefail

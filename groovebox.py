@@ -10587,6 +10587,17 @@ class MathematiciansGrooveboxApp(QMainWindow):
 
             master[mask] += row_mix / max(len(active_cluster), 1)
 
+            # Keep the Qt GUI responsive during long offline renders.  Rendering remains
+            # deterministic; this only yields to pending paint/input events between rows.
+            if row_idx % 1 == 0:
+                try:
+                    if hasattr(self, "scope_status_label"):
+                        pct = int(100.0 * (row_idx + 1) / max(rows, 1))
+                        self.scope_status_label.setText(f"📊 Rendering full mixdown… {pct}%")
+                    QApplication.processEvents()
+                except Exception:
+                    pass
+
         # Global Convolve: deterministic geometric cross-convolution of the rendered carrier.
         # User-edited controls remain upstream; this stage only mixes the structural wave result.
         try:
@@ -10615,6 +10626,12 @@ class MathematiciansGrooveboxApp(QMainWindow):
                     if cn > 1e-9:
                         conv *= np.max(np.abs(master)) / cn
                     master = (1.0 - conv_amt) * master + conv_amt * conv
+                    try:
+                        if hasattr(self, "scope_status_label"):
+                            self.scope_status_label.setText("📊 Rendering full mixdown… 90% (global convolution)")
+                        QApplication.processEvents()
+                    except Exception:
+                        pass
         except Exception as e:
             print(f"[Global Convolve] skipped: {e}")
 
@@ -10629,6 +10646,13 @@ class MathematiciansGrooveboxApp(QMainWindow):
                 master = master * (1.0 + 0.45 * domain_mod.astype(np.float32))
             except Exception as e:
                 print(f"[DomainEQ] render modulation skipped: {e}")
+
+        try:
+            if hasattr(self, "scope_status_label"):
+                self.scope_status_label.setText("📊 Finalizing mixdown… 98%")
+            QApplication.processEvents()
+        except Exception:
+            pass
 
         peak = np.max(np.abs(master))
         if peak > 0:
